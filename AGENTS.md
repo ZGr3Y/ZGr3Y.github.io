@@ -14,3 +14,12 @@ This document defines the working agreements, pace, and interaction style for ag
 - **Main is sacred:** Never commit directly to `main`. All changes go through dedicated feature branches (`feat/issue-<number>-<slug>`).
 - **Conventional Commits:** Write clean, atomic commits (`feat:`, `test:`, `ci:`, `docs:`, `refactor:`) referencing the issue number.
 - **Pull Request workflow:** Open PRs using the formal PR template. Verify that GitHub Actions CI checks are 100% green before suggesting a merge.
+
+## Agent skills
+
+### Issue tracker
+Issues and specs for this repo live on GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+Single-context layout (root GLOSSARY.md and docs/adr/). See `docs/agents/domain.md`.
+
