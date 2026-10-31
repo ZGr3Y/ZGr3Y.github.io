@@ -66,7 +66,7 @@ Navigation smoothly travels the camera across 4 infrastructure tiers (Gateway, L
   - `PortfolioApp`: Full lifecycle initialization, station navigation (`navigateTo`), ARIA announcements, and DOM updates.
   - `CloudMeshTopology`: Node count validation, color mapping, and pointer spring physics bounds.
   - `IdleManager`: Idle timeout trigger and wake-up event dispatching.
-- **Prior Art**: Modern Vitest / Playwright component and integration testing patterns.
+- **Prior Art & Tooling**: Vitest for fast unit/seam TDD; Playwright for end-to-end mobile viewport emulation, touch swipe testing, and download verification in Tickets 10 & 11.
 
 ## Out of Scope
 
