@@ -1,0 +1,21 @@
+{
+  "name": "zgr3y-portfolio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "happy-dom": "^15.11.7",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.4"
+  }
+}
