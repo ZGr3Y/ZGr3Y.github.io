@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SpringPhysicsEngine } from './SpringPhysicsEngine.js';
+import { AdaptiveLightingEngine } from './AdaptiveLightingEngine.js';
 
 /**
  * Semantic Palette for Cloud System Topology
@@ -51,15 +51,16 @@ export class CloudMeshTopology {
     this._targetRotX = 0;
     this._targetPointerWorldPos = null;
     this._pointerWorldPos = null;
+    this._lastPulseTime = 0;
 
-    // Cosmic Gravitational Well & Fluid Orbital Physics
-    this.physics = new SpringPhysicsEngine({
-      stiffness: 12.0,
-      damping: 0.88,
-      attractionRadius: 6.0,
-      attractionForce: 15.0,
-      orbitalSwirl: 2.5,
-      coreRadius: 0.75
+    // Adaptive Photon Lighting & Network Ping Wave System
+    this.lighting = new AdaptiveLightingEngine({
+      ambientOpacity: 0.25,
+      activeOpacity: 0.95,
+      lightRadius: 7.0,
+      scaleBoost: 0.35,
+      pulseSpeed: 14.0,
+      maxPulseRadius: 18.0
     });
 
     this._generateTopology();
@@ -83,12 +84,6 @@ export class CloudMeshTopology {
     // 1. Generate Nodes per Tier
     tierKeys.forEach((tierKey, tierIdx) => {
       const config = TIER_CONFIG[tierKey];
-      const tierMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(config.color),
-        transparent: true,
-        opacity: 0.85
-      });
-      this.disposables.push(tierMat);
 
       for (let i = 0; i < nodesPerTier; i++) {
         const spread = 2.4;
@@ -102,7 +97,14 @@ export class CloudMeshTopology {
           config.center.z + jitterZ
         );
 
-        const nodeMesh = new THREE.Mesh(sphereGeo, tierMat);
+        const nodeMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(config.color),
+          transparent: true,
+          opacity: 0.25
+        });
+        this.disposables.push(nodeMat);
+
+        const nodeMesh = new THREE.Mesh(sphereGeo, nodeMat);
         nodeMesh.position.copy(pos);
         this.rootGroup.add(nodeMesh);
 
@@ -122,10 +124,11 @@ export class CloudMeshTopology {
     for (let r = 0; r < remainder; r++) {
       const tierKey = tierKeys[r % tierKeys.length];
       const config = TIER_CONFIG[tierKey];
+
       const remainderMat = new THREE.MeshBasicMaterial({
         color: new THREE.Color(config.color),
         transparent: true,
-        opacity: 0.85
+        opacity: 0.25
       });
       this.disposables.push(remainderMat);
 
@@ -231,7 +234,7 @@ export class CloudMeshTopology {
   }
 
   /**
-   * Sets normalized pointer coordinates for elastic deformation
+   * Sets normalized pointer coordinates for adaptive spotlight and ripples
    * @param {number|null} x - Normalized horizontal pointer [-1.0 to 1.0] (or null to clear)
    * @param {number|null} y - Normalized vertical pointer [-1.0 to 1.0] (or null to clear)
    */
@@ -255,15 +258,35 @@ export class CloudMeshTopology {
     if (!this._pointerWorldPos) {
       this._pointerWorldPos = this._targetPointerWorldPos.clone();
     }
+
+    // Trigger subtle water ripple waves as the cursor moves through space
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!this._lastPulseTime || (now - this._lastPulseTime > 650)) {
+      if (this.lighting && this._targetPointerWorldPos) {
+        this.lighting.triggerPulse(this._targetPointerWorldPos, 0.5);
+        this._lastPulseTime = now;
+      }
+    }
   }
 
   /**
-   * Updates physics simulation, packet progress and elastic pointer deflection
+   * Emits an expanding water ripple / ping wave from a 3D origin or current pointer
+   * @param {THREE.Vector3|null} [origin=null]
+   * @param {number} [intensity=1.0]
+   */
+  triggerPulse(origin = null, intensity = 1.0) {
+    if (!this.lighting) return;
+    const pulseOrigin = origin || this._pointerWorldPos || new THREE.Vector3(0, 0, 0);
+    this.lighting.triggerPulse(pulseOrigin, intensity);
+  }
+
+  /**
+   * Updates adaptive lighting, water ripples, packet progress and elastic rotation
    * @param {number} [delta=0.016] - Elapsed time in seconds
    * @param {number} [speedFactor=1.0] - Multiplier from IdleManager [0.0 - 1.0]
    */
   update(delta = 0.016, speedFactor = 1.0) {
-    // 1. Inertial trail smoothing for gravitational center
+    // 1. Inertial trail smoothing for pointer spotlight center
     if (this._targetPointerWorldPos) {
       if (!this._pointerWorldPos) {
         this._pointerWorldPos = this._targetPointerWorldPos.clone();
@@ -274,20 +297,21 @@ export class CloudMeshTopology {
       this._pointerWorldPos = null;
     }
 
-    // 2. Advance gravitational physics simulation for individual nodes
-    if (this.physics) {
+    // 2. Advance adaptive photon lighting & water ripple waves
+    if (this.lighting) {
       const activePointer = (speedFactor > 0.0001) ? this._pointerWorldPos : null;
-      this.physics.update(this.nodes, activePointer, delta * Math.max(0.1, speedFactor));
+      this.lighting.update(this.nodes, this.conduits, activePointer, delta * Math.max(0.1, speedFactor));
 
+      // Keep node positions firmly anchored to preserve architectural clarity
       for (let i = 0; i < this.nodes.length; i++) {
         const node = this.nodes[i];
-        if (node.mesh) {
-          node.mesh.position.copy(node.position);
+        if (node.mesh && node.basePosition) {
+          node.mesh.position.copy(node.basePosition);
         }
       }
     }
 
-    // 2. Advance packets along conduits
+    // 3. Advance packets along conduits
     this.conduits.forEach(conduit => {
       conduit.packets.forEach(packet => {
         if (speedFactor > 0.0001) {
@@ -301,7 +325,7 @@ export class CloudMeshTopology {
       });
     });
 
-    // 3. Elastic spring interpolation for pointer reaction
+    // 4. Elastic tilt interpolation for pointer reaction
     const lerpFactor = 0.08;
     this.rootGroup.rotation.y += (this._targetRotY - this.rootGroup.rotation.y) * lerpFactor;
     this.rootGroup.rotation.x += (this._targetRotX - this.rootGroup.rotation.x) * lerpFactor;
@@ -332,23 +356,23 @@ export class CloudMeshTopology {
   }
 
   /**
-   * Returns whether the topology rotation and spring physics have settled into resting equilibrium
+   * Returns whether the topology rotation and lighting have settled into resting equilibrium
    * @returns {boolean}
    */
   isResting() {
     const isRotResting = Math.abs(this.rootGroup.rotation.y - this._targetRotY) < 0.0005 &&
       Math.abs(this.rootGroup.rotation.x - this._targetRotX) < 0.0005;
-    const isPhysicsResting = this.physics ? this.physics.isResting(this.nodes) : true;
-    return isRotResting && isPhysicsResting;
+    const isLightingResting = this.lighting ? this.lighting.isResting(this.nodes) : true;
+    return isRotResting && isLightingResting;
   }
 
   /**
-   * Disposes all geometries, materials, and detaches root group
+   * Disposes all geometries, materials, lighting, and detaches root group
    */
   dispose() {
-    if (this.physics) {
-      this.physics.dispose();
-      this.physics = null;
+    if (this.lighting) {
+      this.lighting.dispose();
+      this.lighting = null;
     }
 
     this.disposables.forEach(item => {

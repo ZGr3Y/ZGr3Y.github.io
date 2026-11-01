@@ -147,10 +147,22 @@ export class PortfolioApp {
       this._resumeLoop();
     };
 
+    this._onPointerDown = () => {
+      if (!this.topology || typeof window === 'undefined') return;
+      if (typeof this.topology.triggerPulse === 'function') {
+        this.topology.triggerPulse(null, 1.0);
+      }
+      if (this.idleManager) {
+        this.idleManager.recordActivity();
+      }
+      this._resumeLoop();
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this._onResize);
       window.addEventListener('pointermove', this._onPointerMove);
       window.addEventListener('pointerleave', this._onPointerLeave);
+      window.addEventListener('pointerdown', this._onPointerDown);
       window.addEventListener('touchstart', this._onTouchMove, { passive: true });
       window.addEventListener('touchmove', this._onTouchMove, { passive: true });
       window.addEventListener('touchend', this._onTouchEnd);
@@ -273,6 +285,7 @@ export class PortfolioApp {
       window.removeEventListener('resize', this._onResize);
       window.removeEventListener('pointermove', this._onPointerMove);
       window.removeEventListener('pointerleave', this._onPointerLeave);
+      window.removeEventListener('pointerdown', this._onPointerDown);
       window.removeEventListener('touchstart', this._onTouchMove);
       window.removeEventListener('touchmove', this._onTouchMove);
       window.removeEventListener('touchend', this._onTouchEnd);

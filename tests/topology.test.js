@@ -94,7 +94,7 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     expect(root.rotation.x).not.toBe(0);
   });
 
-  it('integra SpringPhysicsEngine per deformare e ripristinare i nodi al movimento del puntatore', () => {
+  it('integra AdaptiveLightingEngine per illuminare e far brillare i nodi in prossimità del puntatore e tornare a riposo', () => {
     topology = new CloudMeshTopology({ scene, nodeCount: 40 });
     const nodes = topology.getNodes();
     const firstNode = nodes[0];
@@ -102,21 +102,32 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     // Posizioniamo il puntatore vicino alle coordinate del primo nodo
     topology.setPointer(firstNode.basePosition.x / 8, firstNode.basePosition.y / 5);
 
-    // Aggiorniamo per 10 frame: il nodo deve subire spostamento elastico
-    for (let i = 0; i < 10; i++) {
+    // Aggiorniamo per 15 frame: il nodo deve illuminarsi e sbocciare in scala
+    for (let i = 0; i < 15; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBeGreaterThan(0.005);
+    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.5);
+    expect(firstNode.mesh.scale.x).toBeGreaterThan(1.1);
+
+    // Le coordinate geometriche 3D rimangono stabili (nessuna distorsione caotica della mesh)
+    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBe(0);
 
     // Rimuoviamo il puntatore (null)
     topology.setPointer(null, null);
 
-    // Aggiorniamo per 160 frame: il nodo deve riassestarsi verso la base
-    for (let i = 0; i < 160; i++) {
+    // Aggiorniamo per 100 frame (~1.6s): impulsi e rotazione devono riassestarsi verso lo stato ambient
+    for (let i = 0; i < 100; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBeLessThan(0.05);
+    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.25, 2);
+    expect(firstNode.mesh.scale.x).toBeCloseTo(1.0, 2);
     expect(topology.isResting()).toBe(true);
+  });
+
+  it('emette un impulso concentrico di luce (Ping Wave) tramite triggerPulse()', () => {
+    topology = new CloudMeshTopology({ scene, nodeCount: 40 });
+    expect(() => topology.triggerPulse()).not.toThrow();
+    expect(topology.lighting.pulses.length).toBe(1);
   });
 
   it('smaltisce geometrie, materiali e rimuove il gruppo Three.js alla distruzione (destroy)', () => {
