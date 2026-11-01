@@ -111,8 +111,8 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     // Rimuoviamo il puntatore (null)
     topology.setPointer(null, null);
 
-    // Aggiorniamo per 120 frame: il nodo deve riassestarsi verso la base
-    for (let i = 0; i < 120; i++) {
+    // Aggiorniamo per 160 frame: il nodo deve riassestarsi verso la base
+    for (let i = 0; i < 160; i++) {
       topology.update(0.016, 1.0);
     }
     expect(firstNode.position.distanceTo(firstNode.basePosition)).toBeLessThan(0.05);

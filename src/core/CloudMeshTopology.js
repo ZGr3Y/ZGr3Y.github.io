@@ -49,14 +49,17 @@ export class CloudMeshTopology {
 
     this._targetRotY = 0;
     this._targetRotX = 0;
+    this._targetPointerWorldPos = null;
     this._pointerWorldPos = null;
 
-    // High-performance elastic spring-damper physics engine
+    // Cosmic Gravitational Well & Fluid Orbital Physics
     this.physics = new SpringPhysicsEngine({
-      stiffness: 0.12,
-      damping: 0.85,
-      repulsionRadius: 3.5,
-      repulsionForce: 2.2
+      stiffness: 12.0,
+      damping: 0.88,
+      attractionRadius: 6.0,
+      attractionForce: 15.0,
+      orbitalSwirl: 2.5,
+      coreRadius: 0.75
     });
 
     this._generateTopology();
@@ -234,7 +237,7 @@ export class CloudMeshTopology {
    */
   setPointer(x, y) {
     if (x === null || y === null || typeof x !== 'number' || typeof y !== 'number') {
-      this._pointerWorldPos = null;
+      this._targetPointerWorldPos = null;
       this._targetRotY = 0;
       this._targetRotX = 0;
       return;
@@ -243,11 +246,15 @@ export class CloudMeshTopology {
     this._targetRotY = x * 0.35;
     this._targetRotX = -y * 0.25;
 
-    // Project pointer into 3D node plane space for elastic local repulsion
-    if (!this._pointerWorldPos) {
-      this._pointerWorldPos = new THREE.Vector3();
+    // Project pointer into 3D node space
+    if (!this._targetPointerWorldPos) {
+      this._targetPointerWorldPos = new THREE.Vector3();
     }
-    this._pointerWorldPos.set(x * 8.0, y * 5.0, 0.5);
+    this._targetPointerWorldPos.set(x * 8.0, y * 5.0, 0.5);
+
+    if (!this._pointerWorldPos) {
+      this._pointerWorldPos = this._targetPointerWorldPos.clone();
+    }
   }
 
   /**
@@ -256,7 +263,18 @@ export class CloudMeshTopology {
    * @param {number} [speedFactor=1.0] - Multiplier from IdleManager [0.0 - 1.0]
    */
   update(delta = 0.016, speedFactor = 1.0) {
-    // 1. Advance physical spring-damper simulation for individual nodes
+    // 1. Inertial trail smoothing for gravitational center
+    if (this._targetPointerWorldPos) {
+      if (!this._pointerWorldPos) {
+        this._pointerWorldPos = this._targetPointerWorldPos.clone();
+      } else {
+        this._pointerWorldPos.lerp(this._targetPointerWorldPos, 0.12);
+      }
+    } else {
+      this._pointerWorldPos = null;
+    }
+
+    // 2. Advance gravitational physics simulation for individual nodes
     if (this.physics) {
       const activePointer = (speedFactor > 0.0001) ? this._pointerWorldPos : null;
       this.physics.update(this.nodes, activePointer, delta * Math.max(0.1, speedFactor));

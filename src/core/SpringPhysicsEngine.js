@@ -1,43 +1,45 @@
 import * as THREE from 'three';
 
 /**
- * SpringPhysicsEngine - High-performance spring-damper physics engine
- * Calculates elastic Hooke restoring forces, kinetic damping, and localized pointer repulsion.
+ * SpringPhysicsEngine - Cosmic Gravitational Well & Fluid Orbital Physics
+ * Simulates soft gravitational attraction, tangential orbital swirl, and silky Hooke restoring forces.
  */
 export class SpringPhysicsEngine {
   /**
    * @param {Object} [options]
-   * @param {number} [options.stiffness=0.12] - Spring restoration coefficient
-   * @param {number} [options.damping=0.85] - Kinetic velocity retention factor [0.0 - 1.0]
-   * @param {number} [options.repulsionRadius=3.5] - Maximum interaction radius around pointer
-   * @param {number} [options.repulsionForce=2.0] - Maximum repulsion strength at zero distance
+   * @param {number} [options.stiffness=12.0] - Elastic Hooke restoration coefficient
+   * @param {number} [options.damping=0.88] - Viscous fluid momentum factor [0.0 - 1.0]
+   * @param {number} [options.attractionRadius=6.0] - Maximum gravitational interaction radius
+   * @param {number} [options.attractionForce=15.0] - Gravitational pull intensity
+   * @param {number} [options.orbitalSwirl=2.5] - Subtle tangential slingshot swirl factor
+   * @param {number} [options.coreRadius=0.75] - Inner cushion preventing particle collapse
    */
   constructor({
-    stiffness = 0.12,
-    damping = 0.85,
-    repulsionRadius = 3.5,
-    repulsionForce = 2.0
+    stiffness = 12.0,
+    damping = 0.88,
+    attractionRadius = 6.0,
+    attractionForce = 15.0,
+    orbitalSwirl = 2.5,
+    coreRadius = 0.75
   } = {}) {
     this.stiffness = stiffness;
     this.damping = damping;
-    this.repulsionRadius = repulsionRadius;
-    this.repulsionForce = repulsionForce;
-
-    // Preallocated internal scratch vectors to avoid garbage collection allocations
-    this._deltaDisp = new THREE.Vector3();
-    this._deltaPtr = new THREE.Vector3();
+    this.attractionRadius = attractionRadius;
+    this.attractionForce = attractionForce;
+    this.orbitalSwirl = orbitalSwirl;
+    this.coreRadius = coreRadius;
   }
 
   /**
    * Advances the physical simulation for all nodes by delta time
    * @param {Array<Object>} nodes - Array of nodes with position, basePosition, and velocity Vector3s
-   * @param {THREE.Vector3|null} pointerWorldPos - 3D world coordinates of pointer influence (or null)
+   * @param {THREE.Vector3|null} pointerWorldPos - 3D world coordinates of gravitational center (or null)
    * @param {number} [delta=0.016] - Frame delta time in seconds
    */
   update(nodes, pointerWorldPos = null, delta = 0.016) {
     if (!nodes || nodes.length === 0) return;
 
-    const timeScale = delta > 0 ? (delta / 0.016) : 1.0;
+    const timeScale = delta > 0 ? (delta * 60) : 1.0;
     const effectiveDamping = Math.pow(this.damping, timeScale);
 
     for (let i = 0; i < nodes.length; i++) {
@@ -48,7 +50,7 @@ export class SpringPhysicsEngine {
         node.velocity = new THREE.Vector3(0, 0, 0);
       }
 
-      // 1. Spring restoring force towards basePosition (Hooke's Law: F = -k * x)
+      // 1. Restoring force towards basePosition (Hooke's Law: F = -k * x)
       const dispX = node.position.x - node.basePosition.x;
       const dispY = node.position.y - node.basePosition.y;
       const dispZ = node.position.z - node.basePosition.z;
@@ -57,38 +59,58 @@ export class SpringPhysicsEngine {
       let forceY = -this.stiffness * dispY;
       let forceZ = -this.stiffness * dispZ;
 
-      // 2. Localized elastic pointer repulsion
+      // 2. Gravitational Well Attraction & Orbital Slingshot Swirl
       if (pointerWorldPos) {
-        const dx = node.position.x - pointerWorldPos.x;
-        const dy = node.position.y - pointerWorldPos.y;
-        const dz = node.position.z - pointerWorldPos.z;
-        const distSq = dx * dx + dy * dy + dz * dz;
+        const toPtrX = pointerWorldPos.x - node.position.x;
+        const toPtrY = pointerWorldPos.y - node.position.y;
+        const toPtrZ = pointerWorldPos.z - node.position.z;
+        const distSq = toPtrX * toPtrX + toPtrY * toPtrY + toPtrZ * toPtrZ;
 
-        if (distSq < this.repulsionRadius * this.repulsionRadius && distSq > 0.000001) {
+        if (distSq < this.attractionRadius * this.attractionRadius && distSq > 0.0001) {
           const dist = Math.sqrt(distSq);
-          const factor = (1.0 - (dist / this.repulsionRadius)) * this.repulsionForce;
+          const normDist = dist / this.attractionRadius;
 
-          forceX += (dx / dist) * factor;
-          forceY += (dy / dist) * factor;
-          forceZ += (dz / dist) * factor;
+          // Smooth quadratic falloff curve: seamless across boundaries
+          const falloff = (1.0 - normDist) * (1.0 - normDist);
+
+          if (dist > this.coreRadius) {
+            // Gravitational Pull towards cursor
+            const pullFactor = (this.attractionForce * falloff) / dist;
+            forceX += toPtrX * pullFactor;
+            forceY += toPtrY * pullFactor;
+            forceZ += toPtrZ * pullFactor;
+
+            // Subtle tangential orbital curl
+            if (this.orbitalSwirl > 0) {
+              const swirlFactor = (this.orbitalSwirl * falloff) / dist;
+              forceX += -toPtrY * swirlFactor;
+              forceY += toPtrX * swirlFactor;
+            }
+          } else {
+            // Soft inner cushion buffer: prevents nodes from collapsing into the cursor center
+            const pushFactor = ((this.coreRadius - dist) / this.coreRadius) * this.attractionForce * 1.5;
+            forceX -= (toPtrX / dist) * pushFactor;
+            forceY -= (toPtrY / dist) * pushFactor;
+            forceZ -= (toPtrZ / dist) * pushFactor;
+          }
         }
       }
 
-      // 3. Integrate forces into velocity with damping
+      // 3. Integrate forces into velocity with fluid damping
       node.velocity.x = (node.velocity.x + forceX * timeScale) * effectiveDamping;
       node.velocity.y = (node.velocity.y + forceY * timeScale) * effectiveDamping;
       node.velocity.z = (node.velocity.z + forceZ * timeScale) * effectiveDamping;
 
-      // 4. Update position
-      node.position.x += node.velocity.x * timeScale;
-      node.position.y += node.velocity.y * timeScale;
-      node.position.z += node.velocity.z * timeScale;
+      // 4. Update position scaled by delta
+      node.position.x += node.velocity.x * delta;
+      node.position.y += node.velocity.y * delta;
+      node.position.z += node.velocity.z * delta;
 
-      // Numerical precision settling snap
+      // Precision settling snap when forces and velocities are near zero
       if (!pointerWorldPos) {
         const currentDispSq = dispX * dispX + dispY * dispY + dispZ * dispZ;
         const currentVelSq = node.velocity.lengthSq();
-        if (currentDispSq < 0.0001 && currentVelSq < 0.0001) {
+        if (currentDispSq < 0.0025 && currentVelSq < 0.0025) {
           node.position.copy(node.basePosition);
           node.velocity.set(0, 0, 0);
         }
@@ -99,10 +121,10 @@ export class SpringPhysicsEngine {
   /**
    * Returns whether all nodes have settled into equilibrium with near-zero kinetic energy
    * @param {Array<Object>} nodes - Array of physical nodes
-   * @param {number} [tolerance=0.001] - Kinetic and displacement energy threshold
+   * @param {number} [tolerance=0.01] - Kinetic and displacement energy threshold
    * @returns {boolean}
    */
-  isResting(nodes, tolerance = 0.001) {
+  isResting(nodes, tolerance = 0.01) {
     if (!nodes || nodes.length === 0) return true;
 
     const tolSq = tolerance * tolerance;
@@ -131,7 +153,6 @@ export class SpringPhysicsEngine {
    * Cleanup method in accordance with Coding Standard #7
    */
   dispose() {
-    this._deltaDisp = null;
-    this._deltaPtr = null;
+    // Stateless physics engine cleanup
   }
 }

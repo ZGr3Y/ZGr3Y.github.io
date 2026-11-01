@@ -2,16 +2,18 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import * as THREE from 'three';
 import { SpringPhysicsEngine } from '../src/core/SpringPhysicsEngine.js';
 
-describe('SpringPhysicsEngine (Elastic Spring-Damper & Pointer Influence)', () => {
+describe('SpringPhysicsEngine (Gravitational Well & Fluid Orbital Swirl)', () => {
   let engine;
 
   beforeEach(() => {
-    // Inizializza l'engine con i parametri specificati nel Ticket 03 (Issue #4)
+    // Inizializza l'engine gravitazionale con parametri fluidi
     engine = new SpringPhysicsEngine({
-      stiffness: 0.12,
-      damping: 0.85,
-      repulsionRadius: 3.5,
-      repulsionForce: 2.0
+      stiffness: 12.0,
+      damping: 0.88,
+      attractionRadius: 6.0,
+      attractionForce: 15.0,
+      orbitalSwirl: 2.5,
+      coreRadius: 0.75
     });
   });
 
@@ -33,80 +35,82 @@ describe('SpringPhysicsEngine (Elastic Spring-Damper & Pointer Influence)', () =
     expect(engine.isResting(nodes)).toBe(true);
   });
 
-  it('riporta un nodo spostato alla sua basePosition tramite oscillazione smorzata (Legge di Hooke)', () => {
+  it('riporta un nodo spostato alla sua basePosition con scorrimento fluido e smorzato', () => {
     const nodes = [
       {
-        position: new THREE.Vector3(3, 0, 0), // Spostato di +2 unità lungo l'asse X
-        basePosition: new THREE.Vector3(1, 0, 0),
+        position: new THREE.Vector3(3, 0, 0), // Spostato di +1 unità rispetto a base
+        basePosition: new THREE.Vector3(2, 0, 0),
         velocity: new THREE.Vector3(0, 0, 0)
       }
     ];
 
-    // Primo frame: la molla deve generare una forza di richiamo verso sinistra (-X)
+    // Primo frame: la molla morbida inizia a tirare verso sinistra (-X)
     engine.update(nodes, null, 0.016);
     expect(nodes[0].velocity.x).toBeLessThan(0);
 
-    // Simuliamo 120 frame di assestamento fisico (circa 2 secondi a 60fps)
-    for (let i = 0; i < 120; i++) {
+    // Simuliamo 150 frame di scorrimento cinematografico fluido
+    for (let i = 0; i < 150; i++) {
       engine.update(nodes, null, 0.016);
     }
 
-    // Il nodo deve essere tornato vicino alla basePosition (1, 0, 0) con velocità azzerata
-    expect(nodes[0].position.x).toBeCloseTo(1, 1);
+    // Il nodo deve essere tornato vicino alla basePosition (2, 0, 0)
+    expect(nodes[0].position.x).toBeCloseTo(2, 1);
     expect(nodes[0].velocity.length()).toBeCloseTo(0, 1);
     expect(engine.isResting(nodes)).toBe(true);
   });
 
-  it('applica una forza elastica di repulsione solo ai nodi vicini al puntatore', () => {
+  it('esercita un attrazione gravitazionale fluida sui nodi nel suo raggio di influenza', () => {
+    // Nodo a x = 2.0 (entro attractionRadius = 6.0)
     const nodeNear = {
-      position: new THREE.Vector3(0.5, 0, 0),
-      basePosition: new THREE.Vector3(0.5, 0, 0),
+      position: new THREE.Vector3(2.0, 0, 0),
+      basePosition: new THREE.Vector3(2.0, 0, 0),
       velocity: new THREE.Vector3(0, 0, 0)
     };
+    // Nodo a x = 20.0 (fuori dal raggio gravitazionale)
     const nodeFar = {
-      position: new THREE.Vector3(15, 0, 0), // Ben oltre repulsionRadius = 3.5
-      basePosition: new THREE.Vector3(15, 0, 0),
+      position: new THREE.Vector3(20, 0, 0),
+      basePosition: new THREE.Vector3(20, 0, 0),
       velocity: new THREE.Vector3(0, 0, 0)
     };
     const nodes = [nodeNear, nodeFar];
 
-    // Puntatore posizionato sull'origine (0, 0, 0)
+    // Centro gravitazionale all'origine (0, 0, 0)
     const pointerPos = new THREE.Vector3(0, 0, 0);
 
     engine.update(nodes, pointerPos, 0.016);
 
-    // Il nodo vicino (a distanza 0.5) deve essere respinto verso l'esterno (+X)
-    expect(nodeNear.velocity.x).toBeGreaterThan(0);
-    expect(nodeNear.position.x).toBeGreaterThan(0.5);
+    // Il nodo vicino viene attratto verso il cursore (verso -X)
+    expect(nodeNear.velocity.x).toBeLessThan(0);
+    expect(nodeNear.position.x).toBeLessThan(2.0);
 
-    // Il nodo lontano non deve subire alcuna alterazione
+    // Il nodo lontano non subisce alcuna alterazione
     expect(nodeFar.velocity.length()).toBe(0);
-    expect(nodeFar.position.x).toBe(15);
+    expect(nodeFar.position.x).toBe(20);
   });
 
-  it('consente il recupero elastico una volta che il puntatore si allontana', () => {
+  it('consente il recupero elastico setoso una volta che il cursore si allontana', () => {
     const node = {
-      position: new THREE.Vector3(0.5, 0, 0),
-      basePosition: new THREE.Vector3(0.5, 0, 0),
+      position: new THREE.Vector3(2.0, 0, 0),
+      basePosition: new THREE.Vector3(2.0, 0, 0),
       velocity: new THREE.Vector3(0, 0, 0)
     };
     const nodes = [node];
     const pointerPos = new THREE.Vector3(0, 0, 0);
 
-    // Il puntatore deforma il nodo per 10 frame
-    for (let i = 0; i < 10; i++) {
+    // Gravità attiva per 15 frame
+    for (let i = 0; i < 15; i++) {
       engine.update(nodes, pointerPos, 0.016);
     }
-    expect(node.position.x).toBeGreaterThan(0.5);
+    expect(node.position.x).toBeLessThan(2.0);
     expect(engine.isResting(nodes)).toBe(false);
 
-    // Il puntatore se ne va (null)
+    // Cursore allontanato (null)
     for (let i = 0; i < 150; i++) {
       engine.update(nodes, null, 0.016);
     }
 
-    // Il nodo deve essere tornato alla sua posizione di riposo originaria
-    expect(node.position.x).toBeCloseTo(0.5, 1);
+    // Il nodo deve essere tornato alla sua orbita base
+    expect(node.position.x).toBeCloseTo(2.0, 1);
     expect(engine.isResting(nodes)).toBe(true);
   });
 });
