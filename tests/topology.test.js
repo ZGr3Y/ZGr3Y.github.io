@@ -94,6 +94,31 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     expect(root.rotation.x).not.toBe(0);
   });
 
+  it('integra SpringPhysicsEngine per deformare e ripristinare i nodi al movimento del puntatore', () => {
+    topology = new CloudMeshTopology({ scene, nodeCount: 40 });
+    const nodes = topology.getNodes();
+    const firstNode = nodes[0];
+
+    // Posizioniamo il puntatore vicino alle coordinate del primo nodo
+    topology.setPointer(firstNode.basePosition.x / 8, firstNode.basePosition.y / 5);
+
+    // Aggiorniamo per 10 frame: il nodo deve subire spostamento elastico
+    for (let i = 0; i < 10; i++) {
+      topology.update(0.016, 1.0);
+    }
+    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBeGreaterThan(0.005);
+
+    // Rimuoviamo il puntatore (null)
+    topology.setPointer(null, null);
+
+    // Aggiorniamo per 120 frame: il nodo deve riassestarsi verso la base
+    for (let i = 0; i < 120; i++) {
+      topology.update(0.016, 1.0);
+    }
+    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBeLessThan(0.05);
+    expect(topology.isResting()).toBe(true);
+  });
+
   it('smaltisce geometrie, materiali e rimuove il gruppo Three.js alla distruzione (destroy)', () => {
     topology = new CloudMeshTopology({ scene, nodeCount: 40 });
     const root = topology.getRootGroup();

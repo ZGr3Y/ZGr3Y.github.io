@@ -121,9 +121,40 @@ export class PortfolioApp {
       this._resumeLoop();
     };
 
+    this._onPointerLeave = () => {
+      if (!this.topology || typeof window === 'undefined') return;
+      this.topology.setPointer(null, null);
+      this._resumeLoop();
+    };
+
+    this._onTouchMove = (e) => {
+      if (!this.topology || typeof window === 'undefined') return;
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const normX = (touch.clientX / window.innerWidth) * 2 - 1;
+        const normY = -(touch.clientY / window.innerHeight) * 2 + 1;
+        this.topology.setPointer(normX, normY);
+        if (this.idleManager) {
+          this.idleManager.recordActivity();
+        }
+        this._resumeLoop();
+      }
+    };
+
+    this._onTouchEnd = () => {
+      if (!this.topology || typeof window === 'undefined') return;
+      this.topology.setPointer(null, null);
+      this._resumeLoop();
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this._onResize);
       window.addEventListener('pointermove', this._onPointerMove);
+      window.addEventListener('pointerleave', this._onPointerLeave);
+      window.addEventListener('touchstart', this._onTouchMove, { passive: true });
+      window.addEventListener('touchmove', this._onTouchMove, { passive: true });
+      window.addEventListener('touchend', this._onTouchEnd);
+      window.addEventListener('touchcancel', this._onTouchEnd);
     }
 
     // Start render animation loop
@@ -241,6 +272,11 @@ export class PortfolioApp {
       }
       window.removeEventListener('resize', this._onResize);
       window.removeEventListener('pointermove', this._onPointerMove);
+      window.removeEventListener('pointerleave', this._onPointerLeave);
+      window.removeEventListener('touchstart', this._onTouchMove);
+      window.removeEventListener('touchmove', this._onTouchMove);
+      window.removeEventListener('touchend', this._onTouchEnd);
+      window.removeEventListener('touchcancel', this._onTouchEnd);
     }
 
     if (this.topology) {

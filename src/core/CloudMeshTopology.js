@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SpringPhysicsEngine } from './SpringPhysicsEngine.js';
 
 /**
  * Semantic Palette for Cloud System Topology
@@ -48,6 +49,15 @@ export class CloudMeshTopology {
 
     this._targetRotY = 0;
     this._targetRotX = 0;
+    this._pointerWorldPos = null;
+
+    // High-performance elastic spring-damper physics engine
+    this.physics = new SpringPhysicsEngine({
+      stiffness: 0.12,
+      damping: 0.85,
+      repulsionRadius: 3.5,
+      repulsionForce: 2.2
+    });
 
     this._generateTopology();
 
@@ -98,6 +108,7 @@ export class CloudMeshTopology {
           tier: tierKey,
           position: pos,
           basePosition: pos.clone(),
+          velocity: new THREE.Vector3(0, 0, 0),
           mesh: nodeMesh
         });
       }
@@ -128,6 +139,7 @@ export class CloudMeshTopology {
         tier: tierKey,
         position: pos,
         basePosition: pos.clone(),
+        velocity: new THREE.Vector3(0, 0, 0),
         mesh: remainderMesh
       });
     }
@@ -217,21 +229,47 @@ export class CloudMeshTopology {
 
   /**
    * Sets normalized pointer coordinates for elastic deformation
-   * @param {number} x - Normalized horizontal pointer [-1.0 to 1.0]
-   * @param {number} y - Normalized vertical pointer [-1.0 to 1.0]
+   * @param {number|null} x - Normalized horizontal pointer [-1.0 to 1.0] (or null to clear)
+   * @param {number|null} y - Normalized vertical pointer [-1.0 to 1.0] (or null to clear)
    */
   setPointer(x, y) {
+    if (x === null || y === null || typeof x !== 'number' || typeof y !== 'number') {
+      this._pointerWorldPos = null;
+      this._targetRotY = 0;
+      this._targetRotX = 0;
+      return;
+    }
+
     this._targetRotY = x * 0.35;
     this._targetRotX = -y * 0.25;
+
+    // Project pointer into 3D node plane space for elastic local repulsion
+    if (!this._pointerWorldPos) {
+      this._pointerWorldPos = new THREE.Vector3();
+    }
+    this._pointerWorldPos.set(x * 8.0, y * 5.0, 0.5);
   }
 
   /**
-   * Updates packet progress and elastic pointer deflection
+   * Updates physics simulation, packet progress and elastic pointer deflection
    * @param {number} [delta=0.016] - Elapsed time in seconds
    * @param {number} [speedFactor=1.0] - Multiplier from IdleManager [0.0 - 1.0]
    */
   update(delta = 0.016, speedFactor = 1.0) {
-    // 1. Advance packets along conduits
+    // 1. Advance physical spring-damper simulation for individual nodes
+    if (this.physics) {
+      const activePointer = (speedFactor > 0.0001) ? this._pointerWorldPos : null;
+      this.physics.update(this.nodes, activePointer, delta * Math.max(0.1, speedFactor));
+
+      for (let i = 0; i < this.nodes.length; i++) {
+        const node = this.nodes[i];
+        if (node.mesh) {
+          node.mesh.position.copy(node.position);
+        }
+      }
+    }
+
+    // 2. Advance packets along conduits
     this.conduits.forEach(conduit => {
       conduit.packets.forEach(packet => {
         if (speedFactor > 0.0001) {
@@ -245,7 +283,7 @@ export class CloudMeshTopology {
       });
     });
 
-    // 2. Elastic spring interpolation for pointer reaction
+    // 3. Elastic spring interpolation for pointer reaction
     const lerpFactor = 0.08;
     this.rootGroup.rotation.y += (this._targetRotY - this.rootGroup.rotation.y) * lerpFactor;
     this.rootGroup.rotation.x += (this._targetRotX - this.rootGroup.rotation.x) * lerpFactor;
@@ -276,18 +314,25 @@ export class CloudMeshTopology {
   }
 
   /**
-   * Returns whether the topology rotation has settled into resting equilibrium
+   * Returns whether the topology rotation and spring physics have settled into resting equilibrium
    * @returns {boolean}
    */
   isResting() {
-    return Math.abs(this.rootGroup.rotation.y - this._targetRotY) < 0.0005 &&
+    const isRotResting = Math.abs(this.rootGroup.rotation.y - this._targetRotY) < 0.0005 &&
       Math.abs(this.rootGroup.rotation.x - this._targetRotX) < 0.0005;
+    const isPhysicsResting = this.physics ? this.physics.isResting(this.nodes) : true;
+    return isRotResting && isPhysicsResting;
   }
 
   /**
    * Disposes all geometries, materials, and detaches root group
    */
   dispose() {
+    if (this.physics) {
+      this.physics.dispose();
+      this.physics = null;
+    }
+
     this.disposables.forEach(item => {
       if (item && typeof item.dispose === 'function') {
         item.dispose();
