@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('PortfolioApp (Application Root Seam)', () => {
@@ -66,5 +66,31 @@ describe('PortfolioApp (Application Root Seam)', () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     expect(() => app.destroy()).not.toThrow();
     expect(app.isDestroyed).toBe(true);
+    expect(app.topology).toBeNull();
+    expect(app.idleManager).toBeNull();
+  });
+
+  it('skips WebGL draw calls during hidden tab (0% GPU Idle Damping)', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    
+    // Inject mock renderer to test render call throttling
+    const renderSpy = vi.fn();
+    app.renderer = {
+      render: renderSpy,
+      dispose: vi.fn(),
+      setSize: vi.fn(),
+      setPixelRatio: vi.fn()
+    };
+
+    // Simulate tab hidden
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+
+    // Run frame update
+    app._renderFrame(1000);
+
+    expect(renderSpy).not.toHaveBeenCalled();
+
+    // Reset document.hidden
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
   });
 });

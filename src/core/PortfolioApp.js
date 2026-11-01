@@ -74,7 +74,7 @@ export class PortfolioApp {
           powerPreference: 'high-performance'
         });
         this.renderer.setSize(width, height);
-        this.renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2));
+        this.renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 1.75));
       } else {
         this.renderer = null;
       }
@@ -103,7 +103,7 @@ export class PortfolioApp {
 
       if (this.renderer) {
         this.renderer.setSize(w, h);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       }
     };
 
@@ -128,7 +128,7 @@ export class PortfolioApp {
    * @private
    */
   _startLoop() {
-    const loop = (currentTime) => {
+    this._renderFrame = (currentTime) => {
       if (this.isDestroyed) return;
 
       const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
@@ -144,17 +144,22 @@ export class PortfolioApp {
         this.topology.update(delta, speedFactor);
       }
 
-      if (this.renderer && this.scene && this.camera) {
+      // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU)
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+      const isResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
+      const shouldSkipRender = isHidden || (speedFactor <= 0.0001 && isResting);
+
+      if (!shouldSkipRender && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
       }
 
       if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        this._animFrameId = window.requestAnimationFrame(loop);
+        this._animFrameId = window.requestAnimationFrame(this._renderFrame);
       }
     };
 
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      this._animFrameId = window.requestAnimationFrame(loop);
+      this._animFrameId = window.requestAnimationFrame(this._renderFrame);
     }
   }
 
@@ -198,7 +203,7 @@ export class PortfolioApp {
     }
 
     if (this.topology) {
-      this.topology.destroy();
+      this.topology.dispose();
       this.topology = null;
     }
 

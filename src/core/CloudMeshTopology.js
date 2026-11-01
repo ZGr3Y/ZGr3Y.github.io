@@ -103,20 +103,32 @@ export class CloudMeshTopology {
       }
     });
 
-    // Handle any remainder nodes
+    // Handle any remainder nodes ensuring every node has a physical mesh
     const remainder = this.nodeCount - this.nodes.length;
     for (let r = 0; r < remainder; r++) {
       const tierKey = tierKeys[r % tierKeys.length];
       const config = TIER_CONFIG[tierKey];
+      const remainderMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(config.color),
+        transparent: true,
+        opacity: 0.85
+      });
+      this.disposables.push(remainderMat);
+
       const pos = config.center.clone().add(
         new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2)
       );
+
+      const remainderMesh = new THREE.Mesh(sphereGeo, remainderMat);
+      remainderMesh.position.copy(pos);
+      this.rootGroup.add(remainderMesh);
+
       this.nodes.push({
         id: `${tierKey}-extra-${r}`,
         tier: tierKey,
         position: pos,
         basePosition: pos.clone(),
-        mesh: null
+        mesh: remainderMesh
       });
     }
 
@@ -264,9 +276,18 @@ export class CloudMeshTopology {
   }
 
   /**
+   * Returns whether the topology rotation has settled into resting equilibrium
+   * @returns {boolean}
+   */
+  isResting() {
+    return Math.abs(this.rootGroup.rotation.y - this._targetRotY) < 0.0005 &&
+      Math.abs(this.rootGroup.rotation.x - this._targetRotX) < 0.0005;
+  }
+
+  /**
    * Disposes all geometries, materials, and detaches root group
    */
-  destroy() {
+  dispose() {
     this.disposables.forEach(item => {
       if (item && typeof item.dispose === 'function') {
         item.dispose();
@@ -277,5 +298,12 @@ export class CloudMeshTopology {
     if (this.rootGroup && this.scene) {
       this.scene.remove(this.rootGroup);
     }
+  }
+
+  /**
+   * Alias for dispose() to preserve backwards compatibility
+   */
+  destroy() {
+    this.dispose();
   }
 }
