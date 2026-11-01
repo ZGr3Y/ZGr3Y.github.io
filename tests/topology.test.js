@@ -94,33 +94,38 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     expect(root.rotation.x).not.toBe(0);
   });
 
-  it('integra AdaptiveLightingEngine per illuminare e far brillare i nodi in prossimità del puntatore e tornare a riposo', () => {
+  it('integra AdaptiveLightingEngine per illuminare, connettere (Grab) e riportare i nodi a riposo', () => {
     topology = new CloudMeshTopology({ scene, nodeCount: 40 });
     const nodes = topology.getNodes();
     const firstNode = nodes[0];
 
-    // Posizioniamo il puntatore vicino alle coordinate del primo nodo
-    topology.setPointer(firstNode.basePosition.x / 8, firstNode.basePosition.y / 5);
+    // All'avvio la rete di costellazione dinamica è già attiva tra i nodi vicini
+    expect(topology.lighting.activeLinkCount).toBeGreaterThan(0);
 
-    // Aggiorniamo per 15 frame: il nodo deve illuminarsi e sbocciare in scala
+    // Posizioniamo il puntatore sulle coordinate normalizzate del primo nodo
+    topology.setPointer(
+      firstNode.basePosition.x / topology.halfWidth,
+      firstNode.basePosition.y / topology.halfHeight
+    );
+
+    // Aggiorniamo per 15 frame: il nodo deve illuminarsi, sbocciare in scala e attivare i raggi Grab
     for (let i = 0; i < 15; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.5);
-    expect(firstNode.mesh.scale.x).toBeGreaterThan(1.1);
-
-    // Le coordinate geometriche 3D rimangono stabili (nessuna distorsione caotica della mesh)
-    expect(firstNode.position.distanceTo(firstNode.basePosition)).toBe(0);
+    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.65);
+    expect(firstNode.mesh.scale.x).toBeGreaterThan(firstNode.baseScale * 1.1);
+    expect(topology.lighting.activeGrabCount).toBeGreaterThan(0);
 
     // Rimuoviamo il puntatore (null)
     topology.setPointer(null, null);
 
-    // Aggiorniamo per 100 frame (~1.6s): impulsi e rotazione devono riassestarsi verso lo stato ambient
-    for (let i = 0; i < 100; i++) {
+    // Aggiorniamo per 80 frame: nodi e rotazione devono riassestarsi verso lo stato di equilibrio
+    for (let i = 0; i < 80; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.25, 2);
-    expect(firstNode.mesh.scale.x).toBeCloseTo(1.0, 2);
+    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.55, 1);
+    expect(firstNode.mesh.scale.x).toBeCloseTo(firstNode.baseScale, 1);
+    expect(topology.lighting.activeGrabCount).toBe(0);
     expect(topology.isResting()).toBe(true);
   });
 

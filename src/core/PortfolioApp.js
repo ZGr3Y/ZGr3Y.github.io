@@ -83,10 +83,10 @@ export class PortfolioApp {
       this.renderer = null;
     }
 
-    // Initialize 3D cloud mesh topology
+    // Initialize 3D cloud mesh topology (80 particles as in particles.js)
     this.topology = new CloudMeshTopology({
       scene: this.scene,
-      nodeCount: 40
+      nodeCount: 80
     });
 
     // Initialize 5s slow-motion idle power damping

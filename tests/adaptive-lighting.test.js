@@ -113,4 +113,40 @@ describe('AdaptiveLightingEngine (Adaptive Illumination & Network Ping Waves)', 
     expect(node.mesh.scale.x).toBeCloseTo(1.0, 2);
     expect(engine.isResting(nodes)).toBe(true);
   });
+
+  it('genera dinamicamente linee di costellazione (linkParticles) e ragnatela cursore (grabParticle) stile particles.js', () => {
+    const nodeA = {
+      position: new THREE.Vector3(0, 0, 0),
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ color: 0x0066ff, transparent: true, opacity: 0.55 })
+      )
+    };
+    const nodeB = {
+      position: new THREE.Vector3(2.0, 0, 0), // entro linkDistance (4.8) da nodeA
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ color: 0x00d084, transparent: true, opacity: 0.55 })
+      )
+    };
+    const nodeFar = {
+      position: new THREE.Vector3(20.0, 0, 0), // fuori linkDistance e grabDistance
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ color: 0xff3366, transparent: true, opacity: 0.55 })
+      )
+    };
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(60 * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(60 * 3), 3));
+
+    const pointerPos = new THREE.Vector3(1.0, 0.5, 0);
+    engine.update([nodeA, nodeB, nodeFar], [], pointerPos, 0.016, geo);
+
+    // 1 link tra nodeA e nodeB + 2 grab links dal cursore verso nodeA e nodeB
+    expect(engine.activeLinkCount).toBe(1);
+    expect(engine.activeGrabCount).toBe(2);
+    expect(geo.drawRange.count).toBe(6); // 3 linee = 6 vertici
+  });
 });
