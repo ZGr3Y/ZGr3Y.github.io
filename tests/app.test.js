@@ -70,7 +70,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.idleManager).toBeNull();
   });
 
-  it('skips WebGL draw calls during hidden tab (0% GPU Idle Damping)', () => {
+  it('suspends requestAnimationFrame loop when idle scene settles (0% CPU/GPU)', () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
     // Inject mock renderer to test render call throttling
@@ -89,8 +89,12 @@ describe('PortfolioApp (Application Root Seam)', () => {
     app._renderFrame(1000);
 
     expect(renderSpy).not.toHaveBeenCalled();
+    // Loop should be suspended (0% CPU scheduling)
+    expect(app.isLoopRunning()).toBe(false);
 
-    // Reset document.hidden
+    // Reset document.hidden and wake app
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    app._resumeLoop();
+    expect(app.isLoopRunning()).toBe(true);
   });
 });

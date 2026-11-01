@@ -30,6 +30,7 @@ export class PortfolioApp {
     this.topology = null;
     this.idleManager = null;
     this._animFrameId = null;
+    this._isLoopRunning = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
     this.init();
@@ -90,7 +91,8 @@ export class PortfolioApp {
 
     // Initialize 5s slow-motion idle power damping
     this.idleManager = new IdleManager({
-      idleTimeoutMs: 5000
+      idleTimeoutMs: 5000,
+      onWake: () => this._resumeLoop()
     });
 
     // Event listeners
@@ -105,6 +107,7 @@ export class PortfolioApp {
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       }
+      this._resumeLoop();
     };
 
     this._onPointerMove = (e) => {
@@ -112,6 +115,10 @@ export class PortfolioApp {
       const normX = (e.clientX / window.innerWidth) * 2 - 1;
       const normY = -(e.clientY / window.innerHeight) * 2 + 1;
       this.topology.setPointer(normX, normY);
+      if (this.idleManager) {
+        this.idleManager.recordActivity();
+      }
+      this._resumeLoop();
     };
 
     if (typeof window !== 'undefined') {
@@ -128,8 +135,15 @@ export class PortfolioApp {
    * @private
    */
   _startLoop() {
+    if (this._isLoopRunning || this.isDestroyed) return;
+    this._isLoopRunning = true;
+    this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
     this._renderFrame = (currentTime) => {
-      if (this.isDestroyed) return;
+      if (this.isDestroyed) {
+        this._isLoopRunning = false;
+        return;
+      }
 
       const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
       this._lastFrameTime = currentTime;
@@ -144,13 +158,20 @@ export class PortfolioApp {
         this.topology.update(delta, speedFactor);
       }
 
-      // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU)
+      // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const isResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
-      const shouldSkipRender = isHidden || (speedFactor <= 0.0001 && isResting);
+      const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
-      if (!shouldSkipRender && this.renderer && this.scene && this.camera) {
+      if (!shouldSuspend && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
+      }
+
+      if (shouldSuspend) {
+        // Suspend requestAnimationFrame loop completely to avoid continuous idle CPU wakeups
+        this._isLoopRunning = false;
+        this._animFrameId = null;
+        return;
       }
 
       if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -161,6 +182,23 @@ export class PortfolioApp {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       this._animFrameId = window.requestAnimationFrame(this._renderFrame);
     }
+  }
+
+  /**
+   * Resumes the animation loop if it was suspended during idle
+   * @private
+   */
+  _resumeLoop() {
+    if (this.isDestroyed || this._isLoopRunning) return;
+    this._startLoop();
+  }
+
+  /**
+   * Returns whether the animation loop is currently actively scheduling frames
+   * @returns {boolean}
+   */
+  isLoopRunning() {
+    return this._isLoopRunning;
   }
 
   getActiveStationIndex() {
@@ -186,6 +224,8 @@ export class PortfolioApp {
     if (this.srAnnouncer) {
       this.srAnnouncer.textContent = `Navigated to station ${activeStation.name}: ${activeStation.subtitle}`;
     }
+
+    this._resumeLoop();
   }
 
   /**
@@ -193,6 +233,7 @@ export class PortfolioApp {
    */
   destroy() {
     this.isDestroyed = true;
+    this._isLoopRunning = false;
 
     if (typeof window !== 'undefined') {
       if (this._animFrameId && typeof window.cancelAnimationFrame === 'function') {
