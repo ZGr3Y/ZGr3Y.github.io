@@ -86,7 +86,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.camera.position.y).toBeCloseTo(0, 1);
     expect(app.camera.position.z).toBeCloseTo(16, 1);
 
-    // Trigger navigation to Station 1 (Lab: x: 22, y: 5, z: -12)
+    // Trigger navigation to Station 1 (Lab: x: 6, y: 3.5, z: 14.5)
     await app.navigateTo(1);
 
     // Immediately after navigation trigger, transition is in progress
@@ -97,7 +97,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
       app._renderFrame(1000 + frame * 16);
     }
 
-    // Camera should have moved towards target (x should have increased towards 22, z decreased towards -12)
+    // Camera should have moved towards target (x should have increased towards 6, z decreased towards 14.5)
     expect(app.camera.position.x).toBeGreaterThan(0);
     expect(app.camera.position.z).toBeLessThan(16);
 
@@ -107,9 +107,9 @@ describe('PortfolioApp (Application Root Seam)', () => {
     }
 
     // Camera should have reached Station 1 waypoint and transition settled
-    expect(app.camera.position.x).toBeCloseTo(22, 0.5);
-    expect(app.camera.position.y).toBeCloseTo(5, 0.5);
-    expect(app.camera.position.z).toBeCloseTo(-12, 0.5);
+    expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+    expect(app.camera.position.y).toBeCloseTo(3.5, 0.5);
+    expect(app.camera.position.z).toBeCloseTo(14.5, 0.5);
     expect(app.isCameraTransitioning()).toBe(false);
   });
 

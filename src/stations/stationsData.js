@@ -32,8 +32,8 @@ export const STATIONS = [
     name: 'LAB',
     subtitle: 'RESEARCH & EXPLOITATION ARTIFACTS',
     camera: {
-      position: { x: 22, y: 5, z: -12 },
-      target: { x: 22, y: 0, z: -28 }
+      position: { x: 6, y: 3.5, z: 14.5 },
+      target: { x: 1.5, y: 0.5, z: 0 }
     },
     projects: [
       {
@@ -84,8 +84,8 @@ export const STATIONS = [
     name: 'ARSENAL',
     subtitle: 'TACTICAL DISCIPLINES & CLOUD STACK',
     camera: {
-      position: { x: -20, y: -10, z: -40 },
-      target: { x: -20, y: -10, z: -60 }
+      position: { x: -6, y: -3.5, z: 14.5 },
+      target: { x: -1.5, y: -0.5, z: 0 }
     },
     categories: [
       {
@@ -120,8 +120,8 @@ export const STATIONS = [
     name: 'TRANSMISSION',
     subtitle: 'SECURE NODE UPLINKS',
     camera: {
-      position: { x: 5, y: 20, z: -80 },
-      target: { x: 5, y: 20, z: -100 }
+      position: { x: 0, y: 5.5, z: 15.5 },
+      target: { x: 0, y: 0, z: 0 }
     },
     terminal: {
       hostname: 'zgr3y@cloud-node-01',

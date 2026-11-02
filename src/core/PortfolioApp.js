@@ -502,7 +502,7 @@ export class PortfolioApp {
     const activeStation = this.getActiveStation();
 
     // Trigger smooth 3D camera waypoint transition
-    if (activeStation && activeStation.camera) {
+    if (this.camera && activeStation && activeStation.camera) {
       const targetPos = activeStation.camera.position || { x: 0, y: 0, z: 16 };
       const targetLookAt = activeStation.camera.target || { x: 0, y: 0, z: 0 };
       this._targetCamPos.set(targetPos.x, targetPos.y, targetPos.z);
