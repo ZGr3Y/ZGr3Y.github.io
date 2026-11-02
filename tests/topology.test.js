@@ -94,6 +94,47 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     expect(root.rotation.x).not.toBe(0);
   });
 
+  it('integra AdaptiveLightingEngine per illuminare, connettere (Grab) e riportare i nodi a riposo', () => {
+    topology = new CloudMeshTopology({ scene, nodeCount: 40 });
+    const nodes = topology.getNodes();
+    const firstNode = nodes[0];
+
+    // All'avvio la rete di costellazione dinamica è già attiva tra i nodi vicini
+    expect(topology.lighting.activeLinkCount).toBeGreaterThan(0);
+
+    // Posizioniamo il puntatore sulle coordinate normalizzate del primo nodo
+    topology.setPointer(
+      firstNode.basePosition.x / topology.halfWidth,
+      firstNode.basePosition.y / topology.halfHeight
+    );
+
+    // Aggiorniamo per 15 frame: il nodo deve illuminarsi, sbocciare in scala e attivare i raggi Grab
+    for (let i = 0; i < 15; i++) {
+      topology.update(0.016, 1.0);
+    }
+    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.9);
+    expect(firstNode.mesh.scale.x).toBeGreaterThan(firstNode.baseScale * 1.1);
+    expect(topology.lighting.activeGrabCount).toBeGreaterThan(0);
+
+    // Rimuoviamo il puntatore (null) e simuliamo l'entrata in idle damping (speedFactor = 0.0)
+    topology.setPointer(null, null);
+
+    // Aggiorniamo per 80 frame: nodi, impulsi e rotazione devono riassestarsi verso lo stato di equilibrio
+    for (let i = 0; i < 80; i++) {
+      topology.update(0.016, 0.0);
+    }
+    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.82, 1);
+    expect(firstNode.mesh.scale.x).toBeCloseTo(firstNode.baseScale, 1);
+    expect(topology.lighting.activeGrabCount).toBe(0);
+    expect(topology.isResting()).toBe(true);
+  });
+
+  it('emette un impulso concentrico di luce (Ping Wave) tramite triggerPulse()', () => {
+    topology = new CloudMeshTopology({ scene, nodeCount: 40 });
+    expect(() => topology.triggerPulse()).not.toThrow();
+    expect(topology.lighting.pulses.length).toBe(1);
+  });
+
   it('smaltisce geometrie, materiali e rimuove il gruppo Three.js alla distruzione (destroy)', () => {
     topology = new CloudMeshTopology({ scene, nodeCount: 40 });
     const root = topology.getRootGroup();
@@ -104,5 +145,44 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
 
     // Il gruppo Three.js deve essere stato rimosso dalla scena
     expect(scene.children.includes(root)).toBe(false);
+  });
+
+  it('adatta la distribuzione dei nodi e i limiti di wrap all\'aspect ratio del viewport (mobile portrait)', () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    try {
+      // Simula viewport portrait mobile (es. 390x844 -> aspect ~0.46)
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      const portraitTopology = new CloudMeshTopology({ scene, nodeCount: 40 });
+      const nodes = portraitTopology.getNodes();
+
+      // Verifichiamo che i nodi siano distribuiti nel viewport visibile mobile
+      const maxSpanX = Math.max(portraitTopology.halfWidth * 2.1, 6.0);
+      nodes.forEach(node => {
+        expect(Math.abs(node.basePosition.x)).toBeLessThanOrEqual(maxSpanX * 0.5 + 0.5);
+      });
+
+      // Verifichiamo che onResize aggiorni le dimensioni frustum (portrait -> landscape)
+      window.innerWidth = 1920;
+      window.innerHeight = 1080;
+      portraitTopology.onResize();
+      expect(portraitTopology.halfWidth).toBeGreaterThan(portraitTopology.halfHeight);
+
+      // Verifichiamo che ruotando da landscape a portrait tutti i nodi vengano riposizionati nel nuovo frustum
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      portraitTopology.onResize();
+      const newPortraitSpanX = Math.max(portraitTopology.halfWidth * 2.1, 6.0);
+      nodes.forEach(node => {
+        expect(Math.abs(node.basePosition.x)).toBeLessThanOrEqual(newPortraitSpanX * 0.5 + 0.5);
+        expect(Math.abs(node.position.x)).toBeLessThanOrEqual(newPortraitSpanX * 0.5 + 0.5);
+      });
+
+      portraitTopology.destroy();
+    } finally {
+      window.innerWidth = originalWidth;
+      window.innerHeight = originalHeight;
+    }
   });
 });

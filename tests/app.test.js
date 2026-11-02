@@ -62,12 +62,36 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(0);
   });
 
-  it('destroys cleanly and resets state', () => {
+  it('destroys cleanly and resets state via both destroy() and dispose()', () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
-    expect(() => app.destroy()).not.toThrow();
+    expect(() => app.dispose()).not.toThrow();
     expect(app.isDestroyed).toBe(true);
     expect(app.topology).toBeNull();
     expect(app.idleManager).toBeNull();
+  });
+
+  it('forwards DOM pointer and touch gestures to topology and triggers pulses at tap coordinates', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    const setPointerSpy = vi.spyOn(app.topology, 'setPointer');
+    const triggerPulseSpy = vi.spyOn(app.topology, 'triggerPulse');
+
+    // Desktop pointermove
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 300 }));
+    expect(setPointerSpy).toHaveBeenCalled();
+
+    // Tap / click pointerdown at specific coordinates
+    window.dispatchEvent(new MouseEvent('pointerdown', { clientX: 800, clientY: 150 }));
+    expect(triggerPulseSpy).toHaveBeenCalledWith(null, 1.0);
+    expect(app.topology._pointerWorldPos.x).toBeGreaterThan(0);
+
+    // Mobile touchmove & touchend
+    const touchMoveEvent = new Event('touchmove');
+    touchMoveEvent.touches = [{ clientX: 100, clientY: 500 }];
+    window.dispatchEvent(touchMoveEvent);
+    expect(app.topology._pointerWorldPos.x).toBeLessThan(0);
+
+    window.dispatchEvent(new Event('touchend'));
+    expect(setPointerSpy).toHaveBeenLastCalledWith(null, null);
   });
 
   it('suspends requestAnimationFrame loop when idle scene settles (0% CPU/GPU)', () => {
