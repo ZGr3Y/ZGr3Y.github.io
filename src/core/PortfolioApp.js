@@ -83,10 +83,10 @@ export class PortfolioApp {
       this.renderer = null;
     }
 
-    // Initialize 3D cloud mesh topology
+    // Initialize 3D cloud mesh topology (56 particles: ~30% lighter constellation)
     this.topology = new CloudMeshTopology({
       scene: this.scene,
-      nodeCount: 40
+      nodeCount: 56
     });
 
     // Initialize 5s slow-motion idle power damping
@@ -111,10 +111,32 @@ export class PortfolioApp {
     };
 
     this._onPointerMove = (e) => {
+      this._updatePointerFromClient(e.clientX, e.clientY);
+    };
+
+    this._onPointerLeave = () => {
+      this._clearPointer();
+    };
+
+    this._onTouchMove = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        this._updatePointerFromClient(touch.clientX, touch.clientY);
+      }
+    };
+
+    this._onTouchEnd = () => {
+      this._clearPointer();
+    };
+
+    this._onPointerDown = (e) => {
       if (!this.topology || typeof window === 'undefined') return;
-      const normX = (e.clientX / window.innerWidth) * 2 - 1;
-      const normY = -(e.clientY / window.innerHeight) * 2 + 1;
-      this.topology.setPointer(normX, normY);
+      if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+        this._updatePointerFromClient(e.clientX, e.clientY);
+      }
+      if (typeof this.topology.triggerPulse === 'function') {
+        this.topology.triggerPulse(null, 1.0);
+      }
       if (this.idleManager) {
         this.idleManager.recordActivity();
       }
@@ -124,6 +146,12 @@ export class PortfolioApp {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this._onResize);
       window.addEventListener('pointermove', this._onPointerMove);
+      window.addEventListener('pointerleave', this._onPointerLeave);
+      window.addEventListener('pointerdown', this._onPointerDown);
+      window.addEventListener('touchstart', this._onTouchMove, { passive: true });
+      window.addEventListener('touchmove', this._onTouchMove, { passive: true });
+      window.addEventListener('touchend', this._onTouchEnd);
+      window.addEventListener('touchcancel', this._onTouchEnd);
     }
 
     // Start render animation loop
@@ -185,6 +213,35 @@ export class PortfolioApp {
   }
 
   /**
+   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer, and wakes loop
+   * @param {number} clientX
+   * @param {number} clientY
+   * @private
+   */
+  _updatePointerFromClient(clientX, clientY) {
+    if (!this.topology || typeof window === 'undefined') return;
+    const width = window.innerWidth || 800;
+    const height = window.innerHeight || 600;
+    const normX = (clientX / width) * 2 - 1;
+    const normY = -(clientY / height) * 2 + 1;
+    this.topology.setPointer(normX, normY);
+    if (this.idleManager) {
+      this.idleManager.recordActivity();
+    }
+    this._resumeLoop();
+  }
+
+  /**
+   * Clears pointer state and wakes loop to animate return to equilibrium
+   * @private
+   */
+  _clearPointer() {
+    if (!this.topology || typeof window === 'undefined') return;
+    this.topology.setPointer(null, null);
+    this._resumeLoop();
+  }
+
+  /**
    * Resumes the animation loop if it was suspended during idle
    * @private
    */
@@ -241,6 +298,12 @@ export class PortfolioApp {
       }
       window.removeEventListener('resize', this._onResize);
       window.removeEventListener('pointermove', this._onPointerMove);
+      window.removeEventListener('pointerleave', this._onPointerLeave);
+      window.removeEventListener('pointerdown', this._onPointerDown);
+      window.removeEventListener('touchstart', this._onTouchMove);
+      window.removeEventListener('touchmove', this._onTouchMove);
+      window.removeEventListener('touchend', this._onTouchEnd);
+      window.removeEventListener('touchcancel', this._onTouchEnd);
     }
 
     if (this.topology) {
@@ -261,5 +324,12 @@ export class PortfolioApp {
     if (this.container) {
       this.container.removeAttribute('data-active-station');
     }
+  }
+
+  /**
+   * Standardized resource teardown lifecycle per CODING_STANDARDS.md §7
+   */
+  dispose() {
+    this.destroy();
   }
 }
