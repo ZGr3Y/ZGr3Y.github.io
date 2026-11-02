@@ -50,6 +50,175 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(srAnnouncements.textContent).toContain('LAB');
   });
 
+  it('renders minimalist floating HUD with 4 station buttons and handles direct tier navigation on click', async () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const hud = container.querySelector('.hud-nav');
+    expect(hud).not.toBeNull();
+    expect(hud.getAttribute('aria-label')).toBe('Station Navigation');
+
+    const buttons = hud.querySelectorAll('button');
+    expect(buttons.length).toBe(4);
+
+    // Initial state: first button active with aria-current="step"
+    expect(buttons[0].getAttribute('aria-current')).toBe('step');
+    expect(buttons[0].classList.contains('active')).toBe(true);
+    expect(buttons[0].textContent).toContain('01');
+    expect(buttons[0].textContent).toContain('GATEWAY');
+    expect(buttons[0].querySelector('.hud-sep').getAttribute('aria-hidden')).toBe('true');
+
+    // Click on Station 2 (Lab)
+    buttons[1].click();
+
+    expect(app.getActiveStationIndex()).toBe(1);
+    expect(buttons[1].getAttribute('aria-current')).toBe('step');
+    expect(buttons[0].getAttribute('aria-current')).toBeNull();
+    expect(buttons[1].classList.contains('active')).toBe(true);
+    expect(buttons[0].classList.contains('active')).toBe(false);
+    expect(srAnnouncements.textContent).toContain('LAB');
+  });
+
+  it('interpolates 3D camera position smoothly toward active station coordinates upon navigation and maintains loop active until arrival', async () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Initial camera position at Station 0 (Gateway: 0, 0, 16)
+    expect(app.camera.position.x).toBeCloseTo(0, 1);
+    expect(app.camera.position.y).toBeCloseTo(0, 1);
+    expect(app.camera.position.z).toBeCloseTo(16, 1);
+
+    // Trigger navigation to Station 1 (Lab: x: 6, y: 3.5, z: 14.5)
+    await app.navigateTo(1);
+
+    // Immediately after navigation trigger, transition is in progress
+    expect(app.isCameraTransitioning()).toBe(true);
+
+    // Simulate 10 animation frames
+    for (let frame = 0; frame < 10; frame++) {
+      app._renderFrame(1000 + frame * 16);
+    }
+
+    // Camera should have moved towards target (x should have increased towards 6, z decreased towards 14.5)
+    expect(app.camera.position.x).toBeGreaterThan(0);
+    expect(app.camera.position.z).toBeLessThan(16);
+
+    // Simulate remaining frames until transition settles
+    for (let frame = 10; frame < 120; frame++) {
+      app._renderFrame(1000 + frame * 16);
+    }
+
+    // Camera should have reached Station 1 waypoint and transition settled
+    expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+    expect(app.camera.position.y).toBeCloseTo(3.5, 0.5);
+    expect(app.camera.position.z).toBeCloseTo(14.5, 0.5);
+    expect(app.isCameraTransitioning()).toBe(false);
+  });
+
+  it('navigates sequentially using keyboard arrows, mouse wheel, and touch swipes with debounce cooldown', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 1. Keyboard Navigation (ArrowDown -> Station 1)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // ArrowUp -> Station 0 (with cooldown reset)
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // Boundary clamp: ArrowUp at index 0 stays at 0
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 2. Mouse Wheel Navigation with cooldown protection
+    // Ignore zoom-modified wheel events (Ctrl+wheel / Cmd+wheel pinch-to-zoom)
+    app._lastNavTime = 0;
+    const ctrlWheel = new WheelEvent('wheel', { deltaY: 100 });
+    Object.defineProperty(ctrlWheel, 'ctrlKey', { value: true });
+    window.dispatchEvent(ctrlWheel);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    app._lastNavTime = 0;
+    const metaWheel = new WheelEvent('wheel', { deltaY: 100 });
+    Object.defineProperty(metaWheel, 'metaKey', { value: true });
+    window.dispatchEvent(metaWheel);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // Regular wheel event navigates to next station
+    app._lastNavTime = 0;
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // Rapid second wheel tick within cooldown window is ignored
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // 3. Touch Swipe Navigation
+    // Reset cooldown to simulate user swiping
+    app._lastNavTime = 0;
+    const touchStart = new Event('touchstart');
+    touchStart.touches = [{ clientX: 200, clientY: 400 }];
+    window.dispatchEvent(touchStart);
+
+    const touchEnd = new Event('touchend');
+    touchEnd.changedTouches = [{ clientX: 200, clientY: 200 }]; // 200px swipe up -> next station
+    window.dispatchEvent(touchEnd);
+    expect(app.getActiveStationIndex()).toBe(2);
+  });
+
+  it('does not trigger sequential navigation on wheel, swipe, or keys if station-container can still scroll in that direction', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Simulate an overflowing station panel (e.g. 500px content inside 300px viewport)
+    Object.defineProperty(stationContainer, 'scrollHeight', { configurable: true, value: 500 });
+    Object.defineProperty(stationContainer, 'clientHeight', { configurable: true, value: 300 });
+    Object.defineProperty(stationContainer, 'scrollTop', { configurable: true, writable: true, value: 50 });
+
+    // 1. Keyboard PageDown / ArrowDown while station-container can still scroll down (scrollTop 50 < 200 - 5)
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 2. Wheel scroll down while station-container can still scroll down
+    app._lastNavTime = 0;
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    // Navigation must NOT be hijacked
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 3. Swipe up that starts with remaining scroll room and reaches the bottom during the swipe
+    // (e.g. starts at scrollTop = 50, and native scrolling advances panel to 200 before touchend)
+    app._lastNavTime = 0;
+    stationContainer.scrollTop = 50;
+    const touchStart = new Event('touchstart');
+    touchStart.touches = [{ clientX: 200, clientY: 400 }];
+    window.dispatchEvent(touchStart);
+
+    // Simulate browser native scrolling advancing panel to boundary during gesture
+    stationContainer.scrollTop = 200;
+
+    const touchEnd = new Event('touchend');
+    touchEnd.changedTouches = [{ clientX: 200, clientY: 200 }]; // 200px swipe up
+    window.dispatchEvent(touchEnd);
+    // Boundary-reaching swipe must NOT hijack station navigation on this gesture
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 4. A subsequent swipe that STARTS while already at the boundary (scrollTop = 200) triggers station navigation
+    app._lastNavTime = 0;
+    window.dispatchEvent(touchStart);
+    window.dispatchEvent(touchEnd);
+    expect(app.getActiveStationIndex()).toBe(1);
+  });
+
   it('bounds station navigation within available stations', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
 
@@ -120,5 +289,23 @@ describe('PortfolioApp (Application Root Seam)', () => {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
     app._resumeLoop();
     expect(app.isLoopRunning()).toBe(true);
+  });
+
+  it('wakes suspended loop upon keyboard focusin and resolves srAnnouncer from DOM fallback', async () => {
+    // Instantiate without explicit srAnnouncer option
+    app = new PortfolioApp({ container, canvas });
+    expect(app.srAnnouncer).toBe(srAnnouncements);
+
+    // Suspend loop
+    app._isLoopRunning = false;
+    expect(app.isLoopRunning()).toBe(false);
+
+    // Trigger focusin event (e.g. tabbing to HUD button)
+    window.dispatchEvent(new Event('focusin'));
+    expect(app.isLoopRunning()).toBe(true);
+
+    // Verify fallback announcement works on navigation
+    await app.navigateTo(1);
+    expect(srAnnouncements.textContent).toContain('LAB');
   });
 });
