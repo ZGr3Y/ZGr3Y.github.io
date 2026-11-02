@@ -286,10 +286,41 @@ export class CloudMeshTopology {
   }
 
   /**
-   * Updates viewport boundaries when screen or orientation changes
+   * Updates viewport boundaries and proportionally reflows node positions
+   * when screen dimensions or orientation change (e.g. landscape -> portrait)
    */
   onResize() {
+    const prevSpanX = Math.max(this.halfWidth * 2.1, 6.0);
+    const prevSpanY = Math.max(this.halfHeight * 2.1, 10.0);
+
     this._updateViewportBounds();
+
+    const nextSpanX = Math.max(this.halfWidth * 2.1, 6.0);
+    const nextSpanY = Math.max(this.halfHeight * 2.1, 10.0);
+
+    const scaleX = prevSpanX > 0 ? nextSpanX / prevSpanX : 1.0;
+    const scaleY = prevSpanY > 0 ? nextSpanY / prevSpanY : 1.0;
+
+    if (Math.abs(scaleX - 1.0) > 0.001 || Math.abs(scaleY - 1.0) > 0.001) {
+      for (let i = 0; i < this.nodes.length; i++) {
+        const node = this.nodes[i];
+        if (node.basePosition) {
+          node.basePosition.x *= scaleX;
+          node.basePosition.y *= scaleY;
+        }
+        if (node.position) {
+          node.position.x *= scaleX;
+          node.position.y *= scaleY;
+        }
+        if (node.mesh && node.position) {
+          node.mesh.position.copy(node.position);
+        }
+      }
+
+      if (this.lighting && this.constellationGeo) {
+        this.lighting.updateConstellation(this.nodes, this._pointerWorldPos, this.constellationGeo, 0, 0);
+      }
+    }
   }
 
   /**

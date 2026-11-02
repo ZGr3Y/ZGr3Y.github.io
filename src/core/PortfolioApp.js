@@ -110,6 +110,9 @@ export class PortfolioApp {
       if (this.topology && typeof this.topology.onResize === 'function') {
         this.topology.onResize();
       }
+      if (this.idleManager) {
+        this.idleManager.recordActivity();
+      }
       this._resumeLoop();
     };
 

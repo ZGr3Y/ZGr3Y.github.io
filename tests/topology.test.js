@@ -163,11 +163,21 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
         expect(Math.abs(node.basePosition.x)).toBeLessThanOrEqual(maxSpanX * 0.5 + 0.5);
       });
 
-      // Verifichiamo che onResize aggiorni le dimensioni frustum
+      // Verifichiamo che onResize aggiorni le dimensioni frustum (portrait -> landscape)
       window.innerWidth = 1920;
       window.innerHeight = 1080;
       portraitTopology.onResize();
       expect(portraitTopology.halfWidth).toBeGreaterThan(portraitTopology.halfHeight);
+
+      // Verifichiamo che ruotando da landscape a portrait tutti i nodi vengano riposizionati nel nuovo frustum
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      portraitTopology.onResize();
+      const newPortraitSpanX = Math.max(portraitTopology.halfWidth * 2.1, 6.0);
+      nodes.forEach(node => {
+        expect(Math.abs(node.basePosition.x)).toBeLessThanOrEqual(newPortraitSpanX * 0.5 + 0.5);
+        expect(Math.abs(node.position.x)).toBeLessThanOrEqual(newPortraitSpanX * 0.5 + 0.5);
+      });
 
       portraitTopology.destroy();
     } finally {
