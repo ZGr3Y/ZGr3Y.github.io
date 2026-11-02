@@ -144,9 +144,42 @@ describe('AdaptiveLightingEngine (Adaptive Illumination & Network Ping Waves)', 
     const pointerPos = new THREE.Vector3(1.0, 0.5, 0);
     engine.update([nodeA, nodeB, nodeFar], [], pointerPos, 0.016, geo);
 
-    // 1 link tra nodeA e nodeB + 2 grab links dal cursore verso nodeA e nodeB
+    // 1 link tra nodeA e nodeB + 2 grab links dal cursore verso nodeA e nodeB (almeno 6 vertici + eventuali impulsi laser)
     expect(engine.activeLinkCount).toBe(1);
     expect(engine.activeGrabCount).toBe(2);
-    expect(geo.drawRange.count).toBe(6); // 3 linee = 6 vertici
+    expect(geo.drawRange.count).toBeGreaterThanOrEqual(6);
+  });
+
+  it('propaga impulsi laser asincroni (linePackets) lungo le linee tra i pallini e dal puntatore', () => {
+    const nodeA = {
+      position: new THREE.Vector3(0, 0, 0),
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ color: 0x00b4ff, transparent: true, opacity: 0.82 })
+      )
+    };
+    const nodeB = {
+      position: new THREE.Vector3(3.0, 0, 0),
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ color: 0x00f03c, transparent: true, opacity: 0.82 })
+      )
+    };
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(120 * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(120 * 3), 3));
+
+    const pointerPos = new THREE.Vector3(0.5, 1.0, 0);
+
+    // Emettiamo un impulso nodo->nodo e uno puntatore->nodo
+    engine.spawnLinePacket(0, 1, { r: 0, g: 0.7, b: 1.0 }, false);
+    engine.spawnLinePacket(-1, 0, { r: 0, g: 0.7, b: 1.0 }, true);
+    expect(engine.linePackets.length).toBe(2);
+
+    // Avanziamo di un frame: i 2 impulsi avanzano e aggiungono 4 vertici ciascuno (scia + testa) al buffer
+    engine.updateConstellation([nodeA, nodeB], pointerPos, geo, 0.05);
+    expect(engine.linePackets[0].progress).toBeGreaterThan(0);
+    expect(geo.drawRange.count).toBeGreaterThanOrEqual(6 + 8);
   });
 });

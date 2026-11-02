@@ -64,9 +64,9 @@ export class CloudMeshTopology {
       pulseSpeed: 14.0,
       maxPulseRadius: 20.0,
       linkDistance: 4.8,
-      linkOpacity: 0.45,
+      linkOpacity: 0.28,
       grabDistance: 6.2,
-      grabOpacity: 0.88,
+      grabOpacity: 0.42,
       repulseRadius: 2.4,
       repulseStrength: 0.75
     });
@@ -166,7 +166,7 @@ export class CloudMeshTopology {
     }
 
     // 2. Dynamic Constellation & Cursor "Grab" LineSegments (particles.js linkParticles + grabParticle)
-    const maxLines = 1800;
+    const maxLines = 2400;
     const maxVertices = maxLines * 2;
     const linePositions = new Float32Array(maxVertices * 3);
     const lineColors = new Float32Array(maxVertices * 3);
@@ -179,7 +179,7 @@ export class CloudMeshTopology {
     this.constellationMat = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.98
     });
     this.disposables.push(this.constellationGeo, this.constellationMat);
 
@@ -188,7 +188,7 @@ export class CloudMeshTopology {
     this.constellationLines.frustumCulled = false;
     this.rootGroup.add(this.constellationLines);
 
-    // 3. Build Inter-cluster Backbone Conduits (Cubic Bezier Curves & Traveling Packets)
+    // 3. Build Inter-cluster Backbone Conduits (Logical routes preserved; visual traffic runs on constellation)
     const conduitConnections = [
       ['ingress', 'defense'],
       ['defense', 'telemetry'],
@@ -234,6 +234,7 @@ export class CloudMeshTopology {
       this.disposables.push(lineGeo, lineMat);
 
       const lineMesh = new THREE.Line(lineGeo, lineMat);
+      lineMesh.visible = false;
       this.rootGroup.add(lineMesh);
 
       const packetMat = new THREE.MeshBasicMaterial({
@@ -246,6 +247,7 @@ export class CloudMeshTopology {
 
       for (let p = 0; p < numPackets; p++) {
         const pMesh = new THREE.Mesh(packetGeo, packetMat);
+        pMesh.visible = false;
         this.rootGroup.add(pMesh);
 
         const initialProgress = (p / numPackets) + (Math.random() * 0.1);
@@ -321,6 +323,16 @@ export class CloudMeshTopology {
     if (!this.lighting) return;
     const pulseOrigin = origin || this._pointerWorldPos || new THREE.Vector3(0, 0, 0);
     this.lighting.triggerPulse(pulseOrigin, intensity);
+
+    // Also inject a burst of desynchronized laser pulses from the pointer into grabbed nodes
+    if (this._pointerWorldPos) {
+      const grabDistSq = this.lighting.grabDistance * this.lighting.grabDistance;
+      for (let i = 0; i < this.nodes.length; i++) {
+        if (this.nodes[i].position.distanceToSquared(this._pointerWorldPos) <= grabDistSq) {
+          this.lighting.spawnLinePacket(-1, i, { r: 0, g: 180 / 255, b: 1.0 }, true);
+        }
+      }
+    }
   }
 
   /**
