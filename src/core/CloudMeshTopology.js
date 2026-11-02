@@ -32,9 +32,9 @@ export class CloudMeshTopology {
   /**
    * @param {Object} options
    * @param {THREE.Scene} options.scene - Target Three.js Scene
-   * @param {number} [options.nodeCount=80] - Total procedural nodes (default 80 like particles.js)
+   * @param {number} [options.nodeCount=56] - Total procedural nodes (default 56: 30% lighter than 80)
    */
-  constructor({ scene, nodeCount = 80 } = {}) {
+  constructor({ scene, nodeCount = 56 } = {}) {
     this.scene = scene;
     this.nodeCount = Math.max(8, nodeCount);
 
@@ -59,13 +59,13 @@ export class CloudMeshTopology {
     this.lighting = new AdaptiveLightingEngine({
       ambientOpacity: 0.82,
       activeOpacity: 1.0,
-      lightRadius: 6.2,
+      lightRadius: 6.5,
       scaleBoost: 0.45,
       pulseSpeed: 14.0,
       maxPulseRadius: 20.0,
-      linkDistance: 4.8,
+      linkDistance: 5.5,
       linkOpacity: 0.28,
-      grabDistance: 6.2,
+      grabDistance: 6.5,
       grabOpacity: 0.42,
       repulseRadius: 2.4,
       repulseStrength: 0.75
