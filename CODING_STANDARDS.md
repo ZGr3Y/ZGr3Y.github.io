@@ -28,3 +28,8 @@ Engineering standards enforced by the review agent during `/code-review` and by 
 
 ## 7. Uniform Resource Teardown Lifecycle
 - All domain modules, controllers, and visual systems must implement a standardized teardown method named `dispose()` to guarantee complete garbage collection.
+
+## 8. Interactive Gestures & Scroll Isolation
+- Window-level gesture listeners (`wheel`, `keydown`, `touchstart`/`touchend`) that trigger view transitions must ignore zoom modifier keys (`e.ctrlKey || e.metaKey`) to preserve native browser pinch-to-zoom and keyboard zoom shortcuts.
+- Handlers must check whether the active content panel has remaining scroll headroom before consuming vertical navigation gestures (`direction > 0` and `direction < 0`).
+- For multi-phase touch gestures, evaluate scrollability at `touchstart` rather than only at `touchend`, ensuring that gestures that reach a scroll boundary stay within the panel and never trigger view transitions on that same stroke.

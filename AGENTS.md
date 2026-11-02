@@ -11,6 +11,7 @@ This document defines the working agreements, pace, and interaction style for ag
   - **User Gatekeeping**: Await explicit user authorization before writing *any* implementation code.
   - **Phase GREEN**: Write **only** the minimal implementation required to satisfy the test, run the test runner to prove it passes, present the passing result to the user, and **STOP the turn immediately**.
   - Under no circumstances may an agent write a failing test and its implementation in a single shot/turn.
+- **Merge Gatekeeping:** Never urge, prompt, or suggest merging a PR. Present CI check results and review findings objectively, then stop and await the user's explicit instructions. The user alone determines when all automated checks and reviewers (including external bots like Codex) are satisfied before merging.
 - **Coach the user:** At each stage, clearly name the next step in the Matt Pocock flow and instruct the user on which slash command/skill to type (e.g. `/implement`, `/tdd`, `/code-review`, `/pr`). The user must invoke the command so they learn and internalize the framework.
 
 ## 2. Total Code & Test Transparency
@@ -20,7 +21,7 @@ This document defines the working agreements, pace, and interaction style for ag
 ## 3. Git & GitHub Guardrails
 - **Main is sacred:** Never commit directly to `main`. All changes go through dedicated feature branches (`feat/issue-<number>-<slug>`).
 - **Conventional Commits:** Write clean, atomic commits (`feat:`, `test:`, `ci:`, `docs:`, `refactor:`) referencing the issue number.
-- **Pull Request workflow:** Open PRs using the formal PR template. Verify that GitHub Actions CI checks are 100% green before suggesting a merge.
+- **Pull Request workflow:** Open PRs using the formal PR template. Ensure GitHub Actions CI checks are 100% green and inspect bot/reviewer feedback objectively, leaving the merge decision entirely to the user.
 
 ## Agent skills
 
