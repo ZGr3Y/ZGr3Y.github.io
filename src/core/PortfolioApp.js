@@ -107,6 +107,9 @@ export class PortfolioApp {
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       }
+      if (this.topology && typeof this.topology.onResize === 'function') {
+        this.topology.onResize();
+      }
       this._resumeLoop();
     };
 

@@ -94,10 +94,13 @@ export class CloudMeshTopology {
     this.disposables.push(sphereGeo);
 
     // 1. Stratified Full-Viewport Grid Distribution (particles.js full-canvas coverage)
-    const cols = Math.ceil(Math.sqrt(this.nodeCount * 1.6));
+    // Scale columns, rows, and grid span dynamically to match viewport aspect ratio (desktop wide vs mobile portrait)
+    this._updateViewportBounds();
+    const aspect = this.aspect || (this.halfWidth / this.halfHeight) || 1.6;
+    const cols = Math.max(2, Math.ceil(Math.sqrt(this.nodeCount * aspect)));
     const rows = Math.ceil(this.nodeCount / cols);
-    const spanX = 24.0; // [-12.0, +12.0] covers wide 16:9 viewports
-    const spanY = 13.6; // [-6.8, +6.8] covers full vertical frustum
+    const spanX = Math.max(this.halfWidth * 2.1, 6.0); // Covers full horizontal frustum on both mobile and widescreen
+    const spanY = Math.max(this.halfHeight * 2.1, 10.0); // Covers full vertical frustum
     const cellW = spanX / cols;
     const cellH = spanY / rows;
 
@@ -278,7 +281,15 @@ export class CloudMeshTopology {
     const aspect = (typeof window !== 'undefined' && window.innerWidth && window.innerHeight)
       ? (window.innerWidth / window.innerHeight)
       : 1.6;
+    this.aspect = aspect;
     this.halfWidth = this.halfHeight * aspect;
+  }
+
+  /**
+   * Updates viewport boundaries when screen or orientation changes
+   */
+  onResize() {
+    this._updateViewportBounds();
   }
 
   /**
@@ -354,8 +365,8 @@ export class CloudMeshTopology {
 
     // 2. Organic particle drift (particles.js: pJS.fn.particlesUpdate move & out_mode='out')
     if (speedFactor > 0.0001) {
-      const boundX = 12.6;
-      const boundY = 7.2;
+      const boundX = this.halfWidth + 0.8;
+      const boundY = this.halfHeight + 0.8;
 
       for (let i = 0; i < this.nodes.length; i++) {
         const node = this.nodes[i];

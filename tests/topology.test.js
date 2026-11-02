@@ -146,4 +146,33 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     // Il gruppo Three.js deve essere stato rimosso dalla scena
     expect(scene.children.includes(root)).toBe(false);
   });
+
+  it('adatta la distribuzione dei nodi e i limiti di wrap all\'aspect ratio del viewport (mobile portrait)', () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    try {
+      // Simula viewport portrait mobile (es. 390x844 -> aspect ~0.46)
+      window.innerWidth = 390;
+      window.innerHeight = 844;
+      const portraitTopology = new CloudMeshTopology({ scene, nodeCount: 40 });
+      const nodes = portraitTopology.getNodes();
+
+      // Verifichiamo che i nodi siano distribuiti nel viewport visibile mobile
+      const maxSpanX = Math.max(portraitTopology.halfWidth * 2.1, 6.0);
+      nodes.forEach(node => {
+        expect(Math.abs(node.basePosition.x)).toBeLessThanOrEqual(maxSpanX * 0.5 + 0.5);
+      });
+
+      // Verifichiamo che onResize aggiorni le dimensioni frustum
+      window.innerWidth = 1920;
+      window.innerHeight = 1080;
+      portraitTopology.onResize();
+      expect(portraitTopology.halfWidth).toBeGreaterThan(portraitTopology.halfHeight);
+
+      portraitTopology.destroy();
+    } finally {
+      window.innerWidth = originalWidth;
+      window.innerHeight = originalHeight;
+    }
+  });
 });
