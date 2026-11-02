@@ -135,8 +135,7 @@ html, body {
   padding: 32px 24px;
 }
 
-.station-card,
-.landing-placeholder {
+.station-card {
   max-width: 640px;
   width: 100%;
   margin: auto 0;
@@ -151,8 +150,12 @@ html, body {
   animation: fadeIn 600ms var(--transition-normal);
 }
 
-.station-badge,
-.landing-badge {
+.station-card[hidden],
+[hidden] {
+  display: none !important;
+}
+
+.station-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -176,8 +179,7 @@ html, body {
   box-shadow: 0 0 6px var(--cloud-green);
 }
 
-.hero-name,
-.landing-title {
+.hero-name {
   font-size: 2.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -185,8 +187,7 @@ html, body {
   line-height: 1.15;
 }
 
-.hero-role,
-.landing-role {
+.hero-role {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -210,15 +211,13 @@ html, body {
   color: var(--text-secondary);
 }
 
-.hero-bio,
-.landing-bio {
+.hero-bio {
   font-size: 1.05rem;
   line-height: 1.6;
   color: var(--text-secondary);
 }
 
-.station-actions,
-.landing-actions {
+.station-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;

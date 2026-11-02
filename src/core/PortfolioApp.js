@@ -142,13 +142,13 @@ export class PortfolioApp {
   _initStations() {
     if (!this.stationContainer || typeof document === 'undefined') return;
 
-    this.stations.forEach((station, idx) => {
+    this.stations.forEach((station) => {
       const existing = this.stationContainer.querySelector(`.station-card[data-station="${station.id}"]`);
       if (!existing) {
         if (station.id === 'gateway') {
           this._renderGatewayCard();
         } else {
-          this._renderStationPlaceholder(station, idx);
+          this._renderStationPlaceholder(station);
         }
       }
     });
@@ -159,10 +159,9 @@ export class PortfolioApp {
   /**
    * Renders semantic placeholder card for upcoming station slices
    * @param {Object} station
-   * @param {number} idx
    * @private
    */
-  _renderStationPlaceholder(station, idx) {
+  _renderStationPlaceholder(station) {
     if (!this.stationContainer || typeof document === 'undefined') return;
 
     const card = document.createElement('section');
@@ -192,6 +191,19 @@ export class PortfolioApp {
     if (!this.stationContainer || typeof document === 'undefined') return;
     const gatewayData = this.stations.find((s) => s.id === 'gateway') || this.stations[0];
     const hero = gatewayData.hero || {};
+    const actionsMarkup = (hero.actions || []).map((action) => {
+      const isDownload = Boolean(action.isDownload);
+      const downloadAttr = isDownload ? `download="${action.url.replace(/^.*[\\/]/, '')}"` : '';
+      const externalAttrs = action.isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
+      const btnClass = isDownload ? 'btn btn-cv' : 'btn btn-github';
+      const icon = isDownload ? '↓' : '↗';
+      return `
+        <a href="${action.url}" ${downloadAttr} ${externalAttrs} class="${btnClass}" title="${action.label}">
+          <span>${action.label}</span>
+          <span class="btn-icon" aria-hidden="true">${icon}</span>
+        </a>
+      `;
+    }).join('');
 
     const card = document.createElement('section');
     card.className = 'station-card gateway-card active';
@@ -210,14 +222,7 @@ export class PortfolioApp {
       </div>
       <p class="hero-bio">${hero.bio || ''}</p>
       <div class="station-actions">
-        <a href="./resume_PaoloMariaScarlata.pdf" download="resume_PaoloMariaScarlata.pdf" class="btn btn-cv" title="Download Curriculum Vitae (PDF)">
-          <span>Download Curriculum Vitae</span>
-          <span class="btn-icon" aria-hidden="true">↓</span>
-        </a>
-        <a href="https://github.com/ZGr3Y" target="_blank" rel="noopener noreferrer" class="btn btn-github" title="Visit GitHub Profile">
-          <span>GitHub</span>
-          <span class="btn-icon" aria-hidden="true">↗</span>
-        </a>
+        ${actionsMarkup}
       </div>
     `;
     this.stationContainer.appendChild(card);

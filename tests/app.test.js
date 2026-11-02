@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('PortfolioApp (Application Root Seam)', () => {
@@ -99,6 +101,30 @@ describe('PortfolioApp (Application Root Seam)', () => {
       expect(activeCard).not.toBeNull();
       expect(activeCard.classList.contains('active')).toBe(true);
       expect(activeCard.hasAttribute('hidden')).toBe(false);
+    }
+  });
+
+  it('ensures inactive station cards with hidden attribute have display none computed style', () => {
+    const cssPath = path.resolve(process.cwd(), 'src/styles/main.css');
+    const css = fs.readFileSync(cssPath, 'utf-8');
+    const styleEl = document.createElement('style');
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const hiddenCard = stationContainer.querySelector('.station-card[hidden]');
+    expect(hiddenCard).not.toBeNull();
+    const computed = window.getComputedStyle(hiddenCard);
+    try {
+      expect(computed.display).toBe('none');
+    } finally {
+      styleEl.remove();
     }
   });
 
