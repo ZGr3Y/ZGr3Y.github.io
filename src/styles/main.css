@@ -35,6 +35,93 @@ html, body {
   pointer-events: auto;
 }
 
+/* Minimalist Floating HUD Station Navigation */
+.hud-nav {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-card);
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.hud-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all var(--transition-fast);
+}
+
+.hud-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-subtle);
+}
+
+.hud-btn.active,
+.hud-btn[aria-current="step"] {
+  color: var(--cloud-blue);
+  background: var(--cloud-blue-subtle);
+  border-color: var(--cloud-blue-border);
+  font-weight: 600;
+}
+
+.hud-index {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.hud-sep {
+  opacity: 0.35;
+  font-size: 0.65rem;
+}
+
+.hud-name {
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 640px) {
+  .hud-nav {
+    top: 12px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .hud-btn {
+    padding: 6px 10px;
+    font-size: 0.68rem;
+    gap: 4px;
+  }
+}
+
 .station-container {
   position: relative;
   z-index: 2;

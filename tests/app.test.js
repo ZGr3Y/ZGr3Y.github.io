@@ -50,6 +50,105 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(srAnnouncements.textContent).toContain('LAB');
   });
 
+  it('renders minimalist floating HUD with 4 station buttons and handles direct tier navigation on click', async () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const hud = container.querySelector('.hud-nav');
+    expect(hud).not.toBeNull();
+    expect(hud.getAttribute('aria-label')).toBe('Station Navigation');
+
+    const buttons = hud.querySelectorAll('button');
+    expect(buttons.length).toBe(4);
+
+    // Initial state: first button active with aria-current="step"
+    expect(buttons[0].getAttribute('aria-current')).toBe('step');
+    expect(buttons[0].classList.contains('active')).toBe(true);
+    expect(buttons[0].textContent).toContain('01');
+    expect(buttons[0].textContent).toContain('GATEWAY');
+
+    // Click on Station 2 (Lab)
+    buttons[1].click();
+
+    expect(app.getActiveStationIndex()).toBe(1);
+    expect(buttons[1].getAttribute('aria-current')).toBe('step');
+    expect(buttons[0].getAttribute('aria-current')).toBeNull();
+    expect(buttons[1].classList.contains('active')).toBe(true);
+    expect(buttons[0].classList.contains('active')).toBe(false);
+    expect(srAnnouncements.textContent).toContain('LAB');
+  });
+
+  it('interpolates 3D camera position smoothly toward active station coordinates upon navigation and maintains loop active until arrival', async () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Initial camera position at Station 0 (Gateway: 0, 0, 16)
+    expect(app.camera.position.x).toBeCloseTo(0, 1);
+    expect(app.camera.position.y).toBeCloseTo(0, 1);
+    expect(app.camera.position.z).toBeCloseTo(16, 1);
+
+    // Trigger navigation to Station 1 (Lab: x: 22, y: 5, z: -12)
+    await app.navigateTo(1);
+
+    // Immediately after navigation trigger, transition is in progress
+    expect(app.isCameraTransitioning()).toBe(true);
+
+    // Simulate 10 animation frames
+    for (let frame = 0; frame < 10; frame++) {
+      app._renderFrame(1000 + frame * 16);
+    }
+
+    // Camera should have moved towards target (x should have increased towards 22, z decreased towards -12)
+    expect(app.camera.position.x).toBeGreaterThan(0);
+    expect(app.camera.position.z).toBeLessThan(16);
+
+    // Simulate remaining frames until transition settles
+    for (let frame = 10; frame < 120; frame++) {
+      app._renderFrame(1000 + frame * 16);
+    }
+
+    // Camera should have reached Station 1 waypoint and transition settled
+    expect(app.camera.position.x).toBeCloseTo(22, 0.5);
+    expect(app.camera.position.y).toBeCloseTo(5, 0.5);
+    expect(app.camera.position.z).toBeCloseTo(-12, 0.5);
+    expect(app.isCameraTransitioning()).toBe(false);
+  });
+
+  it('navigates sequentially using keyboard arrows, mouse wheel, and touch swipes with debounce cooldown', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 1. Keyboard Navigation (ArrowDown -> Station 1)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // ArrowUp -> Station 0
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // Boundary clamp: ArrowUp at index 0 stays at 0
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 2. Mouse Wheel Navigation with cooldown protection
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // Rapid second wheel tick within cooldown window is ignored
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // 3. Touch Swipe Navigation
+    // Reset cooldown to simulate user swiping
+    app._lastNavTime = 0;
+    const touchStart = new Event('touchstart');
+    touchStart.touches = [{ clientX: 200, clientY: 400 }];
+    window.dispatchEvent(touchStart);
+
+    const touchEnd = new Event('touchend');
+    touchEnd.changedTouches = [{ clientX: 200, clientY: 200 }]; // 200px swipe up -> next station
+    window.dispatchEvent(touchEnd);
+    expect(app.getActiveStationIndex()).toBe(2);
+  });
+
   it('bounds station navigation within available stations', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
 

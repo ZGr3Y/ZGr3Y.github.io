@@ -33,6 +33,21 @@ export class PortfolioApp {
     this._isLoopRunning = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
+    // Floating Minimalist HUD Navigation state
+    this.hudNav = null;
+    this._hudButtons = [];
+
+    // Spatial Camera Waypoint Controller state
+    this._targetCamPos = new THREE.Vector3(0, 0, 16);
+    this._targetCamLookAt = new THREE.Vector3(0, 0, 0);
+    this._currentCamLookAt = new THREE.Vector3(0, 0, 0);
+    this._isCameraTransitioning = false;
+
+    // Sequential navigation debounce & touch swipe state
+    this._lastNavTime = 0;
+    this._navCooldownMs = 600;
+    this._touchStartY = null;
+
     this.init();
   }
 
@@ -42,11 +57,74 @@ export class PortfolioApp {
   init() {
     if (this.container) {
       this.container.setAttribute('data-active-station', this.stations[0].id);
+      this._initHUD();
     }
 
     if (this.canvas) {
       this._initThree();
     }
+  }
+
+  /**
+   * Mounts and initializes the minimalist floating HUD station bar
+   * @private
+   */
+  _initHUD() {
+    if (!this.container || typeof document === 'undefined') return;
+
+    let hud = this.container.querySelector('.hud-nav');
+    if (!hud) {
+      hud = document.createElement('nav');
+      hud.className = 'hud-nav';
+      hud.setAttribute('aria-label', 'Station Navigation');
+      this.container.prepend(hud);
+    }
+
+    this.hudNav = hud;
+    this._renderHUD();
+  }
+
+  /**
+   * Populates the HUD buttons from the STATIONS registry
+   * @private
+   */
+  _renderHUD() {
+    if (!this.hudNav || typeof document === 'undefined') return;
+    this.hudNav.innerHTML = '';
+    this._hudButtons = [];
+
+    this.stations.forEach((station, idx) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `hud-btn ${idx === this.currentStationIndex ? 'active' : ''}`;
+      btn.setAttribute('data-station-index', String(idx));
+      if (idx === this.currentStationIndex) {
+        btn.setAttribute('aria-current', 'step');
+      }
+
+      const indexSpan = document.createElement('span');
+      indexSpan.className = 'hud-index';
+      indexSpan.textContent = station.index;
+
+      const sepSpan = document.createElement('span');
+      sepSpan.className = 'hud-sep';
+      sepSpan.textContent = '//';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'hud-name';
+      nameSpan.textContent = station.name;
+
+      btn.appendChild(indexSpan);
+      btn.appendChild(sepSpan);
+      btn.appendChild(nameSpan);
+
+      btn.addEventListener('click', () => {
+        this.navigateTo(idx);
+      });
+
+      this.hudNav.appendChild(btn);
+      this._hudButtons.push(btn);
+    });
   }
 
   /**
@@ -59,8 +137,16 @@ export class PortfolioApp {
     const width = typeof window !== 'undefined' ? window.innerWidth : 800;
     const height = typeof window !== 'undefined' ? window.innerHeight : 600;
 
+    const activeStation = this.getActiveStation();
+    const initCamPos = activeStation?.camera?.position || { x: 0, y: 0, z: 16 };
+    const initCamTarget = activeStation?.camera?.target || { x: 0, y: 0, z: 0 };
+
     this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    this.camera.position.set(0, 0, 16);
+    this.camera.position.set(initCamPos.x, initCamPos.y, initCamPos.z);
+    this._targetCamPos.set(initCamPos.x, initCamPos.y, initCamPos.z);
+    this._targetCamLookAt.set(initCamTarget.x, initCamTarget.y, initCamTarget.z);
+    this._currentCamLookAt.set(initCamTarget.x, initCamTarget.y, initCamTarget.z);
+    this.camera.lookAt(this._currentCamLookAt);
 
     // Initialize WebGLRenderer with graceful fallback for headless test environments
     try {
@@ -124,6 +210,29 @@ export class PortfolioApp {
       this._clearPointer();
     };
 
+    this._onKeyDown = (e) => {
+      if (!e || !e.key || e.repeat) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        this.navigateNext();
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        this.navigatePrev();
+      }
+    };
+
+    this._onWheel = (e) => {
+      if (!e || typeof e.deltaY !== 'number') return;
+      if (Math.abs(e.deltaY) < 15) return;
+      const direction = e.deltaY > 0 ? 1 : -1;
+      this._triggerSequentialNav(direction);
+    };
+
+    this._onTouchStart = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        this._touchStartY = e.touches[0].clientY;
+        this._updatePointerFromClient(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
     this._onTouchMove = (e) => {
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
@@ -131,7 +240,24 @@ export class PortfolioApp {
       }
     };
 
-    this._onTouchEnd = () => {
+    this._onTouchEnd = (e) => {
+      if (this._touchStartY !== null) {
+        let endY = null;
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          endY = e.changedTouches[0].clientY;
+        } else if (e.touches && e.touches.length > 0) {
+          endY = e.touches[0].clientY;
+        }
+
+        if (typeof endY === 'number') {
+          const diffY = endY - this._touchStartY;
+          if (Math.abs(diffY) >= 50) {
+            const direction = diffY < 0 ? 1 : -1;
+            this._triggerSequentialNav(direction);
+          }
+        }
+        this._touchStartY = null;
+      }
       this._clearPointer();
     };
 
@@ -154,7 +280,9 @@ export class PortfolioApp {
       window.addEventListener('pointermove', this._onPointerMove);
       window.addEventListener('pointerleave', this._onPointerLeave);
       window.addEventListener('pointerdown', this._onPointerDown);
-      window.addEventListener('touchstart', this._onTouchMove, { passive: true });
+      window.addEventListener('keydown', this._onKeyDown);
+      window.addEventListener('wheel', this._onWheel, { passive: true });
+      window.addEventListener('touchstart', this._onTouchStart, { passive: true });
       window.addEventListener('touchmove', this._onTouchMove, { passive: true });
       window.addEventListener('touchend', this._onTouchEnd);
       window.addEventListener('touchcancel', this._onTouchEnd);
@@ -182,6 +310,24 @@ export class PortfolioApp {
       const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
       this._lastFrameTime = currentTime;
 
+      // 1. Advance spatial camera waypoint transition
+      if (this.camera && (this._isCameraTransitioning || this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001)) {
+        const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
+        this.camera.position.lerp(this._targetCamPos, camLerp);
+        this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
+        this.camera.lookAt(this._currentCamLookAt);
+
+        const distPosSq = this.camera.position.distanceToSquared(this._targetCamPos);
+        const distLookSq = this._currentCamLookAt.distanceToSquared(this._targetCamLookAt);
+
+        if (distPosSq < 0.01 && distLookSq < 0.01) {
+          this.camera.position.copy(this._targetCamPos);
+          this._currentCamLookAt.copy(this._targetCamLookAt);
+          this.camera.lookAt(this._currentCamLookAt);
+          this._isCameraTransitioning = false;
+        }
+      }
+
       if (this.idleManager) {
         this.idleManager.update(delta);
       }
@@ -194,7 +340,8 @@ export class PortfolioApp {
 
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
-      const isResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
+      const isTopologyResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
+      const isResting = !this._isCameraTransitioning && isTopologyResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (!shouldSuspend && this.renderer && this.scene && this.camera) {
@@ -264,6 +411,49 @@ export class PortfolioApp {
     return this._isLoopRunning;
   }
 
+  /**
+   * Returns whether the camera is currently interpolating between station waypoints
+   * @returns {boolean}
+   */
+  isCameraTransitioning() {
+    return Boolean(this._isCameraTransitioning);
+  }
+
+  /**
+   * Advances sequentially to the next station
+   */
+  navigateNext() {
+    if (this.currentStationIndex < this.stations.length - 1) {
+      this.navigateTo(this.currentStationIndex + 1);
+    }
+  }
+
+  /**
+   * Returns sequentially to the previous station
+   */
+  navigatePrev() {
+    if (this.currentStationIndex > 0) {
+      this.navigateTo(this.currentStationIndex - 1);
+    }
+  }
+
+  /**
+   * Triggers sequential navigation with debounce cooldown protection
+   * @param {number} direction - Positive (+1) for next station, negative (-1) for previous
+   * @private
+   */
+  _triggerSequentialNav(direction) {
+    const now = Date.now();
+    if (now - this._lastNavTime < this._navCooldownMs) return;
+    this._lastNavTime = now;
+
+    if (direction > 0) {
+      this.navigateNext();
+    } else if (direction < 0) {
+      this.navigatePrev();
+    }
+  }
+
   getActiveStationIndex() {
     return this.currentStationIndex;
   }
@@ -280,8 +470,29 @@ export class PortfolioApp {
     this.currentStationIndex = stationIndex;
     const activeStation = this.getActiveStation();
 
+    // Trigger smooth 3D camera waypoint transition
+    if (activeStation && activeStation.camera) {
+      const targetPos = activeStation.camera.position || { x: 0, y: 0, z: 16 };
+      const targetLookAt = activeStation.camera.target || { x: 0, y: 0, z: 0 };
+      this._targetCamPos.set(targetPos.x, targetPos.y, targetPos.z);
+      this._targetCamLookAt.set(targetLookAt.x, targetLookAt.y, targetLookAt.z);
+      this._isCameraTransitioning = true;
+    }
+
     if (this.container) {
       this.container.setAttribute('data-active-station', activeStation.id);
+    }
+
+    if (this._hudButtons && this._hudButtons.length > 0) {
+      this._hudButtons.forEach((btn, idx) => {
+        if (idx === stationIndex) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-current', 'step');
+        } else {
+          btn.classList.remove('active');
+          btn.removeAttribute('aria-current');
+        }
+      });
     }
 
     if (this.srAnnouncer) {
@@ -297,6 +508,7 @@ export class PortfolioApp {
   destroy() {
     this.isDestroyed = true;
     this._isLoopRunning = false;
+    this._isCameraTransitioning = false;
 
     if (typeof window !== 'undefined') {
       if (this._animFrameId && typeof window.cancelAnimationFrame === 'function') {
@@ -306,7 +518,9 @@ export class PortfolioApp {
       window.removeEventListener('pointermove', this._onPointerMove);
       window.removeEventListener('pointerleave', this._onPointerLeave);
       window.removeEventListener('pointerdown', this._onPointerDown);
-      window.removeEventListener('touchstart', this._onTouchMove);
+      window.removeEventListener('keydown', this._onKeyDown);
+      window.removeEventListener('wheel', this._onWheel);
+      window.removeEventListener('touchstart', this._onTouchStart);
       window.removeEventListener('touchmove', this._onTouchMove);
       window.removeEventListener('touchend', this._onTouchEnd);
       window.removeEventListener('touchcancel', this._onTouchEnd);
@@ -325,6 +539,15 @@ export class PortfolioApp {
     if (this.renderer) {
       this.renderer.dispose();
       this.renderer = null;
+    }
+
+    if (this._hudButtons) {
+      this._hudButtons = [];
+    }
+
+    if (this.hudNav) {
+      this.hudNav.innerHTML = '';
+      this.hudNav = null;
     }
 
     if (this.container) {
