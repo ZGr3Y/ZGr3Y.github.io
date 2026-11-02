@@ -142,11 +142,46 @@ export class PortfolioApp {
   _initStations() {
     if (!this.stationContainer || typeof document === 'undefined') return;
 
-    if (!this.stationContainer.querySelector('.gateway-card')) {
-      this._renderGatewayCard();
-    }
+    this.stations.forEach((station, idx) => {
+      const existing = this.stationContainer.querySelector(`.station-card[data-station="${station.id}"]`);
+      if (!existing) {
+        if (station.id === 'gateway') {
+          this._renderGatewayCard();
+        } else {
+          this._renderStationPlaceholder(station, idx);
+        }
+      }
+    });
 
     this._updateStationVisibility();
+  }
+
+  /**
+   * Renders semantic placeholder card for upcoming station slices
+   * @param {Object} station
+   * @param {number} idx
+   * @private
+   */
+  _renderStationPlaceholder(station, idx) {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+
+    const card = document.createElement('section');
+    card.className = `station-card ${station.id}-card`;
+    card.setAttribute('data-station', station.id);
+    card.setAttribute('aria-label', `Station ${station.index}: ${station.name}`);
+    card.setAttribute('hidden', '');
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>STATION ${station.index} // ${station.name} PROTOCOL</span>
+      </div>
+      <h2 class="hero-name">${station.name}</h2>
+      <div class="hero-role">
+        <span class="hero-title">${station.subtitle}</span>
+      </div>
+      <p class="hero-bio">${station.description || 'Architecture and engineering artifacts in active configuration.'}</p>
+    `;
+    this.stationContainer.appendChild(card);
   }
 
   /**

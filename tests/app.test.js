@@ -84,6 +84,24 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(srAnnouncements.textContent).toContain('LAB');
   });
 
+  it('maintains active, visible station content across all stations when navigating', async () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    for (let i = 0; i < app.stations.length; i++) {
+      await app.navigateTo(i);
+      const activeStation = app.getActiveStation();
+      const activeCard = stationContainer.querySelector(`.station-card[data-station="${activeStation.id}"]`);
+      expect(activeCard).not.toBeNull();
+      expect(activeCard.classList.contains('active')).toBe(true);
+      expect(activeCard.hasAttribute('hidden')).toBe(false);
+    }
+  });
+
   it('renders minimalist floating HUD with 4 station buttons and handles direct tier navigation on click', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
 
