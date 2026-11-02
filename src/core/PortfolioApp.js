@@ -111,44 +111,29 @@ export class PortfolioApp {
     };
 
     this._onPointerMove = (e) => {
-      if (!this.topology || typeof window === 'undefined') return;
-      const normX = (e.clientX / window.innerWidth) * 2 - 1;
-      const normY = -(e.clientY / window.innerHeight) * 2 + 1;
-      this.topology.setPointer(normX, normY);
-      if (this.idleManager) {
-        this.idleManager.recordActivity();
-      }
-      this._resumeLoop();
+      this._updatePointerFromClient(e.clientX, e.clientY);
     };
 
     this._onPointerLeave = () => {
-      if (!this.topology || typeof window === 'undefined') return;
-      this.topology.setPointer(null, null);
-      this._resumeLoop();
+      this._clearPointer();
     };
 
     this._onTouchMove = (e) => {
-      if (!this.topology || typeof window === 'undefined') return;
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
-        const normX = (touch.clientX / window.innerWidth) * 2 - 1;
-        const normY = -(touch.clientY / window.innerHeight) * 2 + 1;
-        this.topology.setPointer(normX, normY);
-        if (this.idleManager) {
-          this.idleManager.recordActivity();
-        }
-        this._resumeLoop();
+        this._updatePointerFromClient(touch.clientX, touch.clientY);
       }
     };
 
     this._onTouchEnd = () => {
-      if (!this.topology || typeof window === 'undefined') return;
-      this.topology.setPointer(null, null);
-      this._resumeLoop();
+      this._clearPointer();
     };
 
-    this._onPointerDown = () => {
+    this._onPointerDown = (e) => {
       if (!this.topology || typeof window === 'undefined') return;
+      if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+        this._updatePointerFromClient(e.clientX, e.clientY);
+      }
       if (typeof this.topology.triggerPulse === 'function') {
         this.topology.triggerPulse(null, 1.0);
       }
@@ -225,6 +210,35 @@ export class PortfolioApp {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       this._animFrameId = window.requestAnimationFrame(this._renderFrame);
     }
+  }
+
+  /**
+   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer, and wakes loop
+   * @param {number} clientX
+   * @param {number} clientY
+   * @private
+   */
+  _updatePointerFromClient(clientX, clientY) {
+    if (!this.topology || typeof window === 'undefined') return;
+    const width = window.innerWidth || 800;
+    const height = window.innerHeight || 600;
+    const normX = (clientX / width) * 2 - 1;
+    const normY = -(clientY / height) * 2 + 1;
+    this.topology.setPointer(normX, normY);
+    if (this.idleManager) {
+      this.idleManager.recordActivity();
+    }
+    this._resumeLoop();
+  }
+
+  /**
+   * Clears pointer state and wakes loop to animate return to equilibrium
+   * @private
+   */
+  _clearPointer() {
+    if (!this.topology || typeof window === 'undefined') return;
+    this.topology.setPointer(null, null);
+    this._resumeLoop();
   }
 
   /**
@@ -310,5 +324,12 @@ export class PortfolioApp {
     if (this.container) {
       this.container.removeAttribute('data-active-station');
     }
+  }
+
+  /**
+   * Standardized resource teardown lifecycle per CODING_STANDARDS.md §7
+   */
+  dispose() {
+    this.destroy();
   }
 }

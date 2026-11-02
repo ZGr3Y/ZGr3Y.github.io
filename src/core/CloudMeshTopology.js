@@ -7,23 +7,19 @@ import { AdaptiveLightingEngine } from './AdaptiveLightingEngine.js';
 export const TIER_CONFIG = {
   ingress: {
     color: '#0066FF',
-    name: 'Ingress Gateway',
-    center: new THREE.Vector3(-6, 2.5, 0)
+    name: 'Ingress Gateway'
   },
   defense: {
     color: '#00D084',
-    name: 'Mesh Defense',
-    center: new THREE.Vector3(6, 2.5, 0)
+    name: 'Mesh Defense'
   },
   telemetry: {
     color: '#FFB800',
-    name: 'Worker Telemetry',
-    center: new THREE.Vector3(-6, -2.5, 0)
+    name: 'Worker Telemetry'
   },
   exploit: {
     color: '#FF3366',
-    name: 'Payload Analysis',
-    center: new THREE.Vector3(6, -2.5, 0)
+    name: 'Payload Analysis'
   }
 };
 
@@ -53,14 +49,11 @@ export class CloudMeshTopology {
     this._targetRotX = 0;
     this._targetPointerWorldPos = null;
     this._pointerWorldPos = null;
-    this._lastPulseTime = 0;
 
     // Viewport frustum dimensions at z = 0 (camera z = 16, fov = 45 deg)
     this.halfHeight = 16 * Math.tan((45 * Math.PI) / 360); // ~6.627
-    const aspect = (typeof window !== 'undefined' && window.innerWidth && window.innerHeight)
-      ? (window.innerWidth / window.innerHeight)
-      : 1.6;
-    this.halfWidth = this.halfHeight * aspect;
+    this.halfWidth = this.halfHeight * 1.6;
+    this._updateViewportBounds();
 
     // Vincent Garreau (particles.js) Constellation, Grab & Ripple Engine
     this.lighting = new AdaptiveLightingEngine({
@@ -168,7 +161,6 @@ export class CloudMeshTopology {
         basePosition: pos.clone(),
         baseScale,
         driftVelocity,
-        velocity: new THREE.Vector3(0, 0, 0),
         mesh: nodeMesh
       });
     }
@@ -215,8 +207,8 @@ export class CloudMeshTopology {
 
       if (fromNodes.length === 0 || toNodes.length === 0) return;
 
-      const start = fromNodes[idx % fromNodes.length].basePosition;
-      const end = toNodes[idx % toNodes.length].basePosition;
+      const start = fromNodes[idx % fromNodes.length].basePosition.clone();
+      const end = toNodes[idx % toNodes.length].basePosition.clone();
 
       const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
       const cp1 = new THREE.Vector3(
@@ -277,6 +269,17 @@ export class CloudMeshTopology {
   }
 
   /**
+   * Updates viewport horizontal frustum half-width from current window aspect ratio
+   * @private
+   */
+  _updateViewportBounds() {
+    const aspect = (typeof window !== 'undefined' && window.innerWidth && window.innerHeight)
+      ? (window.innerWidth / window.innerHeight)
+      : 1.6;
+    this.halfWidth = this.halfHeight * aspect;
+  }
+
+  /**
    * Sets normalized pointer coordinates [-1.0 to 1.0] for cursor "Grab" constellation links and repulse
    * @param {number|null} x - Normalized horizontal pointer [-1.0 to 1.0] (or null to clear)
    * @param {number|null} y - Normalized vertical pointer [-1.0 to 1.0] (or null to clear)
@@ -293,10 +296,7 @@ export class CloudMeshTopology {
     this._targetRotY = x * 0.06;
     this._targetRotX = -y * 0.04;
 
-    const aspect = (typeof window !== 'undefined' && window.innerWidth && window.innerHeight)
-      ? (window.innerWidth / window.innerHeight)
-      : 1.6;
-    this.halfWidth = this.halfHeight * aspect;
+    this._updateViewportBounds();
 
     // Project normalized pointer accurately onto the z = 0 constellation plane
     if (!this._targetPointerWorldPos) {
