@@ -17,7 +17,7 @@ export class PortfolioApp {
   constructor({ container, canvas, srAnnouncer } = {}) {
     this.container = container;
     this.canvas = canvas;
-    this.srAnnouncer = srAnnouncer;
+    this.srAnnouncer = srAnnouncer || (typeof document !== 'undefined' ? document.getElementById('sr-announcements') : null);
 
     this.stations = STATIONS;
     this.currentStationIndex = 0;
@@ -45,7 +45,8 @@ export class PortfolioApp {
 
     // Sequential navigation debounce & touch swipe state
     this._lastNavTime = 0;
-    this._navCooldownMs = 600;
+    this._navCooldownMs = 450;
+    this._touchStartX = null;
     this._touchStartY = null;
 
     this.init();
@@ -108,6 +109,7 @@ export class PortfolioApp {
 
       const sepSpan = document.createElement('span');
       sepSpan.className = 'hud-sep';
+      sepSpan.setAttribute('aria-hidden', 'true');
       sepSpan.textContent = '//';
 
       const nameSpan = document.createElement('span');
@@ -213,9 +215,9 @@ export class PortfolioApp {
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat) return;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        this.navigateNext();
+        this._triggerSequentialNav(1);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        this.navigatePrev();
+        this._triggerSequentialNav(-1);
       }
     };
 
@@ -226,9 +228,23 @@ export class PortfolioApp {
       this._triggerSequentialNav(direction);
     };
 
+    this._onFocusIn = () => {
+      if (this.idleManager) {
+        this.idleManager.recordActivity();
+      }
+      this._resumeLoop();
+    };
+
     this._onTouchStart = (e) => {
       if (e.touches && e.touches.length > 0) {
-        this._touchStartY = e.touches[0].clientY;
+        const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
+        if (!isFromHUD) {
+          this._touchStartX = e.touches[0].clientX;
+          this._touchStartY = e.touches[0].clientY;
+        } else {
+          this._touchStartX = null;
+          this._touchStartY = null;
+        }
         this._updatePointerFromClient(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
@@ -242,22 +258,36 @@ export class PortfolioApp {
 
     this._onTouchEnd = (e) => {
       if (this._touchStartY !== null) {
+        let endX = null;
         let endY = null;
         if (e.changedTouches && e.changedTouches.length > 0) {
+          endX = e.changedTouches[0].clientX;
           endY = e.changedTouches[0].clientY;
         } else if (e.touches && e.touches.length > 0) {
+          endX = e.touches[0].clientX;
           endY = e.touches[0].clientY;
         }
 
-        if (typeof endY === 'number') {
+        if (typeof endY === 'number' && typeof this._touchStartY === 'number') {
           const diffY = endY - this._touchStartY;
-          if (Math.abs(diffY) >= 50) {
+          const diffX = (typeof endX === 'number' && typeof this._touchStartX === 'number')
+            ? endX - this._touchStartX
+            : 0;
+
+          if (Math.abs(diffY) >= 50 && Math.abs(diffY) > Math.abs(diffX) * 1.5) {
             const direction = diffY < 0 ? 1 : -1;
             this._triggerSequentialNav(direction);
           }
         }
+        this._touchStartX = null;
         this._touchStartY = null;
       }
+      this._clearPointer();
+    };
+
+    this._onTouchCancel = () => {
+      this._touchStartX = null;
+      this._touchStartY = null;
       this._clearPointer();
     };
 
@@ -280,12 +310,13 @@ export class PortfolioApp {
       window.addEventListener('pointermove', this._onPointerMove);
       window.addEventListener('pointerleave', this._onPointerLeave);
       window.addEventListener('pointerdown', this._onPointerDown);
+      window.addEventListener('focusin', this._onFocusIn);
       window.addEventListener('keydown', this._onKeyDown);
       window.addEventListener('wheel', this._onWheel, { passive: true });
       window.addEventListener('touchstart', this._onTouchStart, { passive: true });
       window.addEventListener('touchmove', this._onTouchMove, { passive: true });
       window.addEventListener('touchend', this._onTouchEnd);
-      window.addEventListener('touchcancel', this._onTouchEnd);
+      window.addEventListener('touchcancel', this._onTouchCancel);
     }
 
     // Start render animation loop
@@ -518,12 +549,13 @@ export class PortfolioApp {
       window.removeEventListener('pointermove', this._onPointerMove);
       window.removeEventListener('pointerleave', this._onPointerLeave);
       window.removeEventListener('pointerdown', this._onPointerDown);
+      window.removeEventListener('focusin', this._onFocusIn);
       window.removeEventListener('keydown', this._onKeyDown);
       window.removeEventListener('wheel', this._onWheel);
       window.removeEventListener('touchstart', this._onTouchStart);
       window.removeEventListener('touchmove', this._onTouchMove);
       window.removeEventListener('touchend', this._onTouchEnd);
-      window.removeEventListener('touchcancel', this._onTouchEnd);
+      window.removeEventListener('touchcancel', this._onTouchCancel);
     }
 
     if (this.topology) {

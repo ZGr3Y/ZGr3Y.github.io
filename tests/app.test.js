@@ -65,6 +65,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(buttons[0].classList.contains('active')).toBe(true);
     expect(buttons[0].textContent).toContain('01');
     expect(buttons[0].textContent).toContain('GATEWAY');
+    expect(buttons[0].querySelector('.hud-sep').getAttribute('aria-hidden')).toBe('true');
 
     // Click on Station 2 (Lab)
     buttons[1].click();
@@ -120,15 +121,18 @@ describe('PortfolioApp (Application Root Seam)', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
     expect(app.getActiveStationIndex()).toBe(1);
 
-    // ArrowUp -> Station 0
+    // ArrowUp -> Station 0 (with cooldown reset)
+    app._lastNavTime = 0;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
     expect(app.getActiveStationIndex()).toBe(0);
 
     // Boundary clamp: ArrowUp at index 0 stays at 0
+    app._lastNavTime = 0;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
     expect(app.getActiveStationIndex()).toBe(0);
 
     // 2. Mouse Wheel Navigation with cooldown protection
+    app._lastNavTime = 0;
     window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
     expect(app.getActiveStationIndex()).toBe(1);
 
@@ -219,5 +223,23 @@ describe('PortfolioApp (Application Root Seam)', () => {
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
     app._resumeLoop();
     expect(app.isLoopRunning()).toBe(true);
+  });
+
+  it('wakes suspended loop upon keyboard focusin and resolves srAnnouncer from DOM fallback', async () => {
+    // Instantiate without explicit srAnnouncer option
+    app = new PortfolioApp({ container, canvas });
+    expect(app.srAnnouncer).toBe(srAnnouncements);
+
+    // Suspend loop
+    app._isLoopRunning = false;
+    expect(app.isLoopRunning()).toBe(false);
+
+    // Trigger focusin event (e.g. tabbing to HUD button)
+    window.dispatchEvent(new Event('focusin'));
+    expect(app.isLoopRunning()).toBe(true);
+
+    // Verify fallback announcement works on navigation
+    await app.navigateTo(1);
+    expect(srAnnouncements.textContent).toContain('LAB');
   });
 });
