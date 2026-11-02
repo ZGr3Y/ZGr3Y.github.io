@@ -195,20 +195,24 @@ describe('PortfolioApp (Application Root Seam)', () => {
     // Navigation must NOT be hijacked
     expect(app.getActiveStationIndex()).toBe(0);
 
-    // 3. Swipe up while station-container can still scroll down
+    // 3. Swipe up that starts with remaining scroll room and reaches the bottom during the swipe
+    // (e.g. starts at scrollTop = 50, and native scrolling advances panel to 200 before touchend)
     app._lastNavTime = 0;
+    stationContainer.scrollTop = 50;
     const touchStart = new Event('touchstart');
     touchStart.touches = [{ clientX: 200, clientY: 400 }];
     window.dispatchEvent(touchStart);
 
+    // Simulate browser native scrolling advancing panel to boundary during gesture
+    stationContainer.scrollTop = 200;
+
     const touchEnd = new Event('touchend');
     touchEnd.changedTouches = [{ clientX: 200, clientY: 200 }]; // 200px swipe up
     window.dispatchEvent(touchEnd);
-    // Navigation must NOT be hijacked
+    // Boundary-reaching swipe must NOT hijack station navigation on this gesture
     expect(app.getActiveStationIndex()).toBe(0);
 
-    // 4. When scrolled to the bottom (boundary reached, scrollTop = 200), swipe up DOES trigger station navigation
-    stationContainer.scrollTop = 200;
+    // 4. A subsequent swipe that STARTS while already at the boundary (scrollTop = 200) triggers station navigation
     app._lastNavTime = 0;
     window.dispatchEvent(touchStart);
     window.dispatchEvent(touchEnd);

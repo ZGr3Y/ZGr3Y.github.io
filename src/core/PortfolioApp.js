@@ -48,6 +48,8 @@ export class PortfolioApp {
     this._navCooldownMs = 450;
     this._touchStartX = null;
     this._touchStartY = null;
+    this._touchStartCanScrollDown = false;
+    this._touchStartCanScrollUp = false;
     this.stationContainer = null;
 
     this.init();
@@ -251,9 +253,13 @@ export class PortfolioApp {
         if (!isFromHUD) {
           this._touchStartX = e.touches[0].clientX;
           this._touchStartY = e.touches[0].clientY;
+          this._touchStartCanScrollDown = this._canScrollInDirection(1);
+          this._touchStartCanScrollUp = this._canScrollInDirection(-1);
         } else {
           this._touchStartX = null;
           this._touchStartY = null;
+          this._touchStartCanScrollDown = false;
+          this._touchStartCanScrollUp = false;
         }
         this._updatePointerFromClient(e.touches[0].clientX, e.touches[0].clientY);
       }
@@ -286,13 +292,16 @@ export class PortfolioApp {
 
           if (Math.abs(diffY) >= 50 && Math.abs(diffY) > Math.abs(diffX) * 1.5) {
             const direction = diffY < 0 ? 1 : -1;
-            if (!this._canScrollInDirection(direction)) {
+            const canScrollAtStart = direction > 0 ? this._touchStartCanScrollDown : this._touchStartCanScrollUp;
+            if (!canScrollAtStart && !this._canScrollInDirection(direction)) {
               this._triggerSequentialNav(direction);
             }
           }
         }
         this._touchStartX = null;
         this._touchStartY = null;
+        this._touchStartCanScrollDown = false;
+        this._touchStartCanScrollUp = false;
       }
       this._clearPointer();
     };
@@ -300,6 +309,8 @@ export class PortfolioApp {
     this._onTouchCancel = () => {
       this._touchStartX = null;
       this._touchStartY = null;
+      this._touchStartCanScrollDown = false;
+      this._touchStartCanScrollUp = false;
       this._clearPointer();
     };
 
