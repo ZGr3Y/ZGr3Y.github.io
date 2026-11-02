@@ -135,6 +135,7 @@ html, body {
   padding: 32px 24px;
 }
 
+.station-card,
 .landing-placeholder {
   max-width: 640px;
   width: 100%;
@@ -150,6 +151,7 @@ html, body {
   animation: fadeIn 600ms var(--transition-normal);
 }
 
+.station-badge,
 .landing-badge {
   display: inline-flex;
   align-items: center;
@@ -174,6 +176,7 @@ html, body {
   box-shadow: 0 0 6px var(--cloud-green);
 }
 
+.hero-name,
 .landing-title {
   font-size: 2.25rem;
   font-weight: 700;
@@ -182,19 +185,39 @@ html, body {
   line-height: 1.15;
 }
 
+.hero-role,
 .landing-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-mono);
   font-size: 0.95rem;
   font-weight: 500;
   color: var(--cloud-blue);
 }
 
+.hero-alias {
+  font-weight: 700;
+  color: var(--cloud-blue);
+}
+
+.hero-sep {
+  opacity: 0.4;
+  font-size: 0.8rem;
+}
+
+.hero-title {
+  color: var(--text-secondary);
+}
+
+.hero-bio,
 .landing-bio {
   font-size: 1.05rem;
   line-height: 1.6;
   color: var(--text-secondary);
 }
 
+.station-actions,
 .landing-actions {
   display: flex;
   flex-wrap: wrap;
@@ -202,16 +225,45 @@ html, body {
   margin-top: 12px;
 }
 
-.btn-cv, .btn-github {
+.btn,
+.btn-cv,
+.btn-github {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
   border-radius: var(--radius-md);
+  font-family: var(--font-sans);
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
+  user-select: none;
   transition: all var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.btn-primary {
+  background-color: var(--cloud-blue);
+  color: var(--text-inverse);
+  box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
+}
+
+.btn-primary:hover {
+  background-color: #0369a1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(2, 132, 199, 0.3);
+}
+
+.btn-secondary {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.btn-secondary:hover {
+  background-color: #E2E8F0;
+  transform: translateY(-1px);
 }
 
 .btn-cv {
@@ -229,7 +281,7 @@ html, body {
 .btn-github {
   background-color: var(--bg-surface-subtle);
   color: var(--text-primary);
-  border: 1px solid var(--border-medium);
+  border-color: var(--border-medium);
 }
 
 .btn-github:hover {

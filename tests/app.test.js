@@ -38,6 +38,40 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(station.name).toBe('GATEWAY');
   });
 
+  it('renders Station 01 Gateway card with identity, telemetry badge, and validated CV download and GitHub links', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // 1. Verify identity and role elements exist in Gateway card
+    const gatewayCard = container.querySelector('.gateway-card') || container.querySelector('[data-station="gateway"]');
+    expect(gatewayCard).not.toBeNull();
+    expect(gatewayCard.textContent).toContain('PAOLO MARIA SCARLATA');
+    expect(gatewayCard.textContent).toContain('ZGr3Y');
+    expect(gatewayCard.textContent).toContain('Cloud Systems & Security');
+    expect(gatewayCard.textContent).toContain('SYSTEM ONLINE');
+
+    // 2. Redundant in-card navigation buttons are absent (relying on persistent HUD and gesture navigation)
+    expect(gatewayCard.querySelector('[data-nav-station]')).toBeNull();
+
+    // 3. Verify CV download link attributes
+    const cvLink = gatewayCard.querySelector('.btn-cv');
+    expect(cvLink).not.toBeNull();
+    expect(cvLink.getAttribute('href')).toBe('./resume_PaoloMariaScarlata.pdf');
+    expect(cvLink.getAttribute('download')).toBe('resume_PaoloMariaScarlata.pdf');
+
+    // 4. Verify external GitHub link attributes
+    const ghLink = gatewayCard.querySelector('.btn-github');
+    expect(ghLink).not.toBeNull();
+    expect(ghLink.getAttribute('href')).toBe('https://github.com/ZGr3Y');
+    expect(ghLink.getAttribute('target')).toBe('_blank');
+    expect(ghLink.getAttribute('rel')).toContain('noopener');
+    expect(ghLink.getAttribute('rel')).toContain('noreferrer');
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
