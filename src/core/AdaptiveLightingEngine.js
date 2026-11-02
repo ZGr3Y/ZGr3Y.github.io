@@ -466,16 +466,16 @@ export class AdaptiveLightingEngine {
         positions[base1 + 4] = midY;
         positions[base1 + 5] = midZ;
 
-        // Tail vertex fades smoothly into the wire (15% intensity), Mid vertex is 90% vivid color
-        colors[base1] = BG_R + (cr - BG_R) * 0.15;
-        colors[base1 + 1] = BG_G + (cg - BG_G) * 0.15;
-        colors[base1 + 2] = BG_B + (cb - BG_B) * 0.15;
+        // Tail vertex fades smoothly into the wire (8% opacity), Mid vertex is soft (38% opacity)
+        colors[base1] = BG_R + (cr - BG_R) * 0.08;
+        colors[base1 + 1] = BG_G + (cg - BG_G) * 0.08;
+        colors[base1 + 2] = BG_B + (cb - BG_B) * 0.08;
 
-        colors[base1 + 3] = BG_R + (cr - BG_R) * 0.92;
-        colors[base1 + 4] = BG_G + (cg - BG_G) * 0.92;
-        colors[base1 + 5] = BG_B + (cb - BG_B) * 0.92;
+        colors[base1 + 3] = BG_R + (cr - BG_R) * 0.38;
+        colors[base1 + 4] = BG_G + (cg - BG_G) * 0.38;
+        colors[base1 + 5] = BG_B + (cb - BG_B) * 0.38;
 
-        // Segment 2: Intense laser head (tMid -> tHead) at 100% saturation
+        // Segment 2: Translucent laser head (tMid -> tHead, 38% -> 55% opacity)
         const base2 = (vIdx + 2) * 3;
         positions[base2] = midX;
         positions[base2 + 1] = midY;
@@ -484,13 +484,13 @@ export class AdaptiveLightingEngine {
         positions[base2 + 4] = headY;
         positions[base2 + 5] = headZ;
 
-        colors[base2] = cr;
-        colors[base2 + 1] = cg;
-        colors[base2 + 2] = cb;
+        colors[base2] = BG_R + (cr - BG_R) * 0.38;
+        colors[base2 + 1] = BG_G + (cg - BG_G) * 0.38;
+        colors[base2 + 2] = BG_B + (cb - BG_B) * 0.38;
 
-        colors[base2 + 3] = cr;
-        colors[base2 + 4] = cg;
-        colors[base2 + 5] = cb;
+        colors[base2 + 3] = BG_R + (cr - BG_R) * 0.55;
+        colors[base2 + 4] = BG_G + (cg - BG_G) * 0.55;
+        colors[base2 + 5] = BG_B + (cb - BG_B) * 0.55;
 
         vIdx += 4;
       }
