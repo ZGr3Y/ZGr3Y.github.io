@@ -231,6 +231,7 @@ export class PortfolioApp {
 
     this._onWheel = (e) => {
       if (!e || typeof e.deltaY !== 'number') return;
+      if (e.ctrlKey || e.metaKey) return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
       if (this._canScrollInDirection(direction)) return;

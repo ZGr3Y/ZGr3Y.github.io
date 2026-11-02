@@ -132,6 +132,20 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(0);
 
     // 2. Mouse Wheel Navigation with cooldown protection
+    // Ignore zoom-modified wheel events (Ctrl+wheel / Cmd+wheel pinch-to-zoom)
+    app._lastNavTime = 0;
+    const ctrlWheel = new WheelEvent('wheel', { deltaY: 100 });
+    Object.defineProperty(ctrlWheel, 'ctrlKey', { value: true });
+    window.dispatchEvent(ctrlWheel);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    app._lastNavTime = 0;
+    const metaWheel = new WheelEvent('wheel', { deltaY: 100 });
+    Object.defineProperty(metaWheel, 'metaKey', { value: true });
+    window.dispatchEvent(metaWheel);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // Regular wheel event navigates to next station
     app._lastNavTime = 0;
     window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
     expect(app.getActiveStationIndex()).toBe(1);
