@@ -243,29 +243,6 @@ html, body {
   border: 1px solid transparent;
 }
 
-.btn-primary {
-  background-color: var(--cloud-blue);
-  color: var(--text-inverse);
-  box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
-}
-
-.btn-primary:hover {
-  background-color: #0369a1;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(2, 132, 199, 0.3);
-}
-
-.btn-secondary {
-  background-color: var(--bg-surface-subtle);
-  color: var(--text-primary);
-  border-color: var(--border-medium);
-}
-
-.btn-secondary:hover {
-  background-color: #E2E8F0;
-  transform: translateY(-1px);
-}
-
 .btn-cv {
   background-color: var(--cloud-blue);
   color: var(--text-inverse);
