@@ -10,6 +10,8 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close an issue**: `gh issue close <number> --comment "..."`
+- **Inspect PR status & review comments**: `gh pr view <number> --json latestReviews,comments`
+- **Request Codex bot review on PR**: `gh pr comment <number> --body "@codex review"`
 
 Repo is inferred from `git remote -v` (`ZGr3Y/ZGr3Y.github.io`).
 
