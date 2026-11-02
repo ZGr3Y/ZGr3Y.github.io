@@ -394,8 +394,9 @@ export class CloudMeshTopology {
         this.nodes,
         this.conduits,
         activePointer,
-        delta * Math.max(0.15, speedFactor),
-        this.constellationGeo
+        delta,
+        this.constellationGeo,
+        speedFactor
       );
     }
 

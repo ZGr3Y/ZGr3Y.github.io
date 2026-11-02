@@ -124,8 +124,14 @@ export class AdaptiveLightingEngine {
    * @param {THREE.Vector3|null} [pointerWorldPos=null] - 3D world coordinates of pointer focus
    * @param {number} [delta=0.016] - Elapsed frame time in seconds
    * @param {THREE.BufferGeometry|null} [constellationGeometry=null] - Dynamic LineSegments geometry
+   * @param {number} [speedFactor=1.0] - Multiplier from IdleManager [0.0 - 1.0]
    */
-  update(nodes, conduits = [], pointerWorldPos = null, delta = 0.016, constellationGeometry = null) {
+  update(nodes, conduits = [], pointerWorldPos = null, delta = 0.016, constellationGeometry = null, speedFactor = 1.0) {
+    // When idle damping reaches zero, clear any lingering in-flight packets so nothing freezes on screen
+    if (speedFactor <= 0.0001) {
+      this.linePackets = [];
+    }
+
     // 1. Advance concentric ripple/ping waves
     for (let p = this.pulses.length - 1; p >= 0; p--) {
       const pulse = this.pulses[p];
@@ -213,7 +219,7 @@ export class AdaptiveLightingEngine {
 
     // 3. Update dynamic constellation lines + asynchronous laser pulses along edges
     if (constellationGeometry && nodes && nodes.length > 0) {
-      this.updateConstellation(nodes, pointerWorldPos, constellationGeometry, delta);
+      this.updateConstellation(nodes, pointerWorldPos, constellationGeometry, delta, speedFactor);
     }
 
     // 4. Modulate conduit opacities
@@ -244,8 +250,9 @@ export class AdaptiveLightingEngine {
    * @param {THREE.Vector3|null} pointerWorldPos
    * @param {THREE.BufferGeometry} lineGeometry
    * @param {number} [delta=0.016]
+   * @param {number} [speedFactor=1.0]
    */
-  updateConstellation(nodes, pointerWorldPos, lineGeometry, delta = 0.016) {
+  updateConstellation(nodes, pointerWorldPos, lineGeometry, delta = 0.016, speedFactor = 1.0) {
     const posAttr = lineGeometry.getAttribute('position');
     const colAttr = lineGeometry.getAttribute('color');
     if (!posAttr || !colAttr) return;
@@ -314,7 +321,7 @@ export class AdaptiveLightingEngine {
             linkCount++;
 
             // Pseudo-random packet spawning: sparse ambient rate vs elevated rate near pointer
-            if (delta > 0) {
+            if (delta > 0 && speedFactor > 0.0001) {
               let spawnRate = 0.005; // ~1 ambient pulse every 1-1.5s across the whole constellation
               if (pointerWorldPos) {
                 const midX = (pos1.x + pos2.x) * 0.5 - pointerWorldPos.x;
@@ -372,7 +379,7 @@ export class AdaptiveLightingEngine {
             grabCount++;
 
             // Unhurried desynchronized pulses shooting out from the pointer into grabbed nodes
-            if (delta > 0 && Math.random() < (0.1 + proxGrab * 0.25) * delta) {
+            if (delta > 0 && speedFactor > 0.0001 && Math.random() < (0.1 + proxGrab * 0.25) * delta) {
               this.spawnLinePacket(
                 -1,
                 i,
@@ -505,12 +512,12 @@ export class AdaptiveLightingEngine {
   }
 
   /**
-   * Returns whether all nodes and ripples have settled into resting ambient state
+   * Returns whether all nodes, ripples, and laser packet trails have settled into resting ambient state
    * @param {Array<Object>} nodes - 3D nodes
    * @returns {boolean}
    */
   isResting(nodes) {
-    if (this.pulses.length > 0) return false;
+    if (this.pulses.length > 0 || this.linePackets.length > 0) return false;
     if (!nodes || nodes.length === 0) return true;
 
     for (let i = 0; i < nodes.length; i++) {

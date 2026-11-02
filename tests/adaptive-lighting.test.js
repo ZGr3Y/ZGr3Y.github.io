@@ -182,4 +182,26 @@ describe('AdaptiveLightingEngine (Adaptive Illumination & Network Ping Waves)', 
     expect(engine.linePackets[0].progress).toBeGreaterThan(0);
     expect(geo.drawRange.count).toBeGreaterThanOrEqual(6 + 8);
   });
+
+  it('mantiene il rendering attivo se vi sono impulsi laser in volo (isResting = false) e li pulisce in idle', () => {
+    const node = {
+      position: new THREE.Vector3(0, 0, 0),
+      mesh: new THREE.Mesh(
+        new THREE.SphereGeometry(0.14),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.25 })
+      )
+    };
+    const nodes = [node];
+
+    // Nodi a riposo senza impulsi
+    expect(engine.isResting(nodes)).toBe(true);
+
+    // Impulso in volo: la scena NON deve considerarsi a riposo (previene congelamento a metà linea)
+    engine.spawnLinePacket(0, 1, { r: 1, g: 1, b: 1 }, false);
+    expect(engine.isResting(nodes)).toBe(false);
+
+    // Con l'entrata in idle damping (speedFactor = 0), gli impulsi vengono azzerati prima della sospensione
+    engine.update(nodes, [], null, 0.016, null, 0.0);
+    expect(engine.isResting(nodes)).toBe(true);
+  });
 });

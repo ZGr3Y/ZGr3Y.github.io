@@ -116,12 +116,12 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     expect(firstNode.mesh.scale.x).toBeGreaterThan(firstNode.baseScale * 1.1);
     expect(topology.lighting.activeGrabCount).toBeGreaterThan(0);
 
-    // Rimuoviamo il puntatore (null)
+    // Rimuoviamo il puntatore (null) e simuliamo l'entrata in idle damping (speedFactor = 0.0)
     topology.setPointer(null, null);
 
-    // Aggiorniamo per 80 frame: nodi e rotazione devono riassestarsi verso lo stato di equilibrio
+    // Aggiorniamo per 80 frame: nodi, impulsi e rotazione devono riassestarsi verso lo stato di equilibrio
     for (let i = 0; i < 80; i++) {
-      topology.update(0.016, 1.0);
+      topology.update(0.016, 0.0);
     }
     expect(firstNode.mesh.material.opacity).toBeCloseTo(0.82, 1);
     expect(firstNode.mesh.scale.x).toBeCloseTo(firstNode.baseScale, 1);
