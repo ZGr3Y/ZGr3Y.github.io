@@ -112,7 +112,7 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     for (let i = 0; i < 15; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.65);
+    expect(firstNode.mesh.material.opacity).toBeGreaterThan(0.9);
     expect(firstNode.mesh.scale.x).toBeGreaterThan(firstNode.baseScale * 1.1);
     expect(topology.lighting.activeGrabCount).toBeGreaterThan(0);
 
@@ -123,7 +123,7 @@ describe('CloudMeshTopology (3D Semantic Node Graph & Packet Conduits)', () => {
     for (let i = 0; i < 80; i++) {
       topology.update(0.016, 1.0);
     }
-    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.55, 1);
+    expect(firstNode.mesh.material.opacity).toBeCloseTo(0.82, 1);
     expect(firstNode.mesh.scale.x).toBeCloseTo(firstNode.baseScale, 1);
     expect(topology.lighting.activeGrabCount).toBe(0);
     expect(topology.isResting()).toBe(true);

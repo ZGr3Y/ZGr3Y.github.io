@@ -5,9 +5,9 @@ const BG_R = 244 / 255;
 const BG_G = 247 / 255;
 const BG_B = 251 / 255;
 
-// Cursor nexus highlight RGB (#0066FF)
+// Cursor nexus highlight RGB (#00B4FF)
 const CURSOR_R = 0 / 255;
-const CURSOR_G = 102 / 255;
+const CURSOR_G = 180 / 255;
 const CURSOR_B = 255 / 255;
 
 /**

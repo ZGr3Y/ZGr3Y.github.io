@@ -6,11 +6,11 @@ import { AdaptiveLightingEngine } from './AdaptiveLightingEngine.js';
  */
 export const TIER_CONFIG = {
   ingress: {
-    color: '#0066FF',
+    color: '#00B4FF',
     name: 'Ingress Gateway'
   },
   defense: {
-    color: '#00D084',
+    color: '#00F03C',
     name: 'Mesh Defense'
   },
   telemetry: {
@@ -18,7 +18,7 @@ export const TIER_CONFIG = {
     name: 'Worker Telemetry'
   },
   exploit: {
-    color: '#FF3366',
+    color: '#FF1111',
     name: 'Payload Analysis'
   }
 };
@@ -57,16 +57,16 @@ export class CloudMeshTopology {
 
     // Vincent Garreau (particles.js) Constellation, Grab & Ripple Engine
     this.lighting = new AdaptiveLightingEngine({
-      ambientOpacity: 0.55,
-      activeOpacity: 0.98,
+      ambientOpacity: 0.82,
+      activeOpacity: 1.0,
       lightRadius: 6.2,
       scaleBoost: 0.45,
       pulseSpeed: 14.0,
       maxPulseRadius: 20.0,
       linkDistance: 4.8,
-      linkOpacity: 0.42,
+      linkOpacity: 0.45,
       grabDistance: 6.2,
-      grabOpacity: 0.85,
+      grabOpacity: 0.88,
       repulseRadius: 2.4,
       repulseStrength: 0.75
     });
