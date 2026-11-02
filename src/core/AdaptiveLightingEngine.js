@@ -91,16 +91,15 @@ export class AdaptiveLightingEngine {
    * @param {boolean} [fromPointer=false] - Whether pulse starts at the cursor tip
    */
   spawnLinePacket(fromIndex, toIndex, color, fromPointer = false) {
-    if (this.linePackets.length >= 160) return;
+    if (this.linePackets.length >= 28) return;
 
-    // Prevent two pulses from overlapping on the exact same directed edge at the same time
+    // Prevent two pulses from overlapping on the same link simultaneously
     for (let k = 0; k < this.linePackets.length; k++) {
       const existing = this.linePackets[k];
       if (
         existing.fromPointer === fromPointer &&
-        existing.fromIndex === fromIndex &&
-        existing.toIndex === toIndex &&
-        existing.progress < 0.45
+        ((existing.fromIndex === fromIndex && existing.toIndex === toIndex) ||
+          (!fromPointer && existing.fromIndex === toIndex && existing.toIndex === fromIndex))
       ) {
         return;
       }
@@ -111,9 +110,9 @@ export class AdaptiveLightingEngine {
       fromIndex,
       toIndex,
       progress: 0.0,
-      // Desynchronized random transit velocity and laser trail length
-      speed: 1.15 + Math.random() * 1.45,
-      tailLength: 0.28 + Math.random() * 0.16,
+      // Half speed: smooth, unhurried transit (~1.0s - 1.8s per line)
+      speed: 0.55 + Math.random() * 0.65,
+      tailLength: 0.26 + Math.random() * 0.14,
       color: { r: color.r, g: color.g, b: color.b }
     });
   }
@@ -314,17 +313,17 @@ export class AdaptiveLightingEngine {
             vIdx += 2;
             linkCount++;
 
-            // Pseudo-random packet spawning: low ambient rate vs high rate near pointer
+            // Pseudo-random packet spawning: sparse ambient rate vs elevated rate near pointer
             if (delta > 0) {
-              let spawnRate = 0.04; // ~5-7 ambient pulses/sec across the whole constellation
+              let spawnRate = 0.005; // ~1 ambient pulse every 1-1.5s across the whole constellation
               if (pointerWorldPos) {
                 const midX = (pos1.x + pos2.x) * 0.5 - pointerWorldPos.x;
                 const midY = (pos1.y + pos2.y) * 0.5 - pointerWorldPos.y;
                 const distToPtrSq = midX * midX + midY * midY;
                 if (distToPtrSq < lightRadSq) {
                   const prox = 1.0 - Math.sqrt(distToPtrSq) / this.lightRadius;
-                  // Up to 45x higher packet frequency right near the pointer!
-                  spawnRate += prox * 1.8;
+                  // Noticeably more frequent near the pointer, without visual clutter
+                  spawnRate += prox * 0.16;
                 }
               }
 
@@ -372,8 +371,8 @@ export class AdaptiveLightingEngine {
             vIdx += 2;
             grabCount++;
 
-            // Frequent desynchronized pulses shooting out from the pointer into grabbed nodes
-            if (delta > 0 && Math.random() < (1.2 + proxGrab * 2.4) * delta) {
+            // Unhurried desynchronized pulses shooting out from the pointer into grabbed nodes
+            if (delta > 0 && Math.random() < (0.1 + proxGrab * 0.25) * delta) {
               this.spawnLinePacket(
                 -1,
                 i,
