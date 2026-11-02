@@ -178,9 +178,15 @@ describe('AdaptiveLightingEngine (Adaptive Illumination & Network Ping Waves)', 
     expect(engine.linePackets.length).toBe(2);
 
     // Avanziamo di un frame: i 2 impulsi avanzano e aggiungono 4 vertici ciascuno (scia + testa) al buffer
-    engine.updateConstellation([nodeA, nodeB], pointerPos, geo, 0.05);
-    expect(engine.linePackets[0].progress).toBeGreaterThan(0);
+    const pktSpeed = engine.linePackets[0].speed;
+    engine.updateConstellation([nodeA, nodeB], pointerPos, geo, 0.05, 1.0);
+    expect(engine.linePackets[0].progress).toBeCloseTo(pktSpeed * 0.05, 5);
     expect(geo.drawRange.count).toBeGreaterThanOrEqual(6 + 8);
+
+    // Con speedFactor = 0.5 (decelerazione idle damping), l'avanzamento deve dimezzarsi proporzionalmente
+    const prevProgress = engine.linePackets[0].progress;
+    engine.updateConstellation([nodeA, nodeB], pointerPos, geo, 0.05, 0.5);
+    expect(engine.linePackets[0].progress).toBeCloseTo(prevProgress + pktSpeed * 0.05 * 0.5, 5);
   });
 
   it('mantiene il rendering attivo se vi sono impulsi laser in volo (isResting = false) e li pulisce in idle', () => {

@@ -334,7 +334,7 @@ export class AdaptiveLightingEngine {
                 }
               }
 
-              if (Math.random() < spawnRate * delta) {
+              if (Math.random() < spawnRate * delta * speedFactor) {
                 if (Math.random() < 0.5) {
                   this.spawnLinePacket(i, j, c1, false);
                 } else {
@@ -379,7 +379,7 @@ export class AdaptiveLightingEngine {
             grabCount++;
 
             // Unhurried desynchronized pulses shooting out from the pointer into grabbed nodes
-            if (delta > 0 && speedFactor > 0.0001 && Math.random() < (0.1 + proxGrab * 0.25) * delta) {
+            if (delta > 0 && speedFactor > 0.0001 && Math.random() < (0.1 + proxGrab * 0.25) * delta * speedFactor) {
               this.spawnLinePacket(
                 -1,
                 i,
@@ -395,7 +395,7 @@ export class AdaptiveLightingEngine {
     // C. Advance and Render Active Laser Pulses (Option B: Glowing Laser Trail along the line)
     for (let p = this.linePackets.length - 1; p >= 0; p--) {
       const pkt = this.linePackets[p];
-      pkt.progress += pkt.speed * delta;
+      pkt.progress += pkt.speed * delta * speedFactor;
 
       if (pkt.progress >= 1.0 + pkt.tailLength) {
         this.linePackets.splice(p, 1);
