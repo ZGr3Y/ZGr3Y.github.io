@@ -153,7 +153,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(2);
   });
 
-  it('does not trigger sequential navigation on wheel or swipe if station-container can still scroll in that direction', () => {
+  it('does not trigger sequential navigation on wheel, swipe, or keys if station-container can still scroll in that direction', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
     stationContainer.className = 'station-container';
@@ -166,13 +166,22 @@ describe('PortfolioApp (Application Root Seam)', () => {
     Object.defineProperty(stationContainer, 'clientHeight', { configurable: true, value: 300 });
     Object.defineProperty(stationContainer, 'scrollTop', { configurable: true, writable: true, value: 50 });
 
-    // 1. Wheel scroll down while station-container can still scroll down (scrollTop 50 < 200 - 5)
+    // 1. Keyboard PageDown / ArrowDown while station-container can still scroll down (scrollTop 50 < 200 - 5)
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    app._lastNavTime = 0;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 2. Wheel scroll down while station-container can still scroll down
     app._lastNavTime = 0;
     window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
     // Navigation must NOT be hijacked
     expect(app.getActiveStationIndex()).toBe(0);
 
-    // 2. Swipe up while station-container can still scroll down
+    // 3. Swipe up while station-container can still scroll down
     app._lastNavTime = 0;
     const touchStart = new Event('touchstart');
     touchStart.touches = [{ clientX: 200, clientY: 400 }];
@@ -184,7 +193,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     // Navigation must NOT be hijacked
     expect(app.getActiveStationIndex()).toBe(0);
 
-    // 3. When scrolled to the bottom (boundary reached, scrollTop = 200), swipe up DOES trigger station navigation
+    // 4. When scrolled to the bottom (boundary reached, scrollTop = 200), swipe up DOES trigger station navigation
     stationContainer.scrollTop = 200;
     app._lastNavTime = 0;
     window.dispatchEvent(touchStart);

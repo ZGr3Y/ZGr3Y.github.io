@@ -217,10 +217,15 @@ export class PortfolioApp {
 
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat) return;
+      let direction = 0;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        this._triggerSequentialNav(1);
+        direction = 1;
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        this._triggerSequentialNav(-1);
+        direction = -1;
+      }
+      if (direction !== 0) {
+        if (this._canScrollInDirection(direction)) return;
+        this._triggerSequentialNav(direction);
       }
     };
 
