@@ -48,6 +48,7 @@ export class PortfolioApp {
     this._navCooldownMs = 450;
     this._touchStartX = null;
     this._touchStartY = null;
+    this.stationContainer = null;
 
     this.init();
   }
@@ -58,6 +59,8 @@ export class PortfolioApp {
   init() {
     if (this.container) {
       this.container.setAttribute('data-active-station', this.stations[0].id);
+      this.stationContainer = this.container.querySelector('.station-container') ||
+        (typeof document !== 'undefined' ? document.getElementById('station-container') : null);
       this._initHUD();
     }
 
@@ -225,6 +228,7 @@ export class PortfolioApp {
       if (!e || typeof e.deltaY !== 'number') return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
+      if (this._canScrollInDirection(direction)) return;
       this._triggerSequentialNav(direction);
     };
 
@@ -276,7 +280,9 @@ export class PortfolioApp {
 
           if (Math.abs(diffY) >= 50 && Math.abs(diffY) > Math.abs(diffX) * 1.5) {
             const direction = diffY < 0 ? 1 : -1;
-            this._triggerSequentialNav(direction);
+            if (!this._canScrollInDirection(direction)) {
+              this._triggerSequentialNav(direction);
+            }
           }
         }
         this._touchStartX = null;
@@ -469,6 +475,24 @@ export class PortfolioApp {
   }
 
   /**
+   * Checks whether stationContainer can scroll further in the requested direction.
+   * direction > 0: downward swipe / scroll down (next station)
+   * direction < 0: upward swipe / scroll up (prev station)
+   * @param {number} direction
+   * @returns {boolean}
+   * @private
+   */
+  _canScrollInDirection(direction) {
+    const sc = this.stationContainer || (this.container?.querySelector ? this.container.querySelector('.station-container') : null);
+    if (!sc) return false;
+    const maxScroll = sc.scrollHeight - sc.clientHeight;
+    if (maxScroll <= 5) return false;
+    if (direction > 0) return sc.scrollTop < maxScroll - 5;
+    if (direction < 0) return sc.scrollTop > 5;
+    return false;
+  }
+
+  /**
    * Triggers sequential navigation with debounce cooldown protection
    * @param {number} direction - Positive (+1) for next station, negative (-1) for previous
    * @private
@@ -585,6 +609,8 @@ export class PortfolioApp {
     if (this.container) {
       this.container.removeAttribute('data-active-station');
     }
+
+    this.stationContainer = null;
   }
 
   /**

@@ -153,6 +153,45 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(2);
   });
 
+  it('does not trigger sequential navigation on wheel or swipe if station-container can still scroll in that direction', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Simulate an overflowing station panel (e.g. 500px content inside 300px viewport)
+    Object.defineProperty(stationContainer, 'scrollHeight', { configurable: true, value: 500 });
+    Object.defineProperty(stationContainer, 'clientHeight', { configurable: true, value: 300 });
+    Object.defineProperty(stationContainer, 'scrollTop', { configurable: true, writable: true, value: 50 });
+
+    // 1. Wheel scroll down while station-container can still scroll down (scrollTop 50 < 200 - 5)
+    app._lastNavTime = 0;
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    // Navigation must NOT be hijacked
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 2. Swipe up while station-container can still scroll down
+    app._lastNavTime = 0;
+    const touchStart = new Event('touchstart');
+    touchStart.touches = [{ clientX: 200, clientY: 400 }];
+    window.dispatchEvent(touchStart);
+
+    const touchEnd = new Event('touchend');
+    touchEnd.changedTouches = [{ clientX: 200, clientY: 200 }]; // 200px swipe up
+    window.dispatchEvent(touchEnd);
+    // Navigation must NOT be hijacked
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 3. When scrolled to the bottom (boundary reached, scrollTop = 200), swipe up DOES trigger station navigation
+    stationContainer.scrollTop = 200;
+    app._lastNavTime = 0;
+    window.dispatchEvent(touchStart);
+    window.dispatchEvent(touchEnd);
+    expect(app.getActiveStationIndex()).toBe(1);
+  });
+
   it('bounds station navigation within available stations', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
 
