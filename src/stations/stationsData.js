@@ -20,9 +20,8 @@ export const STATIONS = [
       badge: 'SYSTEM ONLINE // CLOUD MESH PROTOCOL',
       bio: 'Engineering scalable cloud infrastructures, hardening distributed microservices, and researching deep application security. Focused on <strong>cloud-native architectures</strong>, container telemetry, and robust defense-in-depth mitigations.',
       actions: [
-        { label: 'Explore Cloud Lab', targetStation: 1, primary: true },
-        { label: 'Inspect Stack', targetStation: 2, primary: false },
-        { label: 'Download CV', url: './resume_PaoloMariaScarlata.pdf', isDownload: true }
+        { label: 'Download Curriculum Vitae', url: './resume_PaoloMariaScarlata.pdf', isDownload: true },
+        { label: 'GitHub', url: 'https://github.com/ZGr3Y', isExternal: true }
       ]
     }
   },

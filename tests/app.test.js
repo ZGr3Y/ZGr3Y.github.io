@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('PortfolioApp (Application Root Seam)', () => {
@@ -38,6 +40,40 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(station.name).toBe('GATEWAY');
   });
 
+  it('renders Station 01 Gateway card with identity, telemetry badge, and validated CV download and GitHub links', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // 1. Verify identity and role elements exist in Gateway card
+    const gatewayCard = container.querySelector('.gateway-card') || container.querySelector('[data-station="gateway"]');
+    expect(gatewayCard).not.toBeNull();
+    expect(gatewayCard.textContent).toContain('PAOLO MARIA SCARLATA');
+    expect(gatewayCard.textContent).toContain('ZGr3Y');
+    expect(gatewayCard.textContent).toContain('Cloud Systems & Security');
+    expect(gatewayCard.textContent).toContain('SYSTEM ONLINE');
+
+    // 2. Redundant in-card navigation buttons are absent (relying on persistent HUD and gesture navigation)
+    expect(gatewayCard.querySelector('[data-nav-station]')).toBeNull();
+
+    // 3. Verify CV download link attributes
+    const cvLink = gatewayCard.querySelector('.btn-cv');
+    expect(cvLink).not.toBeNull();
+    expect(cvLink.getAttribute('href')).toBe('./resume_PaoloMariaScarlata.pdf');
+    expect(cvLink.getAttribute('download')).toBe('resume_PaoloMariaScarlata.pdf');
+
+    // 4. Verify external GitHub link attributes
+    const ghLink = gatewayCard.querySelector('.btn-github');
+    expect(ghLink).not.toBeNull();
+    expect(ghLink.getAttribute('href')).toBe('https://github.com/ZGr3Y');
+    expect(ghLink.getAttribute('target')).toBe('_blank');
+    expect(ghLink.getAttribute('rel')).toContain('noopener');
+    expect(ghLink.getAttribute('rel')).toContain('noreferrer');
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
@@ -48,6 +84,48 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(station.id).toBe('lab');
     expect(station.name).toBe('LAB');
     expect(srAnnouncements.textContent).toContain('LAB');
+  });
+
+  it('maintains active, visible station content across all stations when navigating', async () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    for (let i = 0; i < app.stations.length; i++) {
+      await app.navigateTo(i);
+      const activeStation = app.getActiveStation();
+      const activeCard = stationContainer.querySelector(`.station-card[data-station="${activeStation.id}"]`);
+      expect(activeCard).not.toBeNull();
+      expect(activeCard.classList.contains('active')).toBe(true);
+      expect(activeCard.hasAttribute('hidden')).toBe(false);
+    }
+  });
+
+  it('ensures inactive station cards with hidden attribute have display none computed style', () => {
+    const cssPath = path.resolve(process.cwd(), 'src/styles/main.css');
+    const css = fs.readFileSync(cssPath, 'utf-8');
+    const styleEl = document.createElement('style');
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const hiddenCard = stationContainer.querySelector('.station-card[hidden]');
+    expect(hiddenCard).not.toBeNull();
+    const computed = window.getComputedStyle(hiddenCard);
+    try {
+      expect(computed.display).toBe('none');
+    } finally {
+      styleEl.remove();
+    }
   });
 
   it('renders minimalist floating HUD with 4 station buttons and handles direct tier navigation on click', async () => {

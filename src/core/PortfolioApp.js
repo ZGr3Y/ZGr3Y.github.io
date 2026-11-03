@@ -64,6 +64,7 @@ export class PortfolioApp {
       this.stationContainer = this.container.querySelector('.station-container') ||
         (typeof document !== 'undefined' ? document.getElementById('station-container') : null);
       this._initHUD();
+      this._initStations();
     }
 
     if (this.canvas) {
@@ -131,6 +132,119 @@ export class PortfolioApp {
 
       this.hudNav.appendChild(btn);
       this._hudButtons.push(btn);
+    });
+  }
+
+  /**
+   * Initializes and manages station content overlays inside stationContainer
+   * @private
+   */
+  _initStations() {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+
+    this.stations.forEach((station) => {
+      const existing = this.stationContainer.querySelector(`.station-card[data-station="${station.id}"]`);
+      if (!existing) {
+        if (station.id === 'gateway') {
+          this._renderGatewayCard();
+        } else {
+          this._renderStationPlaceholder(station);
+        }
+      }
+    });
+
+    this._updateStationVisibility();
+  }
+
+  /**
+   * Renders semantic placeholder card for upcoming station slices
+   * @param {Object} station
+   * @private
+   */
+  _renderStationPlaceholder(station) {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+
+    const card = document.createElement('section');
+    card.className = `station-card ${station.id}-card`;
+    card.setAttribute('data-station', station.id);
+    card.setAttribute('aria-label', `Station ${station.index}: ${station.name}`);
+    card.setAttribute('hidden', '');
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>STATION ${station.index} // ${station.name} PROTOCOL</span>
+      </div>
+      <h2 class="hero-name">${station.name}</h2>
+      <div class="hero-role">
+        <span class="hero-title">${station.subtitle}</span>
+      </div>
+      <p class="hero-bio">${station.description || 'Architecture and engineering artifacts in active configuration.'}</p>
+    `;
+    this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Renders Station 01 Gateway Card markup
+   * @private
+   */
+  _renderGatewayCard() {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+    const gatewayData = this.stations.find((s) => s.id === 'gateway') || this.stations[0];
+    const hero = gatewayData.hero || {};
+    const actionsMarkup = (hero.actions || []).map((action) => {
+      const isDownload = Boolean(action.isDownload);
+      const downloadAttr = isDownload ? `download="${action.url.replace(/^.*[\\/]/, '')}"` : '';
+      const externalAttrs = action.isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
+      const btnClass = isDownload ? 'btn btn-cv' : 'btn btn-github';
+      const icon = isDownload ? '↓' : '↗';
+      return `
+        <a href="${action.url}" ${downloadAttr} ${externalAttrs} class="${btnClass}" title="${action.label}">
+          <span>${action.label}</span>
+          <span class="btn-icon" aria-hidden="true">${icon}</span>
+        </a>
+      `;
+    }).join('');
+
+    const card = document.createElement('section');
+    card.className = 'station-card gateway-card active';
+    card.setAttribute('data-station', 'gateway');
+    card.setAttribute('aria-label', 'Station 01: Gateway');
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>${hero.badge || 'SYSTEM ONLINE // CLOUD MESH PROTOCOL'}</span>
+      </div>
+      <h1 class="hero-name">${hero.name || 'PAOLO MARIA SCARLATA'}</h1>
+      <div class="hero-role">
+        <span class="hero-alias">${hero.alias || 'ZGr3Y'}</span>
+        <span class="hero-sep" aria-hidden="true">//</span>
+        <span class="hero-title">${hero.role || 'Cloud Systems & Security Engineer'}</span>
+      </div>
+      <p class="hero-bio">${hero.bio || ''}</p>
+      <div class="station-actions">
+        ${actionsMarkup}
+      </div>
+    `;
+    this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Toggles visibility of station cards based on the currently active station
+   * @private
+   */
+  _updateStationVisibility() {
+    if (!this.stationContainer) return;
+    const activeStation = this.getActiveStation();
+    const cards = this.stationContainer.querySelectorAll('.station-card');
+    cards.forEach((card) => {
+      const stationId = card.getAttribute('data-station');
+      if (stationId === activeStation.id) {
+        card.classList.add('active');
+        card.removeAttribute('hidden');
+      } else {
+        card.classList.remove('active');
+        card.setAttribute('hidden', '');
+      }
     });
   }
 
@@ -566,6 +680,8 @@ export class PortfolioApp {
         }
       });
     }
+
+    this._updateStationVisibility();
 
     if (this.srAnnouncer) {
       this.srAnnouncer.textContent = `Navigated to station ${activeStation.name}: ${activeStation.subtitle}`;
