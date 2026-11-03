@@ -371,12 +371,39 @@ export class PortfolioApp {
     this._modalKeyHandler = (e) => {
       if (e.key === 'Escape') {
         this._closeArchitectureModal();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusableElements = modal.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length === 0) return;
+
+        const firstEl = focusableElements[0];
+        const lastEl = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstEl) {
+            e.preventDefault();
+            lastEl.focus();
+          }
+        } else {
+          if (document.activeElement === lastEl) {
+            e.preventDefault();
+            firstEl.focus();
+          }
+        }
       }
     };
     window.addEventListener('keydown', this._modalKeyHandler);
 
     this.container.appendChild(modal);
     this.activeModal = modal;
+
+    if (closeBtn && typeof closeBtn.focus === 'function') {
+      closeBtn.focus();
+    }
   }
 
   /**

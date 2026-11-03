@@ -148,6 +148,51 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(container.querySelector('.architecture-modal')).toBeNull();
   });
 
+  it('moves initial focus into modal on open and traps Tab focus sequence within dialog', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    inspectBtn.focus();
+    expect(document.activeElement).toBe(inspectBtn);
+
+    // Open modal
+    inspectBtn.click();
+    const modal = container.querySelector('.architecture-modal');
+    expect(modal).not.toBeNull();
+
+    const closeBtn = modal.querySelector('.modal-close-btn');
+    const ghLink = modal.querySelector('.modal-actions a');
+    expect(closeBtn).not.toBeNull();
+    expect(ghLink).not.toBeNull();
+
+    // 1. Initial focus handoff: activeElement must be within modal (e.g. closeBtn)
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Focus last element (ghLink)
+    ghLink.focus();
+    expect(document.activeElement).toBe(ghLink);
+
+    // 2. Tab on last element wraps focus back to first element (closeBtn)
+    const wrapTabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    window.dispatchEvent(wrapTabEvent);
+    expect(document.activeElement).toBe(closeBtn);
+
+    // 3. Shift+Tab on first element wraps focus back to last element (ghLink)
+    const shiftTabEvent = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+    window.dispatchEvent(shiftTabEvent);
+    expect(document.activeElement).toBe(ghLink);
+
+    // 4. Closing modal restores focus to trigger element (inspectBtn)
+    closeBtn.click();
+    expect(document.activeElement).toBe(inspectBtn);
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
