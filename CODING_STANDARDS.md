@@ -33,3 +33,7 @@ Engineering standards enforced by the review agent during `/code-review` and by 
 - Window-level gesture listeners (`wheel`, `keydown`, `touchstart`/`touchend`) that trigger view transitions must ignore zoom modifier keys (`e.ctrlKey || e.metaKey`) to preserve native browser pinch-to-zoom and keyboard zoom shortcuts.
 - Handlers must check whether the active content panel has remaining scroll headroom before consuming vertical navigation gestures (`direction > 0` and `direction < 0`).
 - For multi-phase touch gestures, evaluate scrollability at `touchstart` rather than only at `touchend`, ensuring that gestures that reach a scroll boundary stay within the panel and never trigger view transitions on that same stroke.
+
+## 9. DOM Element Visibility & Hidden Attributes
+- Whenever styling components with custom layout displays (`display: flex`, `display: grid`, etc.), always pair them with an explicit `.component[hidden], [hidden] { display: none !important; }` rule. Class selector specificity `(0, 1, 0)` will otherwise override the browser user-agent's default `[hidden] { display: none; }` `(0, 0, 0)` rule, leaving inactive elements rendered in the visual layout flow.
+- All dynamic station overlays and multi-step UI views must adhere to this reset so that setting or removing the `hidden` attribute deterministically controls layout presence and screen reader visibility.

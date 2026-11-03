@@ -5,7 +5,7 @@ This document defines the working agreements, pace, and interaction style for ag
 ## 1. No Auto-Pilot: User Drives the Framework
 - **Never advance past a step on your own initiative.** Do not start coding, branching, or merging without explicit user confirmation.
 - **User is the MITM Gatekeeper:** Treat the user as an active Man-in-the-Middle (MITM) controller. Any procedure, file creation, architectural shift, or transition to a new seam MUST be explicitly vetted and authorized by the user before execution. Never batch decisions or rush ahead.
-- **Close the Vertical Slice Before Advancing:** Complete and integrate the current slice end-to-end (wired to the DOM/canvas and verified on screen) before designing subsequent abstractions or writing new test files. Never introduce anticipatory or speculative architecture.
+- **Close the Vertical Slice Before Advancing:** Complete and integrate the current slice end-to-end (wired to the DOM/canvas and verified on screen) before designing subsequent abstractions or writing new test files. Never introduce anticipatory or speculative architecture. In an already-navigable spatial canvas, maintain DOM stability by rendering minimal semantic placeholders (`hidden=""`) for unbuilt stations so layout and accessibility invariants remain valid across navigation.
 - **Strict TDD Micro-Step Pacing (Never Combine RED & GREEN in One Turn):**
   - **Phase RED**: Write **only** the failing test, run the test runner, present the failing error message to the user, and **STOP the turn immediately**.
   - **User Gatekeeping**: Await explicit user authorization before writing *any* implementation code.
