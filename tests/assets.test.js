@@ -77,19 +77,24 @@ describe('Static Assets Verification (Deterministic Standard)', () => {
   });
 
   it('verifies live production site at https://zgr3y.github.io/ responds with HTTP 200', async (ctx) => {
-    const statusCode = await new Promise((resolve, reject) => {
-      const req = https.get('https://zgr3y.github.io/', (res) => {
-        resolve(res.statusCode);
-      });
-      req.on('error', (err) => {
-        if (!process.env.CI) {
-          // If running locally in offline environment without connectivity, skip test cleanly
-          ctx.skip();
-        } else {
+    let statusCode;
+    try {
+      statusCode = await new Promise((resolve, reject) => {
+        const req = https.get('https://zgr3y.github.io/', (res) => {
+          resolve(res.statusCode);
+        });
+        req.on('error', (err) => {
           reject(err);
-        }
+        });
       });
-    });
+    } catch (err) {
+      if (!process.env.CI) {
+        // In local offline environments without network, skip test cleanly
+        ctx.skip();
+        return;
+      }
+      throw err;
+    }
 
     expect(statusCode).toBe(200);
   });
