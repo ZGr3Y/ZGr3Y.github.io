@@ -50,4 +50,18 @@ describe('Static Assets Verification (Deterministic Standard)', () => {
       ).toBe(true);
     }
   });
+
+  it('ensures .nojekyll flag exists in public directory for GitHub Pages bundle delivery', () => {
+    const nojekyllPath = path.join(publicDir, '.nojekyll');
+    expect(fs.existsSync(nojekyllPath)).toBe(true);
+  });
+
+  it('ensures legacy Jekyll configuration and Markdown files are removed from repository', () => {
+    const rootDir = path.resolve(process.cwd());
+    const configYml = path.join(rootDir, '_config.yml');
+    const indexMd = path.join(rootDir, 'index.md');
+
+    expect(fs.existsSync(configYml)).toBe(false);
+    expect(fs.existsSync(indexMd)).toBe(false);
+  });
 });
