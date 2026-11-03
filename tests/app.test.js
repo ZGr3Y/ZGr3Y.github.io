@@ -194,6 +194,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     // Channel 3: Email Uplink
     const mailChannel = transmissionCard.querySelector('a[href="mailto:contact.zgr3y@gmail.com"]');
     expect(mailChannel).not.toBeNull();
+    expect(mailChannel.textContent).toContain('Direct Communication');
   });
 
   it('opens accessible architecture modal with fullDesc on Inspect Architecture click and closes on Escape', () => {

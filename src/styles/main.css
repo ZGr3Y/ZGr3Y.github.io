@@ -583,22 +583,30 @@ html, body {
 
 .terminal-command-line {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .terminal-prompt {
   color: var(--cloud-blue);
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .terminal-cmd {
   color: #F8FAFC;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .terminal-output-line {
   color: #94A3B8;
   padding-left: 12px;
   border-left: 2px solid rgba(2, 132, 199, 0.3);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .terminal-cursor-line {

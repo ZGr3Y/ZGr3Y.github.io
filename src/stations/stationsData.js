@@ -135,8 +135,8 @@ export const STATIONS = [
         isDownload: true
       },
       {
-        title: 'Encrypted Contact',
-        desc: 'Establish secure communications or inquire for engineering opportunities.',
+        title: 'Direct Communication',
+        desc: 'Establish direct email contact (verify GPG fingerprint above for encrypted messages).',
         url: 'mailto:contact.zgr3y@gmail.com',
         icon: '📡'
       }
