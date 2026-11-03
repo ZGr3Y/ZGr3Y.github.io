@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import https from 'node:https';
 import { STATIONS } from '../src/stations/stationsData.js';
 
 describe('Static Assets Verification (Deterministic Standard)', () => {
@@ -74,28 +73,5 @@ describe('Static Assets Verification (Deterministic Standard)', () => {
         `Legacy root file should be removed: ${file}`
       ).toBe(false);
     }
-  });
-
-  it('verifies live production site at https://zgr3y.github.io/ responds with HTTP 200', async (ctx) => {
-    let statusCode;
-    try {
-      statusCode = await new Promise((resolve, reject) => {
-        const req = https.get('https://zgr3y.github.io/', (res) => {
-          resolve(res.statusCode);
-        });
-        req.on('error', (err) => {
-          reject(err);
-        });
-      });
-    } catch (err) {
-      if (!process.env.CI) {
-        // In local offline environments without network, skip test cleanly
-        ctx.skip();
-        return;
-      }
-      throw err;
-    }
-
-    expect(statusCode).toBe(200);
   });
 });

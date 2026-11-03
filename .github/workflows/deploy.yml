@@ -63,3 +63,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify live production deployment
+        run: |
+          curl --fail --silent --show-error --location "${{ steps.deployment.outputs.page_url }}" > /dev/null
