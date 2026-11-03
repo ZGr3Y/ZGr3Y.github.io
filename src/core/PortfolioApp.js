@@ -149,8 +149,18 @@ export class PortfolioApp {
           this._renderGatewayCard();
         } else if (station.id === 'lab') {
           this._renderLabCard();
+        } else if (station.id === 'arsenal') {
+          this._renderArsenalCard();
         } else {
           this._renderStationPlaceholder(station);
+        }
+      } else {
+        if (station.id === 'lab' && !existing.querySelector('.lab-projects-grid')) {
+          existing.remove();
+          this._renderLabCard();
+        } else if (station.id === 'arsenal' && !existing.querySelector('.arsenal-disciplines-grid')) {
+          existing.remove();
+          this._renderArsenalCard();
         }
       }
     });
@@ -307,6 +317,59 @@ export class PortfolioApp {
         }
       }
     });
+
+    this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Renders Station 03 Arsenal Card with tactical disciplines and skill chips
+   * @private
+   */
+  _renderArsenalCard() {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+    const arsenalData = this.stations.find((s) => s.id === 'arsenal') || this.stations[2];
+    const categories = arsenalData.categories || [];
+
+    const card = document.createElement('section');
+    card.className = 'station-card arsenal-card';
+    card.setAttribute('data-station', 'arsenal');
+    card.setAttribute('aria-label', `Station ${arsenalData.index}: ${arsenalData.name}`);
+    card.setAttribute('hidden', '');
+
+    const categoriesMarkup = categories.map((cat) => {
+      const skillsMarkup = (cat.skills || []).map((skill) => `
+        <span class="skill-chip">
+          <span class="skill-dot" style="background-color: ${cat.color}; box-shadow: 0 0 6px ${cat.color};" aria-hidden="true"></span>
+          <span class="skill-name">${skill}</span>
+        </span>
+      `).join('');
+
+      return `
+        <div class="discipline-card" style="--category-accent: ${cat.color};">
+          <div class="discipline-header">
+            <span class="discipline-icon" aria-hidden="true">${cat.icon}</span>
+            <h3 class="discipline-title">${cat.title}</h3>
+          </div>
+          <div class="skill-chips">
+            ${skillsMarkup}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>STATION ${arsenalData.index} // ${arsenalData.name} PROTOCOL</span>
+      </div>
+      <h2 class="hero-name">${arsenalData.name}</h2>
+      <div class="hero-role">
+        <span class="hero-title">${arsenalData.subtitle}</span>
+      </div>
+      <div class="arsenal-disciplines-grid">
+        ${categoriesMarkup}
+      </div>
+    `;
 
     this.stationContainer.appendChild(card);
   }
