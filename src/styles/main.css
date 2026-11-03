@@ -535,6 +535,8 @@ html, body {
   background: #1E293B;
   padding: 10px 16px;
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
