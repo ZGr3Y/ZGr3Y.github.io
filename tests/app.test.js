@@ -115,6 +115,44 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(wipCard.textContent).toMatch(/Work in Progress/i);
   });
 
+  it('renders Station 03 Arsenal with 4 tactical discipline panels and semantic skill chips', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const arsenalCard = container.querySelector('.arsenal-card') || container.querySelector('[data-station="arsenal"]');
+    expect(arsenalCard).not.toBeNull();
+    expect(arsenalCard.getAttribute('aria-label')).toContain('Station 03: ARSENAL');
+
+    const disciplinePanels = arsenalCard.querySelectorAll('.discipline-card');
+    expect(disciplinePanels.length).toBe(4);
+
+    // Pillar 1: Cloud & Infrastructure
+    expect(disciplinePanels[0].textContent).toContain('Cloud & Infrastructure');
+    expect(disciplinePanels[0].textContent).toContain('☁️');
+
+    // Pillar 2: Offensive Security
+    expect(disciplinePanels[1].textContent).toContain('Offensive Security');
+    expect(disciplinePanels[1].textContent).toContain('⚔️');
+
+    // Pillar 3: Defensive & Hardening
+    expect(disciplinePanels[2].textContent).toContain('Defensive & Hardening');
+    expect(disciplinePanels[2].textContent).toContain('🛡️');
+
+    // Pillar 4: Systems & Engineering
+    expect(disciplinePanels[3].textContent).toContain('Systems & Engineering');
+    expect(disciplinePanels[3].textContent).toContain('⚡');
+
+    // Skill chips
+    const chips = arsenalCard.querySelectorAll('.skill-chip');
+    expect(chips.length).toBe(25);
+    expect(chips[0].textContent).toContain('Docker & Compose');
+    expect(chips[0].querySelector('.skill-dot')).not.toBeNull();
+  });
+
   it('opens accessible architecture modal with fullDesc on Inspect Architecture click and closes on Escape', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
