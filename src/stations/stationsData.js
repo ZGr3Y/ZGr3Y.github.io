@@ -42,38 +42,28 @@ export const STATIONS = [
         status: 'production',
         shortDesc: 'Offensive security training platform built with Docker and Node.js simulating real-world exploit chains.',
         fullDesc: 'Developed three isolated microservices simulating real-world vulnerabilities: IDOR with bypassable WAF, JWT Algorithm Confusion & Key Injection, and Weak Cryptographic PRNG seeds. Designed for students to practice exploitation and defensive mitigations in isolated Docker sandboxes.',
-        tags: ['Docker', 'Node.js', 'IDOR', 'WAF Bypass', 'JWT Security', 'CTF'],
+        tags: ['Docker', 'Node.js', 'Express', 'IDOR', 'JWT Security', 'WAF Bypass'],
         github: 'https://github.com/ZGr3Y/CTF'
       },
       {
-        id: 'broken-access-control',
-        title: 'Broken Access Control & Mitigations',
-        badge: 'Research Project',
+        id: 'sentinel-siem',
+        title: 'Sentinel Distributed SIEM',
+        badge: 'Distributed Systems / EDA',
         status: 'production',
-        shortDesc: 'Deep study and proof-of-concept laboratory on the #1 OWASP Top 10 vulnerability.',
-        fullDesc: 'A research project breaking down real-world Insecure Direct Object References (IDOR) and broken token authorization. Features dual codebases: an exploitable target demonstrating attack vectors, and a parallel Hardened version featuring strict RBAC validation, session signing, and AES-256 encryption.',
-        tags: ['OWASP Top 10', 'Access Control', 'AES-256', 'Hardening', 'JWT PoC'],
-        github: 'https://github.com/ZGr3Y/Broken-Access-Control'
+        shortDesc: 'Distributed event-driven SIEM for real-time log ingestion, threat detection, and telemetry analytics.',
+        fullDesc: 'Enterprise-grade SIEM platform leveraging Java 21, Spring Boot 3, and RabbitMQ to buffer and process high-throughput log streams. Features real-time attack pattern detection (DoS, Brute Force), circuit breakers with Resilience4j, and an interactive React telemetry dashboard.',
+        tags: ['Java 21', 'Spring Boot 3', 'RabbitMQ', 'PostgreSQL', 'React', 'Resilience4j'],
+        github: 'https://github.com/ZGr3Y/sentinel-distributed-siem'
       },
       {
-        id: 'zero-trust-telemetry',
-        title: 'Zero-Trust Kernel Telemetry',
-        badge: 'Experimental Protocol',
-        status: 'research',
-        shortDesc: 'eBPF security probe monitoring anomalous container syscalls and privilege escalation.',
-        fullDesc: 'Kernel-space telemetry probe utilizing Linux eBPF tracepoints to observe container execution trees, anomalous memory writes, and unexpected network socket binds in real time, detecting container breakout attempts without introducing user-space latency.',
-        tags: ['eBPF', 'Rust', 'Linux Security', 'Syscall Tracing', 'Containers'],
-        github: 'https://github.com/ZGr3Y'
-      },
-      {
-        id: 'pqc-bench',
-        title: 'Quantum-Resistant Key Exchange',
-        badge: 'Cryptographic Bench',
-        status: 'research',
-        shortDesc: 'NIST Post-Quantum Cryptography benchmark testing ML-KEM lattice algorithms in WASM.',
-        fullDesc: 'Benchmarking performance overhead and memory characteristics of post-quantum lattice-based key encapsulation algorithms (ML-KEM / Kyber) in browser and edge worker environments via WebAssembly, guaranteeing forward secrecy for future distributed systems.',
-        tags: ['Post-Quantum', 'Lattice Crypto', 'WASM', 'Rust', 'Forward Secrecy'],
-        github: 'https://github.com/ZGr3Y'
+        id: 'work-in-progress',
+        title: 'Work in Progress',
+        badge: 'Active Development',
+        status: 'wip',
+        shortDesc: 'Upcoming cloud-native security research module in active design and hardening.',
+        fullDesc: 'Next-generation cloud infrastructure and security research under active implementation.',
+        tags: ['Cloud Security', 'Research', 'In Progress'],
+        github: null
       }
     ]
   },

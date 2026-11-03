@@ -74,6 +74,150 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(ghLink.getAttribute('rel')).toContain('noreferrer');
   });
 
+  it('renders Station 02 Lab with 3 Cloud Cards (CTF, Sentinel SIEM, and Work In Progress)', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const labCard = container.querySelector('.lab-card') || container.querySelector('[data-station="lab"]');
+    expect(labCard).not.toBeNull();
+    expect(labCard.getAttribute('aria-label')).toContain('Station 02: LAB');
+
+    const projectCards = labCard.querySelectorAll('.project-card');
+    expect(projectCards.length).toBe(3);
+
+    // Card 1: CTF Vulnerability Lab
+    const ctfCard = projectCards[0];
+    expect(ctfCard.textContent).toContain('CTF Vulnerability Lab');
+    expect(ctfCard.textContent).toContain("Bachelor's Thesis");
+    const ctfGh = ctfCard.querySelector('a[href="https://github.com/ZGr3Y/CTF"]');
+    expect(ctfGh).not.toBeNull();
+    expect(ctfGh.getAttribute('target')).toBe('_blank');
+    expect(ctfGh.getAttribute('rel')).toContain('noopener');
+    expect(ctfGh.getAttribute('rel')).toContain('noreferrer');
+    expect(ctfCard.querySelector('.btn-inspect')).not.toBeNull();
+
+    // Card 2: Sentinel Distributed SIEM
+    const siemCard = projectCards[1];
+    expect(siemCard.textContent).toContain('Sentinel Distributed SIEM');
+    const siemGh = siemCard.querySelector('a[href="https://github.com/ZGr3Y/sentinel-distributed-siem"]');
+    expect(siemGh).not.toBeNull();
+    expect(siemGh.getAttribute('target')).toBe('_blank');
+    expect(siemGh.getAttribute('rel')).toContain('noopener');
+    expect(siemGh.getAttribute('rel')).toContain('noreferrer');
+    expect(siemCard.querySelector('.btn-inspect')).not.toBeNull();
+
+    // Card 3: Work in Progress
+    const wipCard = projectCards[2];
+    expect(wipCard.textContent).toMatch(/Work in Progress/i);
+  });
+
+  it('opens accessible architecture modal with fullDesc on Inspect Architecture click and closes on Escape', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    expect(ctfCard).not.toBeNull();
+
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    expect(inspectBtn).not.toBeNull();
+
+    // Modal should not be open initially
+    expect(container.querySelector('.architecture-modal')).toBeNull();
+
+    // Click inspect button
+    inspectBtn.click();
+
+    // Modal should now be open
+    const modal = container.querySelector('.architecture-modal');
+    expect(modal).not.toBeNull();
+    expect(modal.getAttribute('role')).toBe('dialog');
+    expect(modal.getAttribute('aria-modal')).toBe('true');
+    expect(modal.textContent).toContain('CTF Vulnerability Lab');
+    expect(modal.textContent).toContain('Developed three isolated microservices simulating real-world vulnerabilities');
+
+    // Press Escape to close modal
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(container.querySelector('.architecture-modal')).toBeNull();
+  });
+
+  it('moves initial focus into modal on open and traps Tab focus sequence within dialog', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    inspectBtn.focus();
+    expect(document.activeElement).toBe(inspectBtn);
+
+    // Open modal
+    inspectBtn.click();
+    const modal = container.querySelector('.architecture-modal');
+    expect(modal).not.toBeNull();
+
+    const closeBtn = modal.querySelector('.modal-close-btn');
+    const ghLink = modal.querySelector('.modal-actions a');
+    expect(closeBtn).not.toBeNull();
+    expect(ghLink).not.toBeNull();
+
+    // 1. Initial focus handoff: activeElement must be within modal (e.g. closeBtn)
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Focus last element (ghLink)
+    ghLink.focus();
+    expect(document.activeElement).toBe(ghLink);
+
+    // 2. Tab on last element wraps focus back to first element (closeBtn)
+    const wrapTabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    window.dispatchEvent(wrapTabEvent);
+    expect(document.activeElement).toBe(closeBtn);
+
+    // 3. Shift+Tab on first element wraps focus back to last element (ghLink)
+    const shiftTabEvent = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+    window.dispatchEvent(shiftTabEvent);
+    expect(document.activeElement).toBe(ghLink);
+
+    // 4. Closing modal restores focus to trigger element (inspectBtn)
+    closeBtn.click();
+    expect(document.activeElement).toBe(inspectBtn);
+  });
+
+  it('suppresses sequential station navigation when architecture modal is active', async () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Navigate to Station 1 (Lab)
+    await app.navigateTo(1);
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // Open architecture modal
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    inspectBtn.click();
+    expect(container.querySelector('.architecture-modal')).not.toBeNull();
+
+    // Trigger ArrowDown while modal is open
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    // Should NOT navigate to Station 2 (Arsenal); must remain at Station 1 (Lab)
+    expect(app.getActiveStationIndex()).toBe(1);
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
