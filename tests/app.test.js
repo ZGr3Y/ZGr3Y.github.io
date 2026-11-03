@@ -148,6 +148,40 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(container.querySelector('.architecture-modal')).toBeNull();
   });
 
+  it('locks background scroll and configures aria-labelledby on modal open, and restores scroll on close', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+
+    // Before open: stationContainer overflow is not hidden
+    expect(stationContainer.style.overflow).not.toBe('hidden');
+
+    // Open modal
+    inspectBtn.click();
+    const modal = container.querySelector('.architecture-modal');
+    expect(modal).not.toBeNull();
+
+    // 1. Check aria-labelledby links to modal title element
+    const labelledById = modal.getAttribute('aria-labelledby');
+    expect(labelledById).toBe('modal-title-ctf-lab');
+    const titleEl = modal.querySelector(`#${labelledById}`);
+    expect(titleEl).not.toBeNull();
+    expect(titleEl.textContent).toBe('CTF Vulnerability Lab');
+
+    // 2. Check background scroll is locked
+    expect(stationContainer.style.overflow).toBe('hidden');
+
+    // 3. Close modal via Escape and check scroll is restored
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(stationContainer.style.overflow).not.toBe('hidden');
+  });
+
   it('moves initial focus into modal on open and traps Tab focus sequence within dialog', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';

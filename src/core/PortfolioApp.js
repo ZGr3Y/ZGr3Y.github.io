@@ -322,10 +322,12 @@ export class PortfolioApp {
 
     if (!this.container || typeof document === 'undefined') return;
 
+    const titleId = `modal-title-${project.id}`;
     const modal = document.createElement('div');
     modal.className = 'architecture-modal architecture-modal-overlay';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', titleId);
     modal.setAttribute('aria-label', `Architecture Deep-Dive: ${project.title}`);
 
     const tagsMarkup = (project.tags || []).map((t) => `<span class="tag-chip">${t}</span>`).join('');
@@ -345,7 +347,7 @@ export class PortfolioApp {
           </div>
           <button type="button" class="modal-close-btn" aria-label="Close modal">✕</button>
         </header>
-        <h3 class="modal-title">${project.title}</h3>
+        <h3 id="${titleId}" class="modal-title">${project.title}</h3>
         <p class="modal-full-desc">${project.fullDesc || project.shortDesc}</p>
         <div class="modal-tags">
           ${tagsMarkup}
@@ -398,6 +400,11 @@ export class PortfolioApp {
     };
     window.addEventListener('keydown', this._modalKeyHandler);
 
+    if (this.stationContainer) {
+      this._previousContainerOverflow = this.stationContainer.style.overflow;
+      this.stationContainer.style.overflow = 'hidden';
+    }
+
     this.container.appendChild(modal);
     this.activeModal = modal;
 
@@ -419,6 +426,11 @@ export class PortfolioApp {
     if (this.activeModal) {
       this.activeModal.remove();
       this.activeModal = null;
+    }
+
+    if (this.stationContainer) {
+      this.stationContainer.style.overflow = this._previousContainerOverflow || '';
+      this._previousContainerOverflow = null;
     }
 
     if (this._modalTriggerElement && typeof this._modalTriggerElement.focus === 'function') {
