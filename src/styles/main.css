@@ -594,7 +594,8 @@ html, body {
 .terminal-prompt {
   color: var(--cloud-blue);
   font-weight: 600;
-  flex-shrink: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .terminal-cmd {
@@ -613,6 +614,7 @@ html, body {
 
 .terminal-cursor-line {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
 }
@@ -634,6 +636,9 @@ html, body {
 }
 
 @media (max-width: 480px) {
+  .terminal-body {
+    padding: 12px;
+  }
   .channels-grid {
     grid-template-columns: 1fr;
   }
