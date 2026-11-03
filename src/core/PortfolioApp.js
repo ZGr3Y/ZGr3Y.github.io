@@ -719,7 +719,8 @@ export class PortfolioApp {
 
     this._onTouchStart = (e) => {
       if (this.activeModal) return;
-      if (e.touches && e.touches.length > 0) {
+      // Multi-touch gestures (e.g. pinch-to-zoom) must not trigger station swipe navigation
+      if (e.touches && e.touches.length === 1) {
         const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
         if (!isFromHUD) {
           this._touchStartX = e.touches[0].clientX;
@@ -733,6 +734,11 @@ export class PortfolioApp {
           this._touchStartCanScrollUp = false;
         }
         this._updatePointerFromClient(e.touches[0].clientX, e.touches[0].clientY);
+      } else {
+        this._touchStartX = null;
+        this._touchStartY = null;
+        this._touchStartCanScrollDown = false;
+        this._touchStartCanScrollUp = false;
       }
     };
 
@@ -746,6 +752,20 @@ export class PortfolioApp {
 
     this._onTouchEnd = (e) => {
       if (this.activeModal) return;
+      // If there are still active touches (e.g. multi-touch lift), cancel gesture navigation
+      if (e.touches && e.touches.length > 0) {
+        this._touchStartX = null;
+        this._touchStartY = null;
+        this._touchStartCanScrollDown = false;
+        this._touchStartCanScrollUp = false;
+        this._clearPointer();
+        return;
+      }
+
+      const SWIPE_MIN_DISTANCE_PX = 50;
+      const VERTICAL_DOMINANCE_RATIO = 1.5;
+      const HORIZONTAL_DOMINANCE_RATIO = 1.2;
+
       if (this._touchStartY !== null) {
         let endX = null;
         let endY = null;
@@ -763,12 +783,15 @@ export class PortfolioApp {
             ? endX - this._touchStartX
             : 0;
 
-          if (Math.abs(diffY) >= 50 && Math.abs(diffY) > Math.abs(diffX) * 1.5) {
+          if (Math.abs(diffY) >= SWIPE_MIN_DISTANCE_PX && Math.abs(diffY) > Math.abs(diffX) * VERTICAL_DOMINANCE_RATIO) {
             const direction = diffY < 0 ? 1 : -1;
             const canScrollAtStart = direction > 0 ? this._touchStartCanScrollDown : this._touchStartCanScrollUp;
             if (!canScrollAtStart && !this._canScrollInDirection(direction)) {
               this._triggerSequentialNav(direction);
             }
+          } else if (Math.abs(diffX) >= SWIPE_MIN_DISTANCE_PX && Math.abs(diffX) > Math.abs(diffY) * HORIZONTAL_DOMINANCE_RATIO) {
+            const direction = diffX < 0 ? 1 : -1;
+            this._triggerSequentialNav(direction);
           }
         }
         this._touchStartX = null;

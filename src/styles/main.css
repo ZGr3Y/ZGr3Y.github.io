@@ -65,8 +65,11 @@ html, body {
 .hud-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 8px 14px;
+  min-height: 44px;
+  min-width: 44px;
   border: 1px solid transparent;
   border-radius: var(--radius-full);
   background: transparent;
@@ -108,17 +111,37 @@ html, body {
   letter-spacing: 0.05em;
 }
 
-@media (max-width: 640px) {
+/* Mobile-First Ergonomic Layout & Touch Deck (< 768px) */
+@media (max-width: 768px) {
   .hud-nav {
-    top: 12px;
-    padding: 3px;
-    gap: 2px;
+    top: auto;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    padding: 6px;
+    gap: 4px;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.15);
   }
 
   .hud-btn {
     padding: 6px 10px;
     font-size: 0.68rem;
     gap: 4px;
+  }
+
+  #cloud-canvas,
+  .webgl-canvas {
+    pointer-events: none;
+    opacity: 0.45;
+  }
+
+  .station-container {
+    padding: 16px 16px 88px 16px;
+  }
+
+  .station-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 24px 18px;
+    margin: auto 0;
   }
 }
 
@@ -229,8 +252,11 @@ html, body {
 .btn-github {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 12px 20px;
+  min-height: 44px;
+  min-width: 44px;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 0.9rem;
@@ -377,7 +403,10 @@ html, body {
   font-weight: 600;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -754,12 +783,14 @@ html, body {
   background: transparent;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
-  width: 32px;
-  height: 32px;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);

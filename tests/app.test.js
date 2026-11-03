@@ -505,6 +505,45 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(2);
   });
 
+  it('supports horizontal touch swipe deck gestures (swipe left for next, swipe right for previous)', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    const dispatchSwipe = (diffX, diffY = 0) => {
+      app._lastNavTime = 0;
+      const startX = 200;
+      const startY = 300;
+      const touchStart = new Event('touchstart');
+      touchStart.touches = [{ clientX: startX, clientY: startY }];
+      window.dispatchEvent(touchStart);
+
+      const touchEnd = new Event('touchend');
+      touchEnd.changedTouches = [{ clientX: startX + diffX, clientY: startY + diffY }];
+      window.dispatchEvent(touchEnd);
+    };
+
+    // 1. Horizontal swipe left (diffX = -120px) -> triggers next station
+    dispatchSwipe(-120, 5);
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // 2. Horizontal swipe right (diffX = +120px) -> triggers previous station
+    dispatchSwipe(120, 5);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 3. Multi-touch gesture (e.g. pinch-to-zoom with 2 fingers) is ignored
+    app._lastNavTime = 0;
+    const multiTouchStart = new Event('touchstart');
+    multiTouchStart.touches = [{ clientX: 200, clientY: 300 }, { clientX: 250, clientY: 350 }];
+    window.dispatchEvent(multiTouchStart);
+
+    const multiTouchEnd = new Event('touchend');
+    multiTouchEnd.changedTouches = [{ clientX: 80, clientY: 300 }];
+    window.dispatchEvent(multiTouchEnd);
+
+    // Must stay at 0, no station transition triggered
+    expect(app.getActiveStationIndex()).toBe(0);
+  });
+
   it('does not trigger sequential navigation on wheel, swipe, or keys if station-container can still scroll in that direction', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
