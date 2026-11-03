@@ -115,6 +115,39 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(wipCard.textContent).toMatch(/Work in Progress/i);
   });
 
+  it('opens accessible architecture modal with fullDesc on Inspect Architecture click and closes on Escape', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    expect(ctfCard).not.toBeNull();
+
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    expect(inspectBtn).not.toBeNull();
+
+    // Modal should not be open initially
+    expect(container.querySelector('.architecture-modal')).toBeNull();
+
+    // Click inspect button
+    inspectBtn.click();
+
+    // Modal should now be open
+    const modal = container.querySelector('.architecture-modal');
+    expect(modal).not.toBeNull();
+    expect(modal.getAttribute('role')).toBe('dialog');
+    expect(modal.getAttribute('aria-modal')).toBe('true');
+    expect(modal.textContent).toContain('CTF Vulnerability Lab');
+    expect(modal.textContent).toContain('Developed three isolated microservices simulating real-world vulnerabilities');
+
+    // Press Escape to close modal
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(container.querySelector('.architecture-modal')).toBeNull();
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     

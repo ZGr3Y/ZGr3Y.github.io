@@ -246,7 +246,7 @@ export class PortfolioApp {
     card.setAttribute('hidden', '');
 
     const projectsMarkup = projects.map((project) => {
-      const isWip = project.status === 'wip' || project.id === 'work-in-progress';
+      const isWip = project.status === 'wip';
       const ghMarkup = project.github
         ? `<a href="${project.github}" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-sm" title="View Source on GitHub">
              <span>GitHub</span>
@@ -260,11 +260,15 @@ export class PortfolioApp {
            </button>`
         : `<span class="badge-wip">IN DEVELOPMENT</span>`;
       const tagsMarkup = (project.tags || []).map((tag) => `<span class="tag-chip">${tag}</span>`).join('');
+      const statusPill = !isWip
+        ? `<span class="status-pill status-production">PRODUCTION</span>`
+        : '';
 
       return `
         <article class="project-card ${isWip ? 'project-card-wip' : ''}" data-project="${project.id}">
           <div class="project-card-header">
             <span class="project-badge">${project.badge}</span>
+            ${statusPill}
           </div>
           <h3 class="project-title">${project.title}</h3>
           <p class="project-desc">${project.shortDesc}</p>
@@ -292,7 +296,108 @@ export class PortfolioApp {
         ${projectsMarkup}
       </div>
     `;
+
+    card.addEventListener('click', (e) => {
+      const inspectBtn = e.target.closest('.btn-inspect');
+      if (inspectBtn) {
+        const projectId = inspectBtn.getAttribute('data-project-id');
+        const project = projects.find((p) => p.id === projectId);
+        if (project) {
+          this._openArchitectureModal(project, inspectBtn);
+        }
+      }
+    });
+
     this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Opens the accessible Architecture Deep-Dive modal dialog
+   * @param {Object} project
+   * @param {HTMLElement} [triggerElement]
+   * @private
+   */
+  _openArchitectureModal(project, triggerElement = null) {
+    this._closeArchitectureModal();
+
+    if (!this.container || typeof document === 'undefined') return;
+
+    const modal = document.createElement('div');
+    modal.className = 'architecture-modal architecture-modal-overlay';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', `Architecture Deep-Dive: ${project.title}`);
+
+    const tagsMarkup = (project.tags || []).map((t) => `<span class="tag-chip">${t}</span>`).join('');
+    const ghMarkup = project.github
+      ? `<a href="${project.github}" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-sm" title="View Source on GitHub">
+           <span>GitHub Repository</span>
+           <span class="btn-icon" aria-hidden="true">↗</span>
+         </a>`
+      : '';
+
+    modal.innerHTML = `
+      <div class="architecture-modal-content">
+        <header class="modal-header">
+          <div class="modal-badge-group">
+            <span class="project-badge">${project.badge}</span>
+            <span class="status-pill status-production">PRODUCTION</span>
+          </div>
+          <button type="button" class="modal-close-btn" aria-label="Close modal">✕</button>
+        </header>
+        <h3 class="modal-title">${project.title}</h3>
+        <p class="modal-full-desc">${project.fullDesc || project.shortDesc}</p>
+        <div class="modal-tags">
+          ${tagsMarkup}
+        </div>
+        <div class="modal-actions">
+          ${ghMarkup}
+        </div>
+      </div>
+    `;
+
+    const closeBtn = modal.querySelector('.modal-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this._closeArchitectureModal());
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this._closeArchitectureModal();
+      }
+    });
+
+    this._modalTriggerElement = triggerElement;
+    this._modalKeyHandler = (e) => {
+      if (e.key === 'Escape') {
+        this._closeArchitectureModal();
+      }
+    };
+    window.addEventListener('keydown', this._modalKeyHandler);
+
+    this.container.appendChild(modal);
+    this.activeModal = modal;
+  }
+
+  /**
+   * Closes active architecture modal and cleans up listeners
+   * @private
+   */
+  _closeArchitectureModal() {
+    if (this._modalKeyHandler) {
+      window.removeEventListener('keydown', this._modalKeyHandler);
+      this._modalKeyHandler = null;
+    }
+
+    if (this.activeModal) {
+      this.activeModal.remove();
+      this.activeModal = null;
+    }
+
+    if (this._modalTriggerElement && typeof this._modalTriggerElement.focus === 'function') {
+      this._modalTriggerElement.focus();
+      this._modalTriggerElement = null;
+    }
   }
 
   /**
@@ -761,6 +866,7 @@ export class PortfolioApp {
    * Complete teardown of Three.js context, animation frame, and listeners
    */
   destroy() {
+    this._closeArchitectureModal();
     this.isDestroyed = true;
     this._isLoopRunning = false;
     this._isCameraTransitioning = false;
