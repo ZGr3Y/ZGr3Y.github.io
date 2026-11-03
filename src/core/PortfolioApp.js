@@ -151,6 +151,8 @@ export class PortfolioApp {
           this._renderLabCard();
         } else if (station.id === 'arsenal') {
           this._renderArsenalCard();
+        } else if (station.id === 'transmission') {
+          this._renderTransmissionCard();
         } else {
           this._renderStationPlaceholder(station);
         }
@@ -161,6 +163,9 @@ export class PortfolioApp {
         } else if (station.id === 'arsenal' && !existing.querySelector('.arsenal-disciplines-grid')) {
           existing.remove();
           this._renderArsenalCard();
+        } else if (station.id === 'transmission' && !existing.querySelector('.terminal-box')) {
+          existing.remove();
+          this._renderTransmissionCard();
         }
       }
     });
@@ -368,6 +373,83 @@ export class PortfolioApp {
       </div>
       <div class="arsenal-disciplines-grid">
         ${categoriesMarkup}
+      </div>
+    `;
+
+    this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Renders Station 04 Transmission Card with simulated cloud terminal and channel uplinks
+   * @private
+   */
+  _renderTransmissionCard() {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+    const transData = this.stations.find((s) => s.id === 'transmission') || this.stations[3];
+    const terminal = transData.terminal || { hostname: 'zgr3y@cloud-node-01', commands: [] };
+    const channels = transData.channels || [];
+
+    const card = document.createElement('section');
+    card.className = 'station-card transmission-card';
+    card.setAttribute('data-station', 'transmission');
+    card.setAttribute('aria-label', `Station ${transData.index}: ${transData.name}`);
+    card.setAttribute('hidden', '');
+
+    const commandsMarkup = (terminal.commands || []).map((c) => `
+      <div class="terminal-command-line">
+        <span class="terminal-prompt" aria-hidden="true">${terminal.hostname}:~$</span>
+        <span class="terminal-cmd">${c.cmd}</span>
+      </div>
+      <div class="terminal-output-line">${c.output}</div>
+    `).join('');
+
+    const channelsMarkup = channels.map((ch) => {
+      const downloadAttr = ch.isDownload ? `download="${ch.url.split('/').pop() || 'resume.pdf'}"` : '';
+      const targetAttr = !ch.isDownload && !ch.url.startsWith('mailto:') ? 'target="_blank" rel="noopener noreferrer"' : '';
+
+      return `
+        <a href="${ch.url}" class="channel-card" ${downloadAttr} ${targetAttr} title="${ch.title}">
+          <div class="channel-header">
+            <span class="channel-icon" aria-hidden="true">${ch.icon}</span>
+            <h3 class="channel-title">${ch.title}</h3>
+            <span class="channel-arrow" aria-hidden="true">${ch.isDownload ? '↓' : '↗'}</span>
+          </div>
+          <p class="channel-desc">${ch.desc}</p>
+        </a>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>STATION ${transData.index} // ${transData.name} PROTOCOL</span>
+      </div>
+      <h2 class="hero-name">${transData.name}</h2>
+      <div class="hero-role">
+        <span class="hero-title">${transData.subtitle}</span>
+      </div>
+      <div class="transmission-layout">
+        <div class="terminal-box" aria-label="Simulated Cloud Terminal">
+          <div class="terminal-header">
+            <div class="terminal-dots" aria-hidden="true">
+              <span class="terminal-dot dot-red"></span>
+              <span class="terminal-dot dot-yellow"></span>
+              <span class="terminal-dot dot-green"></span>
+            </div>
+            <span class="terminal-hostname">${terminal.hostname}</span>
+            <span class="terminal-status-pill">STATUS: SECURE</span>
+          </div>
+          <div class="terminal-body">
+            ${commandsMarkup}
+            <div class="terminal-cursor-line" aria-hidden="true">
+              <span class="terminal-prompt">${terminal.hostname}:~$</span>
+              <span class="terminal-cursor">_</span>
+            </div>
+          </div>
+        </div>
+        <div class="channels-grid">
+          ${channelsMarkup}
+        </div>
       </div>
     `;
 
