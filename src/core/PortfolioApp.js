@@ -531,7 +531,7 @@ export class PortfolioApp {
     };
 
     this._onKeyDown = (e) => {
-      if (!e || !e.key || e.repeat) return;
+      if (!e || !e.key || e.repeat || this.activeModal) return;
       let direction = 0;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
         direction = 1;
@@ -545,7 +545,7 @@ export class PortfolioApp {
     };
 
     this._onWheel = (e) => {
-      if (!e || typeof e.deltaY !== 'number') return;
+      if (!e || typeof e.deltaY !== 'number' || this.activeModal) return;
       if (e.ctrlKey || e.metaKey) return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
@@ -561,6 +561,7 @@ export class PortfolioApp {
     };
 
     this._onTouchStart = (e) => {
+      if (this.activeModal) return;
       if (e.touches && e.touches.length > 0) {
         const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
         if (!isFromHUD) {
@@ -579,6 +580,7 @@ export class PortfolioApp {
     };
 
     this._onTouchMove = (e) => {
+      if (this.activeModal) return;
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
         this._updatePointerFromClient(touch.clientX, touch.clientY);
@@ -586,6 +588,7 @@ export class PortfolioApp {
     };
 
     this._onTouchEnd = (e) => {
+      if (this.activeModal) return;
       if (this._touchStartY !== null) {
         let endX = null;
         let endY = null;

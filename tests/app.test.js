@@ -193,6 +193,31 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(document.activeElement).toBe(inspectBtn);
   });
 
+  it('suppresses sequential station navigation when architecture modal is active', async () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    // Navigate to Station 1 (Lab)
+    await app.navigateTo(1);
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // Open architecture modal
+    const ctfCard = container.querySelector('.project-card[data-project="ctf-lab"]');
+    const inspectBtn = ctfCard.querySelector('.btn-inspect');
+    inspectBtn.click();
+    expect(container.querySelector('.architecture-modal')).not.toBeNull();
+
+    // Trigger ArrowDown while modal is open
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+    // Should NOT navigate to Station 2 (Arsenal); must remain at Station 1 (Lab)
+    expect(app.getActiveStationIndex()).toBe(1);
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
