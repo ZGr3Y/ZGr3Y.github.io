@@ -147,6 +147,8 @@ export class PortfolioApp {
       if (!existing) {
         if (station.id === 'gateway') {
           this._renderGatewayCard();
+        } else if (station.id === 'lab') {
+          this._renderLabCard();
         } else {
           this._renderStationPlaceholder(station);
         }
@@ -223,6 +225,71 @@ export class PortfolioApp {
       <p class="hero-bio">${hero.bio || ''}</p>
       <div class="station-actions">
         ${actionsMarkup}
+      </div>
+    `;
+    this.stationContainer.appendChild(card);
+  }
+
+  /**
+   * Renders Station 02 Lab Card with project Cloud Cards
+   * @private
+   */
+  _renderLabCard() {
+    if (!this.stationContainer || typeof document === 'undefined') return;
+    const labData = this.stations.find((s) => s.id === 'lab') || this.stations[1];
+    const projects = labData.projects || [];
+
+    const card = document.createElement('section');
+    card.className = 'station-card lab-card';
+    card.setAttribute('data-station', 'lab');
+    card.setAttribute('aria-label', `Station ${labData.index}: ${labData.name}`);
+    card.setAttribute('hidden', '');
+
+    const projectsMarkup = projects.map((project) => {
+      const isWip = project.status === 'wip' || project.id === 'work-in-progress';
+      const ghMarkup = project.github
+        ? `<a href="${project.github}" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-sm" title="View Source on GitHub">
+             <span>GitHub</span>
+             <span class="btn-icon" aria-hidden="true">↗</span>
+           </a>`
+        : '';
+      const inspectMarkup = !isWip
+        ? `<button type="button" class="btn btn-inspect btn-sm" data-project-id="${project.id}" aria-label="Inspect Architecture for ${project.title}">
+             <span>Inspect Architecture</span>
+             <span class="btn-icon" aria-hidden="true">🔍</span>
+           </button>`
+        : `<span class="badge-wip">IN DEVELOPMENT</span>`;
+      const tagsMarkup = (project.tags || []).map((tag) => `<span class="tag-chip">${tag}</span>`).join('');
+
+      return `
+        <article class="project-card ${isWip ? 'project-card-wip' : ''}" data-project="${project.id}">
+          <div class="project-card-header">
+            <span class="project-badge">${project.badge}</span>
+          </div>
+          <h3 class="project-title">${project.title}</h3>
+          <p class="project-desc">${project.shortDesc}</p>
+          <div class="project-tags">
+            ${tagsMarkup}
+          </div>
+          <div class="project-actions">
+            ${inspectMarkup}
+            ${ghMarkup}
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="station-badge">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>STATION ${labData.index} // ${labData.name} PROTOCOL</span>
+      </div>
+      <h2 class="hero-name">${labData.name}</h2>
+      <div class="hero-role">
+        <span class="hero-title">${labData.subtitle}</span>
+      </div>
+      <div class="lab-projects-grid">
+        ${projectsMarkup}
       </div>
     `;
     this.stationContainer.appendChild(card);

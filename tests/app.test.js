@@ -74,6 +74,47 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(ghLink.getAttribute('rel')).toContain('noreferrer');
   });
 
+  it('renders Station 02 Lab with 3 Cloud Cards (CTF, Sentinel SIEM, and Work In Progress)', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const labCard = container.querySelector('.lab-card') || container.querySelector('[data-station="lab"]');
+    expect(labCard).not.toBeNull();
+    expect(labCard.getAttribute('aria-label')).toContain('Station 02: LAB');
+
+    const projectCards = labCard.querySelectorAll('.project-card');
+    expect(projectCards.length).toBe(3);
+
+    // Card 1: CTF Vulnerability Lab
+    const ctfCard = projectCards[0];
+    expect(ctfCard.textContent).toContain('CTF Vulnerability Lab');
+    expect(ctfCard.textContent).toContain("Bachelor's Thesis");
+    const ctfGh = ctfCard.querySelector('a[href="https://github.com/ZGr3Y/CTF"]');
+    expect(ctfGh).not.toBeNull();
+    expect(ctfGh.getAttribute('target')).toBe('_blank');
+    expect(ctfGh.getAttribute('rel')).toContain('noopener');
+    expect(ctfGh.getAttribute('rel')).toContain('noreferrer');
+    expect(ctfCard.querySelector('.btn-inspect')).not.toBeNull();
+
+    // Card 2: Sentinel Distributed SIEM
+    const siemCard = projectCards[1];
+    expect(siemCard.textContent).toContain('Sentinel Distributed SIEM');
+    const siemGh = siemCard.querySelector('a[href="https://github.com/ZGr3Y/sentinel-distributed-siem"]');
+    expect(siemGh).not.toBeNull();
+    expect(siemGh.getAttribute('target')).toBe('_blank');
+    expect(siemGh.getAttribute('rel')).toContain('noopener');
+    expect(siemGh.getAttribute('rel')).toContain('noreferrer');
+    expect(siemCard.querySelector('.btn-inspect')).not.toBeNull();
+
+    // Card 3: Work in Progress
+    const wipCard = projectCards[2];
+    expect(wipCard.textContent).toMatch(/Work in Progress/i);
+  });
+
   it('navigates to a specific station index and updates accessibility live region', async () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     
