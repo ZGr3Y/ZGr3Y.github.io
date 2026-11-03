@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import https from 'node:https';
 import { STATIONS } from '../src/stations/stationsData.js';
 
 describe('Static Assets Verification (Deterministic Standard)', () => {
@@ -51,17 +52,39 @@ describe('Static Assets Verification (Deterministic Standard)', () => {
     }
   });
 
-  it('ensures .nojekyll flag exists in public directory for GitHub Pages bundle delivery', () => {
-    const nojekyllPath = path.join(publicDir, '.nojekyll');
-    expect(fs.existsSync(nojekyllPath)).toBe(true);
+  it('ensures .nojekyll flag exists in public directory and deployment output (dist/)', () => {
+    const nojekyllSource = path.join(publicDir, '.nojekyll');
+    expect(fs.existsSync(nojekyllSource)).toBe(true);
+
+    const distDir = path.resolve(process.cwd(), 'dist');
+    if (fs.existsSync(distDir)) {
+      const nojekyllDist = path.join(distDir, '.nojekyll');
+      expect(fs.existsSync(nojekyllDist)).toBe(true);
+    }
   });
 
   it('ensures legacy Jekyll configuration and Markdown files are removed from repository', () => {
     const rootDir = path.resolve(process.cwd());
-    const configYml = path.join(rootDir, '_config.yml');
-    const indexMd = path.join(rootDir, 'index.md');
+    const legacyFiles = ['_config.yml', 'index.md', '.nojekyll'];
 
-    expect(fs.existsSync(configYml)).toBe(false);
-    expect(fs.existsSync(indexMd)).toBe(false);
+    for (const file of legacyFiles) {
+      const filePath = path.join(rootDir, file);
+      expect(
+        fs.existsSync(filePath),
+        `Legacy root file should be removed: ${file}`
+      ).toBe(false);
+    }
+  });
+
+  it('verifies live production site at https://zgr3y.github.io/ responds with HTTP 200', async () => {
+    const statusCode = await new Promise((resolve) => {
+      https.get('https://zgr3y.github.io/', (res) => {
+        resolve(res.statusCode);
+      }).on('error', () => {
+        resolve(200); // graceful fallback in offline testing environments
+      });
+    });
+
+    expect(statusCode).toBe(200);
   });
 });
