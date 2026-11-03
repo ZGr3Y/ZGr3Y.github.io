@@ -153,6 +153,50 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(chips[0].querySelector('.skill-dot')).not.toBeNull();
   });
 
+  it('renders Station 04 Transmission with simulated bash terminal and secure channel uplinks', () => {
+    const stationContainer = document.createElement('main');
+    stationContainer.id = 'station-container';
+    stationContainer.className = 'station-container';
+    container.appendChild(stationContainer);
+
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+
+    const transmissionCard = container.querySelector('.transmission-card') || container.querySelector('[data-station="transmission"]');
+    expect(transmissionCard).not.toBeNull();
+    expect(transmissionCard.getAttribute('aria-label')).toContain('Station 04: TRANSMISSION');
+
+    // 1. Simulated Bash Terminal
+    const terminalBox = transmissionCard.querySelector('.terminal-box');
+    expect(terminalBox).not.toBeNull();
+    expect(terminalBox.textContent).toContain('zgr3y@cloud-node-01');
+    expect(terminalBox.textContent).toContain('whoami');
+    expect(terminalBox.textContent).toContain('Paolo Maria Scarlata');
+    expect(terminalBox.textContent).toContain('kubectl get nodes');
+    expect(terminalBox.textContent).toContain('CLUSTER STATUS: READY');
+    expect(terminalBox.textContent).toContain('gpg --fingerprint');
+    expect(terminalBox.textContent).toContain('B9A4 81CF 30E2 721A D5E9 443B 90C1 88FA 78B2 4E19');
+
+    // 2. Channel Cards
+    const channelCards = transmissionCard.querySelectorAll('.channel-card');
+    expect(channelCards.length).toBe(3);
+
+    // Channel 1: GitHub
+    const ghChannel = transmissionCard.querySelector('a[href="https://github.com/ZGr3Y"]');
+    expect(ghChannel).not.toBeNull();
+    expect(ghChannel.getAttribute('target')).toBe('_blank');
+    expect(ghChannel.getAttribute('rel')).toContain('noopener');
+
+    // Channel 2: CV PDF Download
+    const cvChannel = transmissionCard.querySelector('a[href="./resume_PaoloMariaScarlata.pdf"]');
+    expect(cvChannel).not.toBeNull();
+    expect(cvChannel.getAttribute('download')).toBe('resume_PaoloMariaScarlata.pdf');
+
+    // Channel 3: Email Uplink
+    const mailChannel = transmissionCard.querySelector('a[href="mailto:contact.zgr3y@gmail.com"]');
+    expect(mailChannel).not.toBeNull();
+    expect(mailChannel.textContent).toContain('Direct Communication');
+  });
+
   it('opens accessible architecture modal with fullDesc on Inspect Architecture click and closes on Escape', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
