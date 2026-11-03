@@ -769,6 +769,9 @@ export class PortfolioApp {
             if (!canScrollAtStart && !this._canScrollInDirection(direction)) {
               this._triggerSequentialNav(direction);
             }
+          } else if (Math.abs(diffX) >= 50 && Math.abs(diffX) > Math.abs(diffY) * 1.2) {
+            const direction = diffX < 0 ? 1 : -1;
+            this._triggerSequentialNav(direction);
           }
         }
         this._touchStartX = null;

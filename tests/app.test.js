@@ -505,6 +505,35 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.getActiveStationIndex()).toBe(2);
   });
 
+  it('supports horizontal touch swipe deck gestures (swipe left for next, swipe right for previous)', () => {
+    app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 1. Horizontal swipe left (diffX = -120px, diffY = 5px) -> triggers next station
+    app._lastNavTime = 0;
+    const swipeLeftStart = new Event('touchstart');
+    swipeLeftStart.touches = [{ clientX: 250, clientY: 300 }];
+    window.dispatchEvent(swipeLeftStart);
+
+    const swipeLeftEnd = new Event('touchend');
+    swipeLeftEnd.changedTouches = [{ clientX: 130, clientY: 305 }]; // diffX = -120, diffY = 5
+    window.dispatchEvent(swipeLeftEnd);
+
+    expect(app.getActiveStationIndex()).toBe(1);
+
+    // 2. Horizontal swipe right (diffX = +120px, diffY = 5px) -> triggers previous station
+    app._lastNavTime = 0;
+    const swipeRightStart = new Event('touchstart');
+    swipeRightStart.touches = [{ clientX: 100, clientY: 300 }];
+    window.dispatchEvent(swipeRightStart);
+
+    const swipeRightEnd = new Event('touchend');
+    swipeRightEnd.changedTouches = [{ clientX: 220, clientY: 305 }]; // diffX = +120, diffY = 5
+    window.dispatchEvent(swipeRightEnd);
+
+    expect(app.getActiveStationIndex()).toBe(0);
+  });
+
   it('does not trigger sequential navigation on wheel, swipe, or keys if station-container can still scroll in that direction', () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
