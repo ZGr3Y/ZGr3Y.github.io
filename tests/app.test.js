@@ -509,28 +509,38 @@ describe('PortfolioApp (Application Root Seam)', () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
     expect(app.getActiveStationIndex()).toBe(0);
 
-    // 1. Horizontal swipe left (diffX = -120px, diffY = 5px) -> triggers next station
-    app._lastNavTime = 0;
-    const swipeLeftStart = new Event('touchstart');
-    swipeLeftStart.touches = [{ clientX: 250, clientY: 300 }];
-    window.dispatchEvent(swipeLeftStart);
+    const dispatchSwipe = (diffX, diffY = 0) => {
+      app._lastNavTime = 0;
+      const startX = 200;
+      const startY = 300;
+      const touchStart = new Event('touchstart');
+      touchStart.touches = [{ clientX: startX, clientY: startY }];
+      window.dispatchEvent(touchStart);
 
-    const swipeLeftEnd = new Event('touchend');
-    swipeLeftEnd.changedTouches = [{ clientX: 130, clientY: 305 }]; // diffX = -120, diffY = 5
-    window.dispatchEvent(swipeLeftEnd);
+      const touchEnd = new Event('touchend');
+      touchEnd.changedTouches = [{ clientX: startX + diffX, clientY: startY + diffY }];
+      window.dispatchEvent(touchEnd);
+    };
 
+    // 1. Horizontal swipe left (diffX = -120px) -> triggers next station
+    dispatchSwipe(-120, 5);
     expect(app.getActiveStationIndex()).toBe(1);
 
-    // 2. Horizontal swipe right (diffX = +120px, diffY = 5px) -> triggers previous station
+    // 2. Horizontal swipe right (diffX = +120px) -> triggers previous station
+    dispatchSwipe(120, 5);
+    expect(app.getActiveStationIndex()).toBe(0);
+
+    // 3. Multi-touch gesture (e.g. pinch-to-zoom with 2 fingers) is ignored
     app._lastNavTime = 0;
-    const swipeRightStart = new Event('touchstart');
-    swipeRightStart.touches = [{ clientX: 100, clientY: 300 }];
-    window.dispatchEvent(swipeRightStart);
+    const multiTouchStart = new Event('touchstart');
+    multiTouchStart.touches = [{ clientX: 200, clientY: 300 }, { clientX: 250, clientY: 350 }];
+    window.dispatchEvent(multiTouchStart);
 
-    const swipeRightEnd = new Event('touchend');
-    swipeRightEnd.changedTouches = [{ clientX: 220, clientY: 305 }]; // diffX = +120, diffY = 5
-    window.dispatchEvent(swipeRightEnd);
+    const multiTouchEnd = new Event('touchend');
+    multiTouchEnd.changedTouches = [{ clientX: 80, clientY: 300 }];
+    window.dispatchEvent(multiTouchEnd);
 
+    // Must stay at 0, no station transition triggered
     expect(app.getActiveStationIndex()).toBe(0);
   });
 
