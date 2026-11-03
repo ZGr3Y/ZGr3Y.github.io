@@ -50,4 +50,28 @@ describe('Static Assets Verification (Deterministic Standard)', () => {
       ).toBe(true);
     }
   });
+
+  it('ensures .nojekyll flag exists in public directory and deployment output (dist/)', () => {
+    const nojekyllSource = path.join(publicDir, '.nojekyll');
+    expect(fs.existsSync(nojekyllSource)).toBe(true);
+
+    const distDir = path.resolve(process.cwd(), 'dist');
+    if (fs.existsSync(distDir)) {
+      const nojekyllDist = path.join(distDir, '.nojekyll');
+      expect(fs.existsSync(nojekyllDist)).toBe(true);
+    }
+  });
+
+  it('ensures legacy Jekyll configuration and Markdown files are removed from repository', () => {
+    const rootDir = path.resolve(process.cwd());
+    const legacyFiles = ['_config.yml', 'index.md', '.nojekyll'];
+
+    for (const file of legacyFiles) {
+      const filePath = path.join(rootDir, file);
+      expect(
+        fs.existsSync(filePath),
+        `Legacy root file should be removed: ${file}`
+      ).toBe(false);
+    }
+  });
 });

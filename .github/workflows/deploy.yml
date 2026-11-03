@@ -39,6 +39,12 @@ jobs:
       - name: Build static production assets
         run: npm run build
 
+      - name: Verify production deployment output (.nojekyll & assets)
+        run: |
+          test -f dist/.nojekyll || { echo "Missing dist/.nojekyll" >&2; exit 1; }
+          test -f dist/index.html || { echo "Missing dist/index.html" >&2; exit 1; }
+          test -f dist/resume_PaoloMariaScarlata.pdf || { echo "Missing dist/resume_PaoloMariaScarlata.pdf" >&2; exit 1; }
+
       - name: Upload production artifact
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-pages-artifact@v3
@@ -57,3 +63,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify live production deployment
+        run: |
+          curl --fail --silent --show-error --location "${{ steps.deployment.outputs.page_url }}" > /dev/null
