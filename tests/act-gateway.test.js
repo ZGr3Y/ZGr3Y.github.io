@@ -111,8 +111,29 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         act.update({ progress: 0.1, pointer: { x: 0.8, y: 0.5 }, delta: 0.016, speedFactor: 1.0 });
       }
 
-      // Parallax should reach target equilibrium
+      // Parallax and camera should reach target equilibrium
       expect(act.isResting()).toBe(true);
+
+      act.dispose();
+    });
+
+    it('applies subtle ambient camera drift when inside Act 1 (Matrix White Room)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // In Act 1 (e.g. progress 0.25)
+      act.update({ progress: 0.25, delta: 0.016, speedFactor: 1.0 });
+      const posA = camera.position.clone();
+
+      // Advance time by 1 second
+      for (let i = 0; i < 60; i++) {
+        act.update({ progress: 0.25, delta: 0.016, speedFactor: 1.0 });
+      }
+      const posB = camera.position.clone();
+
+      // Ambient drift should subtly modulate camera position
+      expect(posA.distanceTo(posB)).toBeGreaterThan(0);
 
       act.dispose();
     });
@@ -240,6 +261,61 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       });
 
       expect(app.gatewayAct).toBeDefined();
+
+      app.destroy();
+    });
+
+    it('triggers zoom-through into Matrix White Room upon loader completion', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(app.journeyState.getProgress()).toBe(0);
+
+      // Complete the loader
+      app.loaderController.complete();
+
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.2);
+
+      app.destroy();
+    });
+
+    it('controls Gateway card DOM visibility window based on journey progress', () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: false,
+        enableJourney: true
+      });
+
+      const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
+      expect(gatewayCard.classList.contains('active')).toBe(true);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(false);
+
+      // Advance progress to Act 2 (progress >= 0.4)
+      app.journeyState.setProgress(0.45);
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+
+      // Rewind progress back to Act 1
+      app.journeyState.setProgress(0.2);
+      expect(gatewayCard.classList.contains('active')).toBe(true);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(false);
 
       app.destroy();
     });

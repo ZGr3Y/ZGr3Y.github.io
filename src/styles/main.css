@@ -905,9 +905,15 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 2.5rem;
-  margin-top: 1.5rem;
+  margin: 1.5rem auto auto auto;
   pointer-events: auto;
   user-select: none;
+}
+
+.loader-falling-artifacts[hidden],
+.falling-whale[hidden],
+.falling-petunias[hidden] {
+  display: none !important;
 }
 
 .falling-whale,

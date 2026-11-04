@@ -44,14 +44,13 @@ export class LoaderUI {
       </div>
 
       <div class="loader-falling-artifacts" aria-hidden="true">
-        <div class="falling-whale" title="Against all probability, a sperm whale had suddenly been called into existence...">
+        <div class="falling-whale">
           <svg viewBox="0 0 100 50" class="falling-whale-svg">
             <path d="M10,25 C20,10 50,8 75,18 C85,22 95,20 98,15 C96,25 90,32 75,34 C50,38 30,36 18,32 C12,30 10,27 10,25 Z M70,18 C65,12 60,10 55,10 C58,15 62,17 70,18 Z M35,32 C38,36 42,38 45,38 C42,35 40,33 35,32 Z" fill="currentColor" />
             <circle cx="20" cy="22" r="1.5" fill="#ffffff" />
           </svg>
-          <span class="artifact-label">42 // WHALE</span>
         </div>
-        <div class="falling-petunias" title="Oh no, not again.">
+        <div class="falling-petunias">
           <svg viewBox="0 0 60 50" class="falling-petunias-svg">
             <polygon points="18,22 42,22 38,44 22,44" fill="currentColor" opacity="0.85" />
             <rect x="16" y="19" width="28" height="4" rx="1.5" fill="currentColor" />
@@ -60,7 +59,6 @@ export class LoaderUI {
             <circle cx="30" cy="10" r="5.5" fill="#a855f7" opacity="0.9" />
             <circle cx="30" cy="12" r="2" fill="#fbbf24" />
           </svg>
-          <span class="artifact-label">PETUNIAS</span>
         </div>
       </div>
     `;

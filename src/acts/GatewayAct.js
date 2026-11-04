@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { disposeThreeObject } from '../utils/threeUtils.js';
 
+const ROOM_NORMALIZED_SIZE = 28;
+const ACT0_END_PROGRESS = 0.2;
+const ACT1_END_PROGRESS = 0.4;
+
 /**
  * GatewayAct — Act 01 Scene Coordinator (Matrix White Room & Station 01 Bio)
  * Coordinates the 3D Matrix White Room environment, balanced studio lighting,
- * smooth camera yaw transition from the Hitchhiker Guide, and pointer parallax.
+ * smooth camera yaw transition from the Hitchhiker Guide, subtle ambient drift,
+ * and pointer parallax.
  */
 export class GatewayAct {
   /**
@@ -21,17 +26,26 @@ export class GatewayAct {
     this.whiteRoomModel = null;
     this.lights = [];
     this.isDisposed = false;
+    this.elapsedTime = 0;
 
     // Waypoints for Act 0 (Loader / Hitchhiker) and Act 1 (Gateway / White Room)
     this.act0CamPos = new THREE.Vector3(0, 0.4, 4.5);
     this.act0LookAt = new THREE.Vector3(0, 0, 0);
 
-    this.act1CamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 0.9, 6.0);
-    this.act1LookAt = new THREE.Vector3(this.roomPosition.x, 0.7, -4.0);
+    // Entrance into Matrix Room (yawing right)
+    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 0.9, 6.0);
+    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x, 0.7, -4.0);
+
+    // Interior exploration waypoint within Act 1
+    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x, 0.8, 4.2);
+    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x, 0.6, -6.0);
 
     // Dynamic camera coordinates and parallax state
     this.currentCamPos = this.act0CamPos.clone();
     this.currentLookAt = this.act0LookAt.clone();
+    this.targetFinalCamPos = this.act0CamPos.clone();
+    this.targetFinalLookAt = this.act0LookAt.clone();
+
     this.parallaxOffset = new THREE.Vector2(0, 0);
     this.targetParallax = new THREE.Vector2(0, 0);
 
@@ -74,15 +88,14 @@ export class GatewayAct {
 
     this.whiteRoomModel = model;
 
-    // Normalize model scale from bounding box so it frames properly (~28 units)
+    // Normalize model scale from bounding box so it frames properly
     const box = new THREE.Box3().setFromObject(model);
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z);
 
     if (Number.isFinite(maxDim) && maxDim > 0) {
-      const targetSize = 28;
-      const scale = targetSize / maxDim;
+      const scale = ROOM_NORMALIZED_SIZE / maxDim;
       this.whiteRoomModel.scale.set(scale, scale, scale);
     }
 
@@ -94,7 +107,7 @@ export class GatewayAct {
   }
 
   /**
-   * Updates camera trajectory, pointer parallax, and resting state
+   * Updates camera trajectory, pointer parallax, subtle ambient drift, and resting state
    * @param {Object} state
    * @param {number} state.progress - Narrative timeline progress [0.0 - 1.0]
    * @param {Object} [state.pointer] - Normalized pointer coordinates { x, y } [-1.0 - 1.0]
@@ -104,15 +117,26 @@ export class GatewayAct {
   update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0 } = {}) {
     if (this.isDisposed || !this.camera) return;
 
-    // Timeline mapping: Act 0 -> Act 1 occurs within progress [0.0, 0.2]
-    const clampedProgress = Math.max(0, Math.min(progress / 0.2, 1.0));
-    // Smooth easing curve (easeInOutQuad)
-    const easedT = clampedProgress < 0.5
-      ? 2 * clampedProgress * clampedProgress
-      : 1 - Math.pow(-2 * clampedProgress + 2, 2) / 2;
+    if (speedFactor > 0.0001) {
+      this.elapsedTime += delta * speedFactor;
+    }
 
-    const baseCamPos = new THREE.Vector3().lerpVectors(this.act0CamPos, this.act1CamPos, easedT);
-    const baseLookAt = new THREE.Vector3().lerpVectors(this.act0LookAt, this.act1LookAt, easedT);
+    let baseCamPos;
+    let baseLookAt;
+
+    if (progress <= ACT0_END_PROGRESS) {
+      // Act 0 -> Act 1: Turn right from Hitchhiker book into Matrix White Room
+      const t = Math.max(0, Math.min(progress / ACT0_END_PROGRESS, 1.0));
+      const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      baseCamPos = new THREE.Vector3().lerpVectors(this.act0CamPos, this.act1EntranceCamPos, easedT);
+      baseLookAt = new THREE.Vector3().lerpVectors(this.act0LookAt, this.act1EntranceLookAt, easedT);
+    } else {
+      // Act 1 exploration: subtle forward navigation deeper into the Matrix White Room
+      const t = Math.max(0, Math.min((progress - ACT0_END_PROGRESS) / (ACT1_END_PROGRESS - ACT0_END_PROGRESS), 1.0));
+      const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      baseCamPos = new THREE.Vector3().lerpVectors(this.act1EntranceCamPos, this.act1InteriorCamPos, easedT);
+      baseLookAt = new THREE.Vector3().lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
+    }
 
     // Compute pointer parallax target
     if (pointer && typeof pointer.x === 'number' && typeof pointer.y === 'number') {
@@ -121,35 +145,46 @@ export class GatewayAct {
       this.targetParallax.set(0, 0);
     }
 
-    // Smoothly lerp parallax offset
-    const parallaxLerp = Math.min(1.0, delta * 3.5 * Math.max(speedFactor, 0.1));
+    // Smoothly lerp parallax offset allowing true 0-damping when idle
+    const parallaxLerp = Math.min(1.0, delta * 3.5 * speedFactor);
     this.parallaxOffset.lerp(this.targetParallax, parallaxLerp);
 
-    // Apply interpolated positions to camera
-    const finalCamPos = baseCamPos.clone();
-    finalCamPos.x += this.parallaxOffset.x * 0.3;
-    finalCamPos.y += this.parallaxOffset.y * 0.2;
+    // Subtle ambient camera drift when inside Matrix White Room (Act 1)
+    let driftX = 0;
+    let driftY = 0;
+    if (progress > 0.1 && speedFactor > 0.0001) {
+      driftX = Math.sin(this.elapsedTime * 0.6) * 0.08 * speedFactor;
+      driftY = Math.cos(this.elapsedTime * 0.45) * 0.05 * speedFactor;
+    }
 
-    const finalLookAt = baseLookAt.clone();
-    finalLookAt.x += this.parallaxOffset.x;
-    finalLookAt.y += this.parallaxOffset.y;
+    // Final target positions
+    this.targetFinalCamPos.copy(baseCamPos);
+    this.targetFinalCamPos.x += this.parallaxOffset.x * 0.3 + driftX;
+    this.targetFinalCamPos.y += this.parallaxOffset.y * 0.2 + driftY;
 
-    const camLerp = Math.min(1.0, delta * 4.0 * Math.max(speedFactor, 0.1));
-    this.currentCamPos.lerp(finalCamPos, camLerp);
-    this.currentLookAt.lerp(finalLookAt, camLerp);
+    this.targetFinalLookAt.copy(baseLookAt);
+    this.targetFinalLookAt.x += this.parallaxOffset.x + driftX * 0.5;
+    this.targetFinalLookAt.y += this.parallaxOffset.y + driftY * 0.5;
+
+    const camLerp = Math.min(1.0, delta * 4.0 * speedFactor);
+    this.currentCamPos.lerp(this.targetFinalCamPos, camLerp);
+    this.currentLookAt.lerp(this.targetFinalLookAt, camLerp);
 
     this.camera.position.copy(this.currentCamPos);
     this.camera.lookAt(this.currentLookAt);
   }
 
   /**
-   * Reports whether camera and parallax have reached equilibrium
+   * Reports whether camera, drift, and parallax have reached complete equilibrium per CODING_STANDARDS §5
    * @returns {boolean}
    */
   isResting() {
     if (this.isDisposed) return true;
     const parallaxDistSq = this.parallaxOffset.distanceToSquared(this.targetParallax);
-    return parallaxDistSq < 0.0005;
+    const camPosDistSq = this.currentCamPos.distanceToSquared(this.targetFinalCamPos);
+    const lookAtDistSq = this.currentLookAt.distanceToSquared(this.targetFinalLookAt);
+
+    return parallaxDistSq < 0.0005 && camPosDistSq < 0.0005 && lookAtDistSq < 0.0005;
   }
 
   /**

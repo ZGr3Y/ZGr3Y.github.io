@@ -606,6 +606,7 @@ export class PortfolioApp {
    */
   _updateStationVisibility() {
     if (!this.stationContainer) return;
+
     const activeStation = this.getActiveStation();
     const cards = this.stationContainer.querySelectorAll('.station-card');
     cards.forEach((card) => {
@@ -618,6 +619,25 @@ export class PortfolioApp {
         card.setAttribute('hidden', '');
       }
     });
+  }
+
+  /**
+   * Synchronizes station card visibility windows with continuous journey progress
+   * @param {number} progress
+   * @private
+   */
+  _updateJourneyCardVisibility(progress) {
+    if (!this.stationContainer) return;
+    const gatewayCard = this.stationContainer.querySelector('.station-card[data-station="gateway"]');
+    if (!gatewayCard) return;
+
+    if (progress <= 0.38) {
+      gatewayCard.classList.add('active');
+      gatewayCard.removeAttribute('hidden');
+    } else {
+      gatewayCard.classList.remove('active');
+      gatewayCard.setAttribute('hidden', '');
+    }
   }
 
   /**
@@ -740,6 +760,14 @@ export class PortfolioApp {
               this.loaderUI = null;
             });
           }
+          // Smooth zoom-through from Hitchhiker Guide into Matrix White Room upon loader completion
+          if (this.scrollEngine && this.journeyState && this.journeyState.getProgress() < 0.2) {
+            this.scrollEngine.scrollTo(0.2);
+            if (this.idleManager) {
+              this.idleManager.recordActivity();
+            }
+            this._resumeLoop();
+          }
         });
 
         this.loaderController.start();
@@ -749,6 +777,9 @@ export class PortfolioApp {
     // Initialize JourneyState, ScrollEngine, Minimal HUD, and Credits Dialog (Ticket 04)
     if (this.enableJourney && this.container && typeof document !== 'undefined') {
       this.journeyState = new JourneyState();
+      this.journeyState.onProgress((progress) => {
+        this._updateJourneyCardVisibility(progress);
+      });
       this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {
@@ -992,8 +1023,8 @@ export class PortfolioApp {
       const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
       this._lastFrameTime = currentTime;
 
-      // 1. Advance spatial camera waypoint transition
-      if (this.camera && (this._isCameraTransitioning || this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001)) {
+      // 1. Advance spatial camera waypoint transition (legacy stations when gatewayAct is inactive)
+      if (this.camera && !this.gatewayAct && (this._isCameraTransitioning || this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001)) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);

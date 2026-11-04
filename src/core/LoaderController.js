@@ -182,6 +182,14 @@ export class LoaderController {
   }
 
   /**
+   * Immediately completes loading if not already completed
+   */
+  complete() {
+    this._isAssetReady = true;
+    this._checkCompletion(this.minDwellMs);
+  }
+
+  /**
    * Returns whether loading has completed
    * @returns {boolean}
    */
