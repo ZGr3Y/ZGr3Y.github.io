@@ -645,6 +645,23 @@ export class PortfolioApp {
       this.renderer = null;
     }
 
+    // Minimal semantic canvas placeholder maintaining visual presence per AGENTS.md § 1
+    // until Ticket 03 wires Act 0 (Hitchhiker Foundation)
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    this.ambientLight.name = 'AmbientLight';
+    this.scene.add(this.ambientLight);
+
+    const placeholderGeo = new THREE.IcosahedronGeometry(1.2, 1);
+    const placeholderMat = new THREE.MeshBasicMaterial({
+      color: 0x0284c7,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.2
+    });
+    this.placeholderMesh = new THREE.Mesh(placeholderGeo, placeholderMat);
+    this.placeholderMesh.name = 'JourneyPlaceholder';
+    this.scene.add(this.placeholderMesh);
+
     // 3D scene topology placeholder (superseded by Journey scrollytelling acts in Phase 2)
     this.topology = null;
 
@@ -881,6 +898,11 @@ export class PortfolioApp {
 
       const speedFactor = this.idleManager ? this.idleManager.getSpeedFactor() : 1.0;
 
+      if (this.placeholderMesh && speedFactor > 0.0001) {
+        this.placeholderMesh.rotation.y += delta * 0.15 * speedFactor;
+        this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
+      }
+
       if (this.topology) {
         this.topology.update(delta, speedFactor);
       }
@@ -1097,6 +1119,18 @@ export class PortfolioApp {
       window.removeEventListener('touchmove', this._onTouchMove);
       window.removeEventListener('touchend', this._onTouchEnd);
       window.removeEventListener('touchcancel', this._onTouchCancel);
+    }
+
+    if (this.placeholderMesh) {
+      if (this.placeholderMesh.geometry) this.placeholderMesh.geometry.dispose();
+      if (this.placeholderMesh.material) this.placeholderMesh.material.dispose();
+      if (this.scene) this.scene.remove(this.placeholderMesh);
+      this.placeholderMesh = null;
+    }
+
+    if (this.ambientLight) {
+      if (this.scene) this.scene.remove(this.ambientLight);
+      this.ambientLight = null;
     }
 
     if (this.topology) {

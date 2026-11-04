@@ -38,6 +38,8 @@ describe('PortfolioApp (Application Root Seam)', () => {
     const station = app.getActiveStation();
     expect(station.id).toBe('gateway');
     expect(station.name).toBe('GATEWAY');
+    expect(app.placeholderMesh).not.toBeNull();
+    expect(app.scene.children).toContain(app.placeholderMesh);
   });
 
   it('renders Station 01 Gateway card with identity, telemetry badge, and validated CV download and GitHub links', () => {
@@ -613,6 +615,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(() => app.dispose()).not.toThrow();
     expect(app.isDestroyed).toBe(true);
     expect(app.topology).toBeNull();
+    expect(app.placeholderMesh).toBeNull();
     expect(app.idleManager).toBeNull();
   });
 
