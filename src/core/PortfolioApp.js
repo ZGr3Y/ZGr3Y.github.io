@@ -1089,7 +1089,7 @@ export class PortfolioApp {
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
-      const isGatewayResting = !this.gatewayAct || this.gatewayAct.isResting();
+      const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
       const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 

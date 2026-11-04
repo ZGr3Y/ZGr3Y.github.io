@@ -459,5 +459,47 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       app.destroy();
     });
+
+    it('treats GatewayAct as resting when another station is active so idle loop can suspend per CODING_STANDARDS §5', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Navigate to Station 1 (Lab)
+      await app.navigateTo(1);
+
+      // Finish waypoint camera transition
+      for (let frame = 0; frame < 100; frame++) {
+        app._renderFrame(1000 + frame * 16);
+      }
+      expect(app.isCameraTransitioning()).toBe(false);
+
+      // Simulate GatewayAct being non-resting (e.g. parallax unsettled)
+      if (app.gatewayAct) {
+        vi.spyOn(app.gatewayAct, 'isResting').mockReturnValue(false);
+      }
+
+      // Force idle damping speed factor to 0
+      if (app.idleManager) {
+        vi.spyOn(app.idleManager, 'getSpeedFactor').mockReturnValue(0);
+      }
+
+      // Render frame while at Lab station
+      app._renderFrame(5000);
+
+      // Loop should suspend because GatewayAct is ignored when Gateway is inactive
+      expect(app.isLoopRunning()).toBe(false);
+
+      app.destroy();
+    });
   });
 });
