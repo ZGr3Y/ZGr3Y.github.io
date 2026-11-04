@@ -1011,6 +1011,63 @@ html, body {
   background-color: #10B981;
 }
 
+.journey-branch-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(248, 250, 252, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.branch-prompt-text {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+}
+
+.btn-branch-choice {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-branch-choice.branch-blue {
+  background: rgba(2, 132, 199, 0.15);
+  color: var(--cloud-blue);
+  border: 1px solid rgba(2, 132, 199, 0.3);
+}
+
+.btn-branch-choice.branch-blue:hover,
+.btn-branch-choice.branch-blue:focus-visible {
+  background: var(--cloud-blue);
+  color: #FFFFFF;
+}
+
+.btn-branch-choice.branch-red {
+  background: rgba(220, 38, 38, 0.15);
+  color: var(--cloud-red);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.btn-branch-choice.branch-red:hover,
+.btn-branch-choice.branch-red:focus-visible {
+  background: var(--cloud-red);
+  color: #FFFFFF;
+}
+
 .journey-hud-actions {
   pointer-events: auto;
 }
@@ -1068,10 +1125,9 @@ html, body {
   overflow: hidden;
 }
 
-/* Deprecation rule for legacy discrete 4-button HUD */
-[data-journey-active] .hud-nav,
-.hud-nav.deprecated {
-  display: none !important;
+/* Station navigation positioning when Journey HUD is active */
+[data-journey-active] .hud-nav {
+  top: 3.5rem;
 }
 
 .credits-dialog-header {

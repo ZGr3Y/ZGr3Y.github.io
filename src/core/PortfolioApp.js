@@ -109,7 +109,6 @@ export class PortfolioApp {
 
     this.hudNav = hud;
     if (this.enableJourney) {
-      hud.classList.add('deprecated');
       this.container.setAttribute('data-journey-active', 'true');
     }
     this._renderHUD();
@@ -764,7 +763,6 @@ export class PortfolioApp {
       this.journeyHud.mount();
 
       if (this.hudNav) {
-        this.hudNav.classList.add('deprecated');
         this.container.setAttribute('data-journey-active', 'true');
       }
     }

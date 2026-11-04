@@ -27,18 +27,22 @@ export class ScrollEngine {
     this.locked = false;
 
     this.touchStartY = 0;
+    this.touchStartedInScrollable = false;
 
     // Bound listeners for hermetic teardown
     this._onWheel = this._handleWheel.bind(this);
     this._onKeyDown = this._handleKeyDown.bind(this);
     this._onTouchStart = this._handleTouchStart.bind(this);
     this._onTouchMove = this._handleTouchMove.bind(this);
+    this._onTouchEnd = this._handleTouchEnd.bind(this);
 
     if (typeof window !== 'undefined') {
       window.addEventListener('wheel', this._onWheel, { passive: false });
       window.addEventListener('keydown', this._onKeyDown);
       window.addEventListener('touchstart', this._onTouchStart, { passive: true });
       window.addEventListener('touchmove', this._onTouchMove, { passive: false });
+      window.addEventListener('touchend', this._onTouchEnd, { passive: true });
+      window.addEventListener('touchcancel', this._onTouchEnd, { passive: true });
     }
   }
 
@@ -168,12 +172,34 @@ export class ScrollEngine {
   }
 
   /**
+   * Checks whether target or ancestor is currently scrollable
+   * @private
+   */
+  _isScrollable(target) {
+    if (!target || typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+
+    let el = target;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (typeof window !== 'undefined') {
+        const style = window.getComputedStyle(el);
+        const overflowY = style.overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          if (el.scrollHeight > el.clientHeight) return true;
+        }
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  /**
    * Handles touch start
    * @private
    */
   _handleTouchStart(e) {
     if (e.touches && e.touches.length === 1) {
       this.touchStartY = e.touches[0].clientY;
+      this.touchStartedInScrollable = this._isScrollable(e.target);
     }
   }
 
@@ -183,7 +209,8 @@ export class ScrollEngine {
    */
   _handleTouchMove(e) {
     // Multi-touch immunity: preserve pinch-to-zoom gestures (CODING_STANDARDS §8)
-    if (this.locked || !e.touches || e.touches.length !== 1) return;
+    // Touch isolation: keep entire gesture inside panel if it started in a scrollable element
+    if (this.locked || !e.touches || e.touches.length !== 1 || this.touchStartedInScrollable) return;
 
     const currentY = e.touches[0].clientY;
     const deltaY = this.touchStartY - currentY;
@@ -199,6 +226,14 @@ export class ScrollEngine {
   }
 
   /**
+   * Handles touch end and resets touch scroll ownership
+   * @private
+   */
+  _handleTouchEnd() {
+    this.touchStartedInScrollable = false;
+  }
+
+  /**
    * Cleans up event listeners and references
    */
   dispose() {
@@ -207,6 +242,8 @@ export class ScrollEngine {
       window.removeEventListener('keydown', this._onKeyDown);
       window.removeEventListener('touchstart', this._onTouchStart);
       window.removeEventListener('touchmove', this._onTouchMove);
+      window.removeEventListener('touchend', this._onTouchEnd);
+      window.removeEventListener('touchcancel', this._onTouchEnd);
     }
   }
 }

@@ -149,6 +149,22 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       window.dispatchEvent(panelWheel);
       expect(engine.getTargetProgress()).toBe(0);
 
+      // Touch started inside scrollable panel keeps entire gesture inside panel
+      const panelTouchStart = new TouchEvent('touchstart', {
+        touches: [{ clientY: 200 }]
+      });
+      Object.defineProperty(panelTouchStart, 'target', { value: scrollablePanel });
+      window.dispatchEvent(panelTouchStart);
+
+      const panelTouchMove = new TouchEvent('touchmove', {
+        touches: [{ clientY: 150 }]
+      });
+      Object.defineProperty(panelTouchMove, 'target', { value: scrollablePanel });
+      window.dispatchEvent(panelTouchMove);
+      expect(engine.getTargetProgress()).toBe(0);
+
+      window.dispatchEvent(new TouchEvent('touchend'));
+
       // 6. Modal scroll lock prevents progress mutation
       engine.setLocked(true);
       expect(engine.isLocked()).toBe(true);
@@ -195,6 +211,19 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       hud.update();
       expect(bar.style.width).toBe('50%');
       expect(chapterLabel.textContent).toContain('Pill Choice');
+
+      // Approaching Act 2 gate threshold shows branch selection prompt
+      state.setProgress(0.6);
+      hud.update();
+      const branchActions = container.querySelector('.journey-branch-actions');
+      expect(branchActions.hasAttribute('hidden')).toBe(false);
+
+      // Clicking blue branch choice unlocks state
+      const blueBtn = branchActions.querySelector('.branch-blue');
+      blueBtn.click();
+      expect(state.getBranch()).toBe('blue');
+      expect(state.getMaxReachable()).toBe(1.0);
+      expect(branchActions.hasAttribute('hidden')).toBe(true);
 
       hud.dispose();
       expect(container.querySelector('.journey-hud-root')).toBeNull();
@@ -256,7 +285,7 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       expect(app.scrollEngine).not.toBeNull();
       expect(app.journeyHud).not.toBeNull();
       expect(container.getAttribute('data-journey-active')).toBe('true');
-      expect(app.hudNav.classList.contains('deprecated')).toBe(true);
+      expect(app.hudNav).not.toBeNull();
 
       // Open credits dialog -> locks scrollEngine & sets activeModal
       app.creditsDialog.open();
