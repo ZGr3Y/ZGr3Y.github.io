@@ -14,6 +14,8 @@ export class JourneyScene {
     this.scene = scene;
     this.hitchhikerModel = null;
     this.isDisposed = false;
+    this.baseRotX = 0.12;
+    this.baseRotY = 0;
   }
 
   /**
@@ -42,7 +44,7 @@ export class JourneyScene {
     }
 
     this.hitchhikerModel.position.set(0, 0, -2.5);
-    this.hitchhikerModel.rotation.set(0.12, 0, 0);
+    this.hitchhikerModel.rotation.set(this.baseRotX, this.baseRotY, 0);
 
     if (this.scene) {
       this.scene.add(this.hitchhikerModel);
@@ -50,16 +52,24 @@ export class JourneyScene {
   }
 
   /**
-   * Advances animations during active render loop frames
+   * Advances animations during active render loop frames.
+   * Model tilts smoothly with mouse/pointer movement without continuous rotation per user directive.
    * @param {number} delta - Seconds since last frame
    * @param {number} speedFactor - Power throttling factor (0.0 to 1.0)
+   * @param {Object} [pointer] - Normalized pointer coordinates { x, y } [-1.0 to 1.0]
    */
-  update(delta, speedFactor = 1.0) {
-    if (this.isDisposed) return;
+  update(delta, speedFactor = 1.0, pointer = null) {
+    if (this.isDisposed || !this.hitchhikerModel || speedFactor <= 0.0001) return;
 
-    if (this.hitchhikerModel && speedFactor > 0.0001) {
-      this.hitchhikerModel.rotation.y += delta * 0.25 * speedFactor;
-    }
+    const px = pointer && typeof pointer.x === 'number' ? pointer.x : 0;
+    const py = pointer && typeof pointer.y === 'number' ? pointer.y : 0;
+
+    const targetRotX = this.baseRotX - py * 0.2;
+    const targetRotY = this.baseRotY + px * 0.35;
+
+    const lerpFactor = Math.min(1.0, delta * 3.5 * speedFactor);
+    this.hitchhikerModel.rotation.x += (targetRotX - this.hitchhikerModel.rotation.x) * lerpFactor;
+    this.hitchhikerModel.rotation.y += (targetRotY - this.hitchhikerModel.rotation.y) * lerpFactor;
   }
 
   /**

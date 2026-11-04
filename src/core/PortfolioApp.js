@@ -9,6 +9,7 @@ import { JourneyState } from './JourneyState.js';
 import { ScrollEngine } from './ScrollEngine.js';
 import { JourneyHud } from '../ui/JourneyHud.js';
 import { CreditsDialog } from '../ui/CreditsDialog.js';
+import { GatewayAct } from '../acts/GatewayAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
@@ -48,6 +49,8 @@ export class PortfolioApp {
     this.scrollEngine = null;
     this.journeyHud = null;
     this.creditsDialog = null;
+    this.gatewayAct = null;
+    this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
@@ -676,10 +679,11 @@ export class PortfolioApp {
     this.placeholderMesh.name = 'JourneyPlaceholder';
     this.scene.add(this.placeholderMesh);
 
-    // Initialize AssetLibrary, JourneyScene, and "DON'T PANIC" Loader when enabled
+    // Initialize AssetLibrary, JourneyScene, GatewayAct, and "DON'T PANIC" Loader when enabled
     if (this.enableLoader) {
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
+      this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
 
       // Preload critical models and set Hitchhiker Guide in background
       const criticalModels = [
@@ -700,6 +704,15 @@ export class PortfolioApp {
             if (this.idleManager) {
               this.idleManager.recordActivity();
             }
+            this._resumeLoop();
+          }
+        })
+        .catch(() => {});
+
+      this.assetLibrary.load('./models/the_matrix_white_room.glb')
+        .then((model) => {
+          if (model && !this.isDestroyed && this.gatewayAct) {
+            this.gatewayAct.setWhiteRoomModel(model);
             this._resumeLoop();
           }
         })
@@ -1008,8 +1021,19 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
+      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
+
+      if (this.gatewayAct && !this._isCameraTransitioning) {
+        this.gatewayAct.update({
+          progress: currentProgress,
+          pointer: this.pointer || { x: 0, y: 0 },
+          delta,
+          speedFactor
+        });
+      }
+
       if (this.journeyScene) {
-        this.journeyScene.update(delta, speedFactor);
+        this.journeyScene.update(delta, speedFactor, this.pointer);
       }
 
       if (this.scrollEngine) {
@@ -1026,7 +1050,8 @@ export class PortfolioApp {
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
-      const isResting = !this._isCameraTransitioning && isTopologyResting;
+      const isGatewayResting = !this.gatewayAct || this.gatewayAct.isResting();
+      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (!shouldSuspend && this.renderer && this.scene && this.camera) {
@@ -1058,11 +1083,13 @@ export class PortfolioApp {
    */
   _updatePointerFromClient(clientX, clientY) {
     if (typeof window === 'undefined') return;
+    const width = window.innerWidth || 800;
+    const height = window.innerHeight || 600;
+    const normX = (clientX / width) * 2 - 1;
+    const normY = -(clientY / height) * 2 + 1;
+    this.pointer = { x: normX, y: normY };
+
     if (this.topology && typeof this.topology.setPointer === 'function') {
-      const width = window.innerWidth || 800;
-      const height = window.innerHeight || 600;
-      const normX = (clientX / width) * 2 - 1;
-      const normY = -(clientY / height) * 2 + 1;
       this.topology.setPointer(normX, normY);
     }
     if (this.idleManager) {
@@ -1077,6 +1104,7 @@ export class PortfolioApp {
    */
   _clearPointer() {
     if (typeof window === 'undefined') return;
+    this.pointer = { x: 0, y: 0 };
     if (this.topology && typeof this.topology.setPointer === 'function') {
       this.topology.setPointer(null, null);
     }
@@ -1282,6 +1310,11 @@ export class PortfolioApp {
     if (this.journeyScene) {
       this.journeyScene.dispose();
       this.journeyScene = null;
+    }
+
+    if (this.gatewayAct) {
+      this.gatewayAct.dispose();
+      this.gatewayAct = null;
     }
 
     if (this.assetLibrary) {
