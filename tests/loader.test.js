@@ -5,6 +5,7 @@ import { LoaderUI } from '../src/ui/Loader.js';
 import { AssetLibrary } from '../src/core/AssetLibrary.js';
 import { JourneyScene } from '../src/core/JourneyScene.js';
 import { disposeThreeObject } from '../src/utils/threeUtils.js';
+import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Foundation', () => {
   beforeEach(() => {
@@ -288,6 +289,58 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(sharedTexture.dispose).toHaveBeenCalledTimes(1);
       expect(normalTexture.dispose).toHaveBeenCalledTimes(1);
       expect(roughnessTexture.dispose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('PortfolioApp Integration (Loader & Idle Wake)', () => {
+    it('wakes loop and records activity when Hitchhiker model resolves', async () => {
+      const container = document.createElement('div');
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+      container.appendChild(canvas);
+      container.appendChild(srAnnouncer);
+      document.body.appendChild(container);
+
+      const mockModel = new THREE.Group();
+      let resolveHitchhiker;
+      const hitchhikerPromise = new Promise((resolve) => {
+        resolveHitchhiker = resolve;
+      });
+
+      const originalLoad = AssetLibrary.prototype.load;
+      const originalPreload = AssetLibrary.prototype.preloadCritical;
+      AssetLibrary.prototype.preloadCritical = vi.fn().mockResolvedValue([]);
+      AssetLibrary.prototype.load = vi.fn().mockImplementation((path) => {
+        if (path.includes('hitchhiker')) {
+          return hitchhikerPromise;
+        }
+        return Promise.resolve(mockModel);
+      });
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true
+      });
+
+      const recordSpy = vi.spyOn(app.idleManager, 'recordActivity');
+      const resumeSpy = vi.spyOn(app, '_resumeLoop');
+
+      expect(recordSpy).not.toHaveBeenCalled();
+      expect(resumeSpy).not.toHaveBeenCalled();
+
+      // Resolve the Hitchhiker model
+      resolveHitchhiker(mockModel);
+      await hitchhikerPromise;
+      await Promise.resolve();
+
+      expect(recordSpy).toHaveBeenCalledTimes(1);
+      expect(resumeSpy).toHaveBeenCalledTimes(1);
+
+      AssetLibrary.prototype.load = originalLoad;
+      AssetLibrary.prototype.preloadCritical = originalPreload;
+      app.destroy();
     });
   });
 });

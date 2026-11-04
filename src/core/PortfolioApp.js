@@ -693,6 +693,10 @@ export class PortfolioApp {
             if (this.placeholderMesh && this.scene) {
               this.scene.remove(this.placeholderMesh);
             }
+            if (this.idleManager) {
+              this.idleManager.recordActivity();
+            }
+            this._resumeLoop();
           }
         })
         .catch(() => {});
