@@ -137,6 +137,26 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       act.dispose();
     });
+
+    it('rebases camera coordinates and lookAt vector when requested', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      const newPos = new THREE.Vector3(0, 0, 16);
+      const newLookAt = new THREE.Vector3(0, 0, 0);
+
+      act.rebaseCamera(newPos, newLookAt);
+
+      expect(act.currentCamPos.x).toBe(0);
+      expect(act.currentCamPos.y).toBe(0);
+      expect(act.currentCamPos.z).toBe(16);
+      expect(act.currentLookAt.x).toBe(0);
+      expect(act.currentLookAt.y).toBe(0);
+      expect(act.currentLookAt.z).toBe(0);
+
+      act.dispose();
+    });
   });
 
   describe('GatewayAct: Teardown & Resource Cleanup', () => {
@@ -381,6 +401,61 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(gatewayCard.classList.contains('active')).toBe(false);
       expect(gatewayCard.hasAttribute('hidden')).toBe(true);
       expect(labCard.classList.contains('active')).toBe(true);
+
+      app.destroy();
+    });
+
+    it('rebases GatewayAct coordinates when returning to Gateway after station transition to avoid jumping', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Move camera to White Room in Act 1
+      app.scrollEngine.scrollTo(0.25);
+      app.scrollEngine.currentProgress = 0.25;
+      app.journeyState.setProgress(0.25);
+      for (let frame = 0; frame < 60; frame++) {
+        app._renderFrame(1000 + frame * 16);
+      }
+      expect(app.camera.position.x).toBeGreaterThan(15);
+      expect(app.gatewayAct.currentCamPos.x).toBeGreaterThan(15);
+
+      // Navigate to Lab station
+      await app.navigateTo(1);
+      for (let frame = 0; frame < 100; frame++) {
+        app._renderFrame(2000 + frame * 16);
+      }
+      expect(app.isCameraTransitioning()).toBe(false);
+      expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+
+      // Navigate back to Gateway
+      await app.navigateTo(0);
+      expect(app.isCameraTransitioning()).toBe(true);
+
+      // Advance frames until transition finishes
+      let frameSettled = -1;
+      for (let frame = 0; frame < 100; frame++) {
+        app._renderFrame(4000 + frame * 16);
+        if (!app.isCameraTransitioning()) {
+          frameSettled = frame;
+          break;
+        }
+      }
+      expect(frameSettled).toBeGreaterThan(-1);
+
+      // In the frame that clears transition, gatewayAct was rebased from the camera
+      // rather than retaining stale position (~24) and jumping
+      expect(app.camera.position.x).toBeLessThan(3.0);
+      expect(app.gatewayAct.currentCamPos.x).toBeLessThan(3.0);
 
       app.destroy();
     });

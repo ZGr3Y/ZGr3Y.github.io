@@ -188,6 +188,31 @@ export class GatewayAct {
   }
 
   /**
+   * Rebases current camera coordinates to external camera transform (e.g. after station transitions)
+   * to prevent visual jumping when GatewayAct resumes camera control.
+   * @param {THREE.Vector3} [camPos]
+   * @param {THREE.Vector3} [lookAt]
+   */
+  rebaseCamera(camPos, lookAt) {
+    if (this.isDisposed) return;
+    if (camPos) {
+      this.currentCamPos.copy(camPos);
+    }
+    if (lookAt) {
+      this.currentLookAt.copy(lookAt);
+    }
+  }
+
+  /**
+   * Alias for rebaseCamera
+   * @param {THREE.Vector3} [camPos]
+   * @param {THREE.Vector3} [lookAt]
+   */
+  rebase(camPos, lookAt) {
+    this.rebaseCamera(camPos, lookAt);
+  }
+
+  /**
    * Cleans up all 3D assets, lights, and GPU resources per CODING_STANDARDS §7
    */
   dispose() {

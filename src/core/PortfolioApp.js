@@ -1043,6 +1043,10 @@ export class PortfolioApp {
           this.camera.lookAt(this._currentCamLookAt);
           this._isCameraTransitioning = false;
         }
+
+        if (this.gatewayAct && isGatewayStation && typeof this.gatewayAct.rebaseCamera === 'function') {
+          this.gatewayAct.rebaseCamera(this.camera.position, this._currentCamLookAt);
+        }
       }
 
       if (this.idleManager) {
