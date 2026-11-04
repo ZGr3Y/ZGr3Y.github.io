@@ -4,6 +4,7 @@ import { LoaderController } from '../src/core/LoaderController.js';
 import { LoaderUI } from '../src/ui/Loader.js';
 import { AssetLibrary } from '../src/core/AssetLibrary.js';
 import { JourneyScene } from '../src/core/JourneyScene.js';
+import { disposeThreeObject } from '../src/utils/threeUtils.js';
 
 describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Foundation', () => {
   beforeEach(() => {
@@ -241,6 +242,52 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(model.scale.z).toBeCloseTo(0.042, 5);
 
       journey.dispose();
+    });
+  });
+
+  describe('threeUtils: disposeThreeObject', () => {
+    it('disposes all texture slots and deduplicates shared textures', () => {
+      const sharedTexture = { isTexture: true, dispose: vi.fn() };
+      const normalTexture = { isTexture: true, dispose: vi.fn() };
+      const roughnessTexture = { isTexture: true, dispose: vi.fn() };
+      const geoDispose = vi.fn();
+      const matDispose1 = vi.fn();
+      const matDispose2 = vi.fn();
+
+      const mesh1 = {
+        geometry: { dispose: geoDispose },
+        material: {
+          map: sharedTexture,
+          normalMap: normalTexture,
+          roughnessMap: roughnessTexture,
+          dispose: matDispose1
+        }
+      };
+
+      const mesh2 = {
+        material: {
+          map: sharedTexture, // Same shared texture instance
+          dispose: matDispose2
+        }
+      };
+
+      const root = {
+        traverse(cb) {
+          cb(root);
+          cb(mesh1);
+          cb(mesh2);
+        }
+      };
+
+      disposeThreeObject(root);
+
+      expect(geoDispose).toHaveBeenCalledTimes(1);
+      expect(matDispose1).toHaveBeenCalledTimes(1);
+      expect(matDispose2).toHaveBeenCalledTimes(1);
+      // Shared texture should only be disposed once
+      expect(sharedTexture.dispose).toHaveBeenCalledTimes(1);
+      expect(normalTexture.dispose).toHaveBeenCalledTimes(1);
+      expect(roughnessTexture.dispose).toHaveBeenCalledTimes(1);
     });
   });
 });
