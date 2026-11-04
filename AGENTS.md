@@ -21,7 +21,12 @@ This document defines the working agreements, pace, and interaction style for ag
 ## 3. Git & GitHub Guardrails
 - **Main is sacred:** Never commit directly to `main`. All changes go through dedicated feature branches (`feat/issue-<number>-<slug>`).
 - **Conventional Commits:** Write clean, atomic commits (`feat:`, `test:`, `ci:`, `docs:`, `refactor:`) referencing the issue number.
-- **Pull Request workflow:** Open PRs using the formal PR template. Ensure GitHub Actions CI checks are 100% green and inspect bot/reviewer feedback objectively, leaving the merge decision entirely to the user.
+- **Pull Request workflow & Codex Review Loop:** Open PRs using the formal PR template. Immediately after opening a PR (and after pushing any subsequent fix commit), the agent MUST:
+  1. Trigger bot review by commenting `@codex review` on the pull request.
+  2. Wait for Codex to complete its evaluation.
+  3. Thoroughly analyze any findings (P1/P2/P3), implement the required fixes in dedicated atomic commits, and push.
+  4. Re-trigger `@codex review` and repeat the loop until Codex explicitly confirms no major issues remain ("Didn't find any major issues" or 👍).
+  5. Ensure all GitHub Actions CI checks are 100% green before presenting the PR to the user for the merge decision.
 
 ## Agent skills
 

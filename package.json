@@ -7,6 +7,7 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
+    "optimize:models": "node scripts/optimize-models.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -14,7 +15,11 @@
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "happy-dom": "^15.11.7",
+    "sharp": "^0.35.5",
     "vite": "^5.4.11",
     "vitest": "^2.1.4"
   }

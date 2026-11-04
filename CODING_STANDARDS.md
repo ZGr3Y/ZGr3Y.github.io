@@ -45,3 +45,9 @@ Engineering standards enforced by the review agent during `/code-review` and by 
 - Upon opening, focus must immediately transition inside the dialog to the primary action or dismiss control (`closeBtn.focus()`) rather than lingering behind the overlay.
 - Modals must implement strict Tab key containment (focus trap): cycling forward past the last focusable element wraps focus back to the first, and cycling backward (`Shift+Tab`) past the first wraps to the last.
 - Dismissing the modal (via Escape key, backdrop click, or close button) must cleanly restore focus back to the triggering element.
+
+## 11. 3D Asset Pipeline, Fatal Build Validation & Budgets
+- Production 3D binary models (`.glb`) must reside strictly in `public/models/`. Raw uncompressed assets or editable scenes (e.g. `3dObj/`, `.blend`) must be excluded from version control via `.gitignore`.
+- Offline asset optimization scripts (e.g. `npm run optimize:models`) must treat any missing configured source model as a fatal build error (`process.exit(1)`). Scripts must never warn-and-continue, which risks generating incomplete bundles or mistaking stale artifacts for regenerated ones.
+- Asset budgets are strictly enforced by hermetic CI tests: no individual model may exceed 5 MB, and the total production 3D bundle must remain under 15 MB.
+- All third-party 3D models must be accompanied by explicit attribution documentation (`docs/assets-licenses.md`) recording author, source URL, license type (e.g., CC-BY-4.0), and applied modifications.
