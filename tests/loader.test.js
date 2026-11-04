@@ -18,7 +18,7 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
   });
 
   describe('LoaderController (Timing & 42 Glitch Progression)', () => {
-    it('enforces a minimum 4000ms display dwell before completing', () => {
+    it('enforces a minimum 4000ms display dwell before completing', async () => {
       let isAssetReady = false;
       const assetPromise = new Promise((resolve) => {
         setTimeout(() => {
@@ -37,25 +37,25 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       controller.start();
 
       // At 1000ms: assets ready, but minimum dwell (4000ms) not reached
-      vi.advanceTimersByTime(1000);
+      await vi.advanceTimersByTimeAsync(1000);
       expect(isAssetReady).toBe(true);
       expect(controller.isCompleted()).toBe(false);
       expect(completeSpy).not.toHaveBeenCalled();
 
       // At 3999ms: still dwelling
-      vi.advanceTimersByTime(2999);
+      await vi.advanceTimersByTimeAsync(2999);
       expect(controller.isCompleted()).toBe(false);
       expect(completeSpy).not.toHaveBeenCalled();
 
       // At 4000ms: minimum dwell satisfied and assets ready -> completes
-      vi.advanceTimersByTime(1);
+      await vi.advanceTimersByTimeAsync(1);
       expect(controller.isCompleted()).toBe(true);
       expect(completeSpy).toHaveBeenCalledTimes(1);
 
       controller.dispose();
     });
 
-    it('waits for asset promise if assets take longer than minimum dwell, with fallback timeout', () => {
+    it('waits for asset promise if assets take longer than minimum dwell, with fallback timeout', async () => {
       let resolveAssets;
       const slowAssetPromise = new Promise((resolve) => {
         resolveAssets = resolve;
@@ -72,13 +72,13 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       controller.start();
 
       // At 4000ms: dwell satisfied, but assets still pending -> does not complete
-      vi.advanceTimersByTime(4000);
+      await vi.advanceTimersByTimeAsync(4000);
       expect(controller.isCompleted()).toBe(false);
       expect(completeSpy).not.toHaveBeenCalled();
 
       // Assets finish at 5500ms -> completes immediately
       resolveAssets();
-      vi.advanceTimersByTime(10);
+      await vi.advanceTimersByTimeAsync(10);
       expect(controller.isCompleted()).toBe(true);
       expect(completeSpy).toHaveBeenCalledTimes(1);
 

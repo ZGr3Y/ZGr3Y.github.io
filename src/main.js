@@ -9,7 +9,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('cloud-canvas');
   const srAnnouncer = document.getElementById('sr-announcements');
 
-  const app = new PortfolioApp({ container, canvas, srAnnouncer });
+  const app = new PortfolioApp({ container, canvas, srAnnouncer, enableLoader: true });
 
   // Expose on window for debugging/inspection in dev environment
   if (import.meta.env.DEV) {

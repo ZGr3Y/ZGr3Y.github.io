@@ -851,3 +851,106 @@ html, body {
     transform: translateY(0);
   }
 }
+
+/* Narrative Loader — "DON'T PANIC" 42 Glitch Overlay */
+.narrative-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-canvas);
+  transition: opacity 400ms ease, visibility 400ms ease;
+  pointer-events: auto;
+}
+
+.narrative-loader.loader-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.loader-ring-wrapper {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.loader-track {
+  fill: none;
+  stroke: rgba(15, 23, 42, 0.08);
+  stroke-width: 4;
+}
+
+.loader-arc {
+  fill: none;
+  stroke: var(--cloud-blue);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 80ms linear;
+}
+
+.loader-textpath-element {
+  fill: var(--cloud-red);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  transform-origin: center;
+  transform: rotate(90deg);
+}
+
+.loader-counter {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  user-select: none;
+  letter-spacing: -0.02em;
+  transition: color 150ms ease;
+}
+
+.narrative-loader.glitching .loader-counter {
+  color: var(--cloud-red);
+  animation: counterGlitch 120ms infinite steps(2);
+}
+
+.narrative-loader.glitching .loader-textpath-element {
+  animation: textGlitch 150ms infinite alternate;
+}
+
+@keyframes counterGlitch {
+  0% {
+    transform: translate(0, 0);
+    text-shadow: -2px 0 rgba(220, 38, 38, 0.8), 2px 0 rgba(2, 132, 199, 0.8);
+  }
+  50% {
+    transform: translate(-2px, 1px);
+    text-shadow: 2px 0 rgba(220, 38, 38, 0.8), -2px 0 rgba(2, 132, 199, 0.8);
+  }
+  100% {
+    transform: translate(2px, -1px);
+    text-shadow: -1px 0 rgba(220, 38, 38, 0.8), 1px 0 rgba(2, 132, 199, 0.8);
+  }
+}
+
+@keyframes textGlitch {
+  0% {
+    opacity: 1;
+    letter-spacing: 0.16em;
+  }
+  100% {
+    opacity: 0.7;
+    letter-spacing: 0.22em;
+  }
+}
