@@ -1,3 +1,7 @@
+export const HITCHHIKER_GLITCH_NUMBER = 42;
+export const DEFAULT_MIN_DWELL_MS = 4000;
+export const DEFAULT_MAX_TIMEOUT_MS = 8000;
+
 /**
  * LoaderController — Timing & "DON'T PANIC" 42 Glitch Coordinator
  * Enforces a minimum 4000ms dwell, synchronizes asset readiness,
@@ -6,11 +10,11 @@
 export class LoaderController {
   /**
    * @param {Object} [options]
-   * @param {number} [options.minDwellMs=4000] - Minimum display dwell in milliseconds
-   * @param {number} [options.maxTimeoutMs=8000] - Fallback timeout if assets take too long
+   * @param {number} [options.minDwellMs=DEFAULT_MIN_DWELL_MS] - Minimum display dwell in milliseconds
+   * @param {number} [options.maxTimeoutMs=DEFAULT_MAX_TIMEOUT_MS] - Fallback timeout if assets take too long
    * @param {Promise} [options.assetPromise] - Promise signaling asset readiness
    */
-  constructor({ minDwellMs = 4000, maxTimeoutMs = 8000, assetPromise = null } = {}) {
+  constructor({ minDwellMs = DEFAULT_MIN_DWELL_MS, maxTimeoutMs = DEFAULT_MAX_TIMEOUT_MS, assetPromise = null } = {}) {
     this.minDwellMs = minDwellMs;
     this.maxTimeoutMs = maxTimeoutMs;
     this.assetPromise = assetPromise;
@@ -103,15 +107,14 @@ export class LoaderController {
     const dwellRatio = Math.min(1.0, elapsed / this.minDwellMs);
     this.actualPercent = Math.min(99, Math.floor(dwellRatio * 100));
 
-    // Glitch windows: when climbing past ~30% and ~70%, glitch back to 42
-    // Also periodically if dwell takes longer
-    const inFirstGlitch = elapsed >= 1200 && elapsed <= 1700;
-    const inSecondGlitch = elapsed >= 2700 && elapsed <= 3200;
-    const inLateGlitch = elapsed >= 4500 && elapsed <= 5000;
+    // Glitch windows: when climbing past 42% (at ~55%, ~77%, and ~92%), glitch back to 42
+    const inFirstGlitch = elapsed >= 2200 && elapsed <= 2500;
+    const inSecondGlitch = elapsed >= 3100 && elapsed <= 3400;
+    const inLateGlitch = elapsed >= 3700 && elapsed <= 3900;
 
     if (inFirstGlitch || inSecondGlitch || inLateGlitch) {
       this.isGlitching = true;
-      this.displayPercent = 42;
+      this.displayPercent = HITCHHIKER_GLITCH_NUMBER;
     } else {
       this.isGlitching = false;
       this.displayPercent = this.actualPercent;

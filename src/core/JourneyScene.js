@@ -1,3 +1,5 @@
+import { disposeThreeObject } from '../utils/threeUtils.js';
+
 /**
  * JourneyScene — Three.js Scene Coordinator for Narrative 3D Journey
  * Manages narrative models, camera waypoints, and background ambient elements.
@@ -53,20 +55,7 @@ export class JourneyScene {
     this.isDisposed = true;
 
     if (this.hitchhikerModel) {
-      if (typeof this.hitchhikerModel.traverse === 'function') {
-        this.hitchhikerModel.traverse((child) => {
-          if (child.geometry && typeof child.geometry.dispose === 'function') {
-            child.geometry.dispose();
-          }
-          if (child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            for (const m of mats) {
-              if (m.map && typeof m.map.dispose === 'function') m.map.dispose();
-              if (typeof m.dispose === 'function') m.dispose();
-            }
-          }
-        });
-      }
+      disposeThreeObject(this.hitchhikerModel);
 
       if (this.scene) {
         this.scene.remove(this.hitchhikerModel);

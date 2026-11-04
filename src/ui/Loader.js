@@ -88,9 +88,31 @@ export class LoaderUI {
   }
 
   /**
+   * Smoothly fades out the loader overlay before unmounting from DOM
+   * @param {number} [durationMs=400]
+   * @returns {Promise<void>}
+   */
+  dismiss(durationMs = 400) {
+    if (this.isDisposed || !this.root) return Promise.resolve();
+
+    this.root.classList.add('loader-hidden');
+
+    return new Promise((resolve) => {
+      this._dismissTimer = setTimeout(() => {
+        this.unmount();
+        resolve();
+      }, durationMs);
+    });
+  }
+
+  /**
    * Unmounts element from the DOM
    */
   unmount() {
+    if (this._dismissTimer) {
+      clearTimeout(this._dismissTimer);
+      this._dismissTimer = null;
+    }
     if (this.root && this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);
     }
@@ -104,6 +126,10 @@ export class LoaderUI {
    */
   dispose() {
     this.isDisposed = true;
+    if (this._dismissTimer) {
+      clearTimeout(this._dismissTimer);
+      this._dismissTimer = null;
+    }
     this.unmount();
     this.container = null;
   }

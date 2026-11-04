@@ -103,6 +103,9 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       // Check that at least one glitch event occurred with displayPercent === 42 and isGlitching === true
       const glitchUpdates = progressUpdates.filter((u) => u.isGlitching && u.displayPercent === 42);
       expect(glitchUpdates.length).toBeGreaterThan(0);
+      for (const update of glitchUpdates) {
+        expect(update.actualPercent).toBeGreaterThan(42);
+      }
 
       // Check overall progress climbed toward 100
       const maxPercent = Math.max(...progressUpdates.map((u) => u.actualPercent));
@@ -128,7 +131,7 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
   });
 
   describe('LoaderUI (SVG Circle & Curved DON\'T PANIC textPath)', () => {
-    it('renders accessible progressbar with curved textPath containing DON\'T PANIC', () => {
+    it('renders accessible progressbar with curved textPath containing DON\'T PANIC and supports dismiss', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
 
@@ -157,6 +160,14 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(percentEl.textContent).toBe('60%');
       expect(root.classList.contains('glitching')).toBe(false);
 
+      // Dismiss triggers fade-out transition before unmounting
+      const dismissPromise = loaderUI.dismiss(400);
+      expect(root.classList.contains('loader-hidden')).toBe(true);
+      expect(container.querySelector('.narrative-loader')).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(400);
+      await dismissPromise;
+      expect(container.querySelector('.narrative-loader')).toBeNull();
+
       loaderUI.dispose();
       expect(container.querySelector('.narrative-loader')).toBeNull();
     });
@@ -173,10 +184,10 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       };
 
       const criticalPaths = [
-        'public/models/the_hitchhikers_guide_to_the_galaxy.glb',
-        'public/models/the_matrix_white_room.glb',
-        'public/models/hand.glb',
-        'public/models/robotic_hand.glb'
+        './models/the_hitchhikers_guide_to_the_galaxy.glb',
+        './models/the_matrix_white_room.glb',
+        './models/hand.glb',
+        './models/robotic_hand.glb'
       ];
 
       await library.preloadCritical(criticalPaths);

@@ -679,14 +679,14 @@ export class PortfolioApp {
 
       // Preload critical models and set Hitchhiker Guide in background
       const criticalModels = [
-        'public/models/the_hitchhikers_guide_to_the_galaxy.glb',
-        'public/models/the_matrix_white_room.glb',
-        'public/models/hand.glb',
-        'public/models/robotic_hand.glb'
+        './models/the_hitchhikers_guide_to_the_galaxy.glb',
+        './models/the_matrix_white_room.glb',
+        './models/hand.glb',
+        './models/robotic_hand.glb'
       ];
       const assetPromise = this.assetLibrary.preloadCritical(criticalModels);
 
-      this.assetLibrary.load('public/models/the_hitchhikers_guide_to_the_galaxy.glb')
+      this.assetLibrary.load('./models/the_hitchhikers_guide_to_the_galaxy.glb')
         .then((model) => {
           if (model && !this.isDestroyed && this.journeyScene) {
             this.journeyScene.setHitchhikerModel(model);
@@ -715,8 +715,9 @@ export class PortfolioApp {
 
         this.loaderController.onComplete(() => {
           if (this.loaderUI) {
-            this.loaderUI.dispose();
-            this.loaderUI = null;
+            this.loaderUI.dismiss().then(() => {
+              this.loaderUI = null;
+            });
           }
         });
 

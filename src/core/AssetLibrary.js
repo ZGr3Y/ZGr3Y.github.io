@@ -1,4 +1,5 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { disposeThreeObject } from '../utils/threeUtils.js';
 
 /**
  * AssetLibrary — 3D Model Cache & Critical Preload Coordinator
@@ -104,20 +105,8 @@ export class AssetLibrary {
   dispose() {
     this.isDisposed = true;
     for (const model of this._cache.values()) {
-      if (!model) continue;
-      if (typeof model.traverse === 'function') {
-        model.traverse((child) => {
-          if (child.geometry && typeof child.geometry.dispose === 'function') {
-            child.geometry.dispose();
-          }
-          if (child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            for (const m of mats) {
-              if (m.map && typeof m.map.dispose === 'function') m.map.dispose();
-              if (typeof m.dispose === 'function') m.dispose();
-            }
-          }
-        });
+      if (model) {
+        disposeThreeObject(model);
       }
     }
     this._cache.clear();
