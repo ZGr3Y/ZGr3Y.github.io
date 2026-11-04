@@ -1,7 +1,7 @@
 # 0003. Light Gray Narrative Journey & Scrollytelling Architecture
 
 ## Status
-Accepted (supersedes 0002)
+Accepted (supersedes [0002](0002-cloud-native-light-theme-and-topology.md))
 
 ## Context
 ADR 0002 established a light theme ("Ice White") with an abstract 3D Cloud Mesh Topology (particles constellation). While clean, the abstract network nodes lacked emotional resonance, visceral narrative engagement, and a clear storytelling progression celebrating Paolo Maria Scarlata's background in Cloud Systems & Security Engineering.

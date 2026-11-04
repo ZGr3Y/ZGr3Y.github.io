@@ -1,12 +1,11 @@
 /**
- * Cloud-Native Design Tokens (Ice White Edition)
+ * Light Gray Design Tokens (DON'T PANIC Narrative Journey Edition)
  * Paolo Maria Scarlata (ZGr3Y)
  */
 
 :root {
   /* Surfaces & Canvas */
   --bg-canvas: #EAECEF;
-  --bg-ice: #EAECEF;
   --bg-surface: #FFFFFF;
   --bg-surface-elevated: #FFFFFF;
   --bg-surface-subtle: #F0F2F5;

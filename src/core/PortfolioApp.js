@@ -807,17 +807,18 @@ export class PortfolioApp {
     };
 
     this._onPointerDown = (e) => {
-      if (!this.topology || typeof window === 'undefined') return;
+      if (typeof window === 'undefined') return;
       if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
         this._updatePointerFromClient(e.clientX, e.clientY);
+      } else {
+        if (this.idleManager) {
+          this.idleManager.recordActivity();
+        }
+        this._resumeLoop();
       }
-      if (typeof this.topology.triggerPulse === 'function') {
+      if (this.topology && typeof this.topology.triggerPulse === 'function') {
         this.topology.triggerPulse(null, 1.0);
       }
-      if (this.idleManager) {
-        this.idleManager.recordActivity();
-      }
-      this._resumeLoop();
     };
 
     if (typeof window !== 'undefined') {
@@ -886,7 +887,7 @@ export class PortfolioApp {
 
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
-      const isTopologyResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
+      const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isResting = !this._isCameraTransitioning && isTopologyResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
@@ -912,18 +913,20 @@ export class PortfolioApp {
   }
 
   /**
-   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer, and wakes loop
+   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer if present, records activity, and wakes loop
    * @param {number} clientX
    * @param {number} clientY
    * @private
    */
   _updatePointerFromClient(clientX, clientY) {
-    if (!this.topology || typeof window === 'undefined') return;
-    const width = window.innerWidth || 800;
-    const height = window.innerHeight || 600;
-    const normX = (clientX / width) * 2 - 1;
-    const normY = -(clientY / height) * 2 + 1;
-    this.topology.setPointer(normX, normY);
+    if (typeof window === 'undefined') return;
+    if (this.topology && typeof this.topology.setPointer === 'function') {
+      const width = window.innerWidth || 800;
+      const height = window.innerHeight || 600;
+      const normX = (clientX / width) * 2 - 1;
+      const normY = -(clientY / height) * 2 + 1;
+      this.topology.setPointer(normX, normY);
+    }
     if (this.idleManager) {
       this.idleManager.recordActivity();
     }
@@ -935,8 +938,10 @@ export class PortfolioApp {
    * @private
    */
   _clearPointer() {
-    if (!this.topology || typeof window === 'undefined') return;
-    this.topology.setPointer(null, null);
+    if (typeof window === 'undefined') return;
+    if (this.topology && typeof this.topology.setPointer === 'function') {
+      this.topology.setPointer(null, null);
+    }
     this._resumeLoop();
   }
 

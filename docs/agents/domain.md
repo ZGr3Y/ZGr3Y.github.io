@@ -16,10 +16,11 @@ Single-context repo:
 ├── GLOSSARY.md
 ├── docs/adr/
 │   ├── 0001-spatial-station-architecture-with-threejs.md
-│   └── 0002-cloud-native-light-theme-and-topology.md
+│   ├── 0002-cloud-native-light-theme-and-topology.md (superseded)
+│   └── 0003-light-gray-narrative-journey.md
 └── src/
 ```
 
 ## Use the glossary's vocabulary
 
-When naming domain concepts, use the terms defined in `GLOSSARY.md` (e.g. `Station`, `HUD`, `Cloud Mesh Topology`, `Cloud Card`, `Idle Damping`).
+When naming domain concepts, use the terms defined in `GLOSSARY.md` (e.g. `Journey`, `Act`, `Station`, `Pill Choice`, `Branch`, `Shatter`, `HUD`, `Cloud Card`, `Idle Damping`).

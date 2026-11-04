@@ -616,26 +616,33 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.idleManager).toBeNull();
   });
 
-  it('handles DOM pointer and touch gestures gracefully when 3D scene topology is detached', () => {
+  it('handles DOM pointer and touch gestures gracefully, recording activity and waking loop', () => {
     app = new PortfolioApp({ container, canvas, srAnnouncer: srAnnouncements });
+    const activitySpy = vi.spyOn(app.idleManager, 'recordActivity');
 
-    // Desktop pointermove
-    expect(() => {
-      window.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 300 }));
-    }).not.toThrow();
+    // 1. Desktop pointermove wakes loop and records activity
+    app._isLoopRunning = false;
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 400, clientY: 300 }));
+    expect(activitySpy).toHaveBeenCalled();
+    expect(app.isLoopRunning()).toBe(true);
 
-    // Tap / click pointerdown at specific coordinates
-    expect(() => {
-      window.dispatchEvent(new MouseEvent('pointerdown', { clientX: 800, clientY: 150 }));
-    }).not.toThrow();
+    // 2. Pointerdown wakes loop and records activity
+    activitySpy.mockClear();
+    app._isLoopRunning = false;
+    window.dispatchEvent(new MouseEvent('pointerdown', { clientX: 800, clientY: 150 }));
+    expect(activitySpy).toHaveBeenCalled();
+    expect(app.isLoopRunning()).toBe(true);
 
-    // Mobile touchmove & touchend
+    // 3. Mobile touchmove wakes loop and records activity
+    activitySpy.mockClear();
+    app._isLoopRunning = false;
     const touchMoveEvent = new Event('touchmove');
     touchMoveEvent.touches = [{ clientX: 100, clientY: 500 }];
-    expect(() => {
-      window.dispatchEvent(touchMoveEvent);
-      window.dispatchEvent(new Event('touchend'));
-    }).not.toThrow();
+    window.dispatchEvent(touchMoveEvent);
+    expect(activitySpy).toHaveBeenCalled();
+    expect(app.isLoopRunning()).toBe(true);
+
+    window.dispatchEvent(new Event('touchend'));
   });
 
   it('suspends requestAnimationFrame loop when idle scene settles (0% CPU/GPU)', () => {
@@ -650,19 +657,26 @@ describe('PortfolioApp (Application Root Seam)', () => {
       setPixelRatio: vi.fn()
     };
 
-    // Simulate tab hidden
+    // 1. Simulate tab hidden
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-
-    // Run frame update
     app._renderFrame(1000);
-
     expect(renderSpy).not.toHaveBeenCalled();
-    // Loop should be suspended (0% CPU scheduling)
     expect(app.isLoopRunning()).toBe(false);
 
-    // Reset document.hidden and wake app
+    // 2. Reset document.hidden and wake app
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
     app._resumeLoop();
+    expect(app.isLoopRunning()).toBe(true);
+
+    // 3. Simulate idle settling (speedFactor <= 0.0001 with resting topology)
+    vi.spyOn(app.idleManager, 'getSpeedFactor').mockReturnValue(0.0);
+    app._renderFrame(2000);
+    expect(app.isLoopRunning()).toBe(false);
+
+    // 4. Pointer activity wakes suspended loop and records activity
+    const activitySpy = vi.spyOn(app.idleManager, 'recordActivity');
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 300, clientY: 200 }));
+    expect(activitySpy).toHaveBeenCalled();
     expect(app.isLoopRunning()).toBe(true);
   });
 

@@ -6,15 +6,21 @@ describe('Ticket 02: Light Gray Theme, ADR 0003 & Legacy Architecture Purge', ()
   const repoRoot = path.resolve(__dirname, '..');
 
   describe('ADR 0003 & Domain Glossary', () => {
-    it('records ADR 0003 superseding ADR 0002 for Light Gray Narrative Journey', () => {
+    it('records ADR 0003 superseding ADR 0002 for Light Gray Narrative Journey and links them reciprocally', () => {
       const adrPath = path.join(repoRoot, 'docs/adr/0003-light-gray-narrative-journey.md');
       expect(fs.existsSync(adrPath), 'docs/adr/0003-light-gray-narrative-journey.md must exist').toBe(true);
 
       const content = fs.readFileSync(adrPath, 'utf8');
       expect(content).toMatch(/# 0003\./i);
-      expect(content).toMatch(/supersedes\s+0002/i);
+      expect(content).toMatch(/supersedes\s+\[0002\]/i);
       expect(content).toMatch(/Light Gray/i);
       expect(content).toMatch(/Narrative/i);
+
+      // Reciprocal link in ADR 0002
+      const adr0002Path = path.join(repoRoot, 'docs/adr/0002-cloud-native-light-theme-and-topology.md');
+      expect(fs.existsSync(adr0002Path)).toBe(true);
+      const adr0002Content = fs.readFileSync(adr0002Path, 'utf8');
+      expect(adr0002Content).toMatch(/Superseded by \[0003\]/i);
     });
 
     it('updates GLOSSARY.md with Journey terminology and renamed stations', () => {
