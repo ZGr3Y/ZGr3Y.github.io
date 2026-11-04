@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { STATIONS } from '../stations/stationsData.js';
 import { IdleManager } from './IdleManager.js';
+import { AssetLibrary } from './AssetLibrary.js';
+import { LoaderController } from './LoaderController.js';
+import { LoaderUI } from '../ui/Loader.js';
+import { JourneyScene } from './JourneyScene.js';
 
 /**
  * PortfolioApp — Primary Application Root Seam
@@ -12,11 +16,13 @@ export class PortfolioApp {
    * @param {HTMLElement} [options.container] - Root DOM container (#app)
    * @param {HTMLCanvasElement} [options.canvas] - Target WebGL canvas (#cloud-canvas)
    * @param {HTMLElement} [options.srAnnouncer] - Live accessibility region
+   * @param {boolean} [options.enableLoader=false] - Whether to mount the "DON'T PANIC" narrative loader and preload assets
    */
-  constructor({ container, canvas, srAnnouncer } = {}) {
+  constructor({ container, canvas, srAnnouncer, enableLoader = false } = {}) {
     this.container = container;
     this.canvas = canvas;
     this.srAnnouncer = srAnnouncer || (typeof document !== 'undefined' ? document.getElementById('sr-announcements') : null);
+    this.enableLoader = enableLoader;
 
     this.stations = STATIONS;
     this.currentStationIndex = 0;
@@ -27,6 +33,10 @@ export class PortfolioApp {
     this.camera = null;
     this.renderer = null;
     this.topology = null;
+    this.assetLibrary = null;
+    this.journeyScene = null;
+    this.loaderUI = null;
+    this.loaderController = null;
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
@@ -662,6 +672,63 @@ export class PortfolioApp {
     this.placeholderMesh.name = 'JourneyPlaceholder';
     this.scene.add(this.placeholderMesh);
 
+    // Initialize AssetLibrary, JourneyScene, and "DON'T PANIC" Loader when enabled
+    if (this.enableLoader) {
+      this.assetLibrary = new AssetLibrary();
+      this.journeyScene = new JourneyScene({ scene: this.scene });
+
+      // Preload critical models and set Hitchhiker Guide in background
+      const criticalModels = [
+        './models/the_hitchhikers_guide_to_the_galaxy.glb',
+        './models/the_matrix_white_room.glb',
+        './models/hand.glb',
+        './models/robotic_hand.glb'
+      ];
+      const assetPromise = this.assetLibrary.preloadCritical(criticalModels);
+
+      this.assetLibrary.load('./models/the_hitchhikers_guide_to_the_galaxy.glb')
+        .then((model) => {
+          if (model && !this.isDestroyed && this.journeyScene) {
+            this.journeyScene.setHitchhikerModel(model);
+            if (this.placeholderMesh && this.scene) {
+              this.scene.remove(this.placeholderMesh);
+            }
+            if (this.idleManager) {
+              this.idleManager.recordActivity();
+            }
+            this._resumeLoop();
+          }
+        })
+        .catch(() => {});
+
+      // Initialize Loader UI and Controller if container exists
+      if (this.container && typeof document !== 'undefined') {
+        this.loaderUI = new LoaderUI();
+        this.loaderUI.mount(this.container);
+
+        this.loaderController = new LoaderController({
+          minDwellMs: 4000,
+          assetPromise
+        });
+
+        this.loaderController.onProgress((state) => {
+          if (this.loaderUI) {
+            this.loaderUI.update(state);
+          }
+        });
+
+        this.loaderController.onComplete(() => {
+          if (this.loaderUI) {
+            this.loaderUI.dismiss().then(() => {
+              this.loaderUI = null;
+            });
+          }
+        });
+
+        this.loaderController.start();
+      }
+    }
+
     // 3D scene topology placeholder (superseded by Journey scrollytelling acts in Phase 2)
     this.topology = null;
 
@@ -903,6 +970,10 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
+      if (this.journeyScene) {
+        this.journeyScene.update(delta, speedFactor);
+      }
+
       if (this.topology) {
         this.topology.update(delta, speedFactor);
       }
@@ -1131,6 +1202,26 @@ export class PortfolioApp {
     if (this.ambientLight) {
       if (this.scene) this.scene.remove(this.ambientLight);
       this.ambientLight = null;
+    }
+
+    if (this.loaderController) {
+      this.loaderController.dispose();
+      this.loaderController = null;
+    }
+
+    if (this.loaderUI) {
+      this.loaderUI.dispose();
+      this.loaderUI = null;
+    }
+
+    if (this.journeyScene) {
+      this.journeyScene.dispose();
+      this.journeyScene = null;
+    }
+
+    if (this.assetLibrary) {
+      this.assetLibrary.dispose();
+      this.assetLibrary = null;
     }
 
     if (this.topology) {
