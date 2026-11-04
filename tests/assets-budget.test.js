@@ -35,7 +35,7 @@ describe('Asset Budget & Optimization Pipeline (Ticket 01, Issue #28)', () => {
   });
 
   it('strictly excludes disallowed non-commercial assets (Potato GLaDOS)', () => {
-    if (!fs.existsSync(modelsDir)) return;
+    expect(fs.existsSync(modelsDir)).toBe(true);
     const files = fs.readdirSync(modelsDir);
     const hasDisallowed = files.some((f) => /potato|glados/i.test(f));
     expect(hasDisallowed).toBe(false);
@@ -43,7 +43,6 @@ describe('Asset Budget & Optimization Pipeline (Ticket 01, Issue #28)', () => {
 
   it('enforces asset budgets: <= 5MB per individual file and <= 15MB total bundle', () => {
     expect(fs.existsSync(modelsDir)).toBe(true);
-    let totalBytes = 0;
     const maxSingleFileBytes = 5 * 1024 * 1024; // 5 MB
     const maxTotalBundleBytes = 15 * 1024 * 1024; // 15 MB
 
@@ -55,8 +54,13 @@ describe('Asset Budget & Optimization Pipeline (Ticket 01, Issue #28)', () => {
         stat.size,
         `File ${modelName} (${(stat.size / (1024 * 1024)).toFixed(2)} MB) exceeds 5 MB limit`
       ).toBeLessThanOrEqual(maxSingleFileBytes);
-      totalBytes += stat.size;
     }
+
+    // Sum all .glb files in models directory to prevent untracked assets bypassing bundle limit
+    const allGlbFiles = fs.readdirSync(modelsDir).filter((f) => f.endsWith('.glb'));
+    const totalBytes = allGlbFiles.reduce((sum, file) => {
+      return sum + fs.statSync(path.join(modelsDir, file)).size;
+    }, 0);
 
     expect(
       totalBytes,
@@ -79,6 +83,11 @@ describe('Asset Budget & Optimization Pipeline (Ticket 01, Issue #28)', () => {
 
     expect(Array.isArray(gltf.animations)).toBe(true);
     expect(gltf.animations.length).toBe(3);
+
+    const animationNames = gltf.animations.map((anim) => anim.name);
+    expect(animationNames).toContain('core_personality_sphere_base_skeleton|core01_idle');
+    expect(animationNames).toContain('core_personality_sphere_base_skeleton|sphere_idle_front');
+    expect(animationNames).toContain('core_personality_sphere_base_skeleton|sphere_WideEye');
   });
 
   it('documents model authors, sources, and CC-BY-4.0 licenses in docs/assets-licenses.md', () => {

@@ -105,16 +105,16 @@ async function run() {
 
     // If specific animations must be preserved, dispose of all others and their channels/samplers
     if (modelConfig.keepAnimations) {
-      const anims = doc.getRoot().listAnimations();
-      for (const a of anims) {
-        if (!modelConfig.keepAnimations.includes(a.getName())) {
-          for (const ch of a.listChannels()) ch.dispose();
-          for (const s of a.listSamplers()) {
-            s.getInput()?.dispose();
-            s.getOutput()?.dispose();
-            s.dispose();
+      const animations = doc.getRoot().listAnimations();
+      for (const animation of animations) {
+        if (!modelConfig.keepAnimations.includes(animation.getName())) {
+          for (const channel of animation.listChannels()) channel.dispose();
+          for (const sampler of animation.listSamplers()) {
+            sampler.getInput()?.dispose();
+            sampler.getOutput()?.dispose();
+            sampler.dispose();
           }
-          a.dispose();
+          animation.dispose();
         }
       }
     }
