@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { STATIONS } from '../stations/stationsData.js';
-import { CloudMeshTopology } from './CloudMeshTopology.js';
 import { IdleManager } from './IdleManager.js';
 
 /**
@@ -646,11 +645,25 @@ export class PortfolioApp {
       this.renderer = null;
     }
 
-    // Initialize 3D cloud mesh topology (56 particles: ~30% lighter constellation)
-    this.topology = new CloudMeshTopology({
-      scene: this.scene,
-      nodeCount: 56
+    // Minimal semantic canvas placeholder maintaining visual presence per AGENTS.md § 1
+    // until Ticket 03 wires Act 0 (Hitchhiker Foundation)
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    this.ambientLight.name = 'AmbientLight';
+    this.scene.add(this.ambientLight);
+
+    const placeholderGeo = new THREE.IcosahedronGeometry(1.2, 1);
+    const placeholderMat = new THREE.MeshBasicMaterial({
+      color: 0x0284c7,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.2
     });
+    this.placeholderMesh = new THREE.Mesh(placeholderGeo, placeholderMat);
+    this.placeholderMesh.name = 'JourneyPlaceholder';
+    this.scene.add(this.placeholderMesh);
+
+    // 3D scene topology placeholder (superseded by Journey scrollytelling acts in Phase 2)
+    this.topology = null;
 
     // Initialize 5s slow-motion idle power damping
     this.idleManager = new IdleManager({
@@ -811,17 +824,18 @@ export class PortfolioApp {
     };
 
     this._onPointerDown = (e) => {
-      if (!this.topology || typeof window === 'undefined') return;
+      if (typeof window === 'undefined') return;
       if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
         this._updatePointerFromClient(e.clientX, e.clientY);
+      } else {
+        if (this.idleManager) {
+          this.idleManager.recordActivity();
+        }
+        this._resumeLoop();
       }
-      if (typeof this.topology.triggerPulse === 'function') {
+      if (this.topology && typeof this.topology.triggerPulse === 'function') {
         this.topology.triggerPulse(null, 1.0);
       }
-      if (this.idleManager) {
-        this.idleManager.recordActivity();
-      }
-      this._resumeLoop();
     };
 
     if (typeof window !== 'undefined') {
@@ -884,13 +898,18 @@ export class PortfolioApp {
 
       const speedFactor = this.idleManager ? this.idleManager.getSpeedFactor() : 1.0;
 
+      if (this.placeholderMesh && speedFactor > 0.0001) {
+        this.placeholderMesh.rotation.y += delta * 0.15 * speedFactor;
+        this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
+      }
+
       if (this.topology) {
         this.topology.update(delta, speedFactor);
       }
 
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
-      const isTopologyResting = this.topology && typeof this.topology.isResting === 'function' && this.topology.isResting();
+      const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isResting = !this._isCameraTransitioning && isTopologyResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
@@ -916,18 +935,20 @@ export class PortfolioApp {
   }
 
   /**
-   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer, and wakes loop
+   * Normalizes viewport client coordinates [-1.0 to 1.0], updates topology pointer if present, records activity, and wakes loop
    * @param {number} clientX
    * @param {number} clientY
    * @private
    */
   _updatePointerFromClient(clientX, clientY) {
-    if (!this.topology || typeof window === 'undefined') return;
-    const width = window.innerWidth || 800;
-    const height = window.innerHeight || 600;
-    const normX = (clientX / width) * 2 - 1;
-    const normY = -(clientY / height) * 2 + 1;
-    this.topology.setPointer(normX, normY);
+    if (typeof window === 'undefined') return;
+    if (this.topology && typeof this.topology.setPointer === 'function') {
+      const width = window.innerWidth || 800;
+      const height = window.innerHeight || 600;
+      const normX = (clientX / width) * 2 - 1;
+      const normY = -(clientY / height) * 2 + 1;
+      this.topology.setPointer(normX, normY);
+    }
     if (this.idleManager) {
       this.idleManager.recordActivity();
     }
@@ -939,8 +960,10 @@ export class PortfolioApp {
    * @private
    */
   _clearPointer() {
-    if (!this.topology || typeof window === 'undefined') return;
-    this.topology.setPointer(null, null);
+    if (typeof window === 'undefined') return;
+    if (this.topology && typeof this.topology.setPointer === 'function') {
+      this.topology.setPointer(null, null);
+    }
     this._resumeLoop();
   }
 
@@ -1096,6 +1119,18 @@ export class PortfolioApp {
       window.removeEventListener('touchmove', this._onTouchMove);
       window.removeEventListener('touchend', this._onTouchEnd);
       window.removeEventListener('touchcancel', this._onTouchCancel);
+    }
+
+    if (this.placeholderMesh) {
+      if (this.placeholderMesh.geometry) this.placeholderMesh.geometry.dispose();
+      if (this.placeholderMesh.material) this.placeholderMesh.material.dispose();
+      if (this.scene) this.scene.remove(this.placeholderMesh);
+      this.placeholderMesh = null;
+    }
+
+    if (this.ambientLight) {
+      if (this.scene) this.scene.remove(this.ambientLight);
+      this.ambientLight = null;
     }
 
     if (this.topology) {
