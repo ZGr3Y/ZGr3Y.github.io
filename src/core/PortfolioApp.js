@@ -619,6 +619,10 @@ export class PortfolioApp {
         card.setAttribute('hidden', '');
       }
     });
+
+    if (this.journeyState) {
+      this._updateJourneyCardVisibility(this.journeyState.getProgress());
+    }
   }
 
   /**

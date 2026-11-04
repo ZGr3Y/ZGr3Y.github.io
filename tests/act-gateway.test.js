@@ -574,5 +574,42 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       app.destroy();
     });
+
+    it('keeps Gateway card hidden when navigating back to Gateway if journey progress is above 0.38', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: false,
+        enableJourney: true
+      });
+
+      const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
+      const labCard = container.querySelector('.station-card[data-station="lab"]');
+
+      // Set journey progress above 0.38 (e.g. 0.45 in Act 2)
+      app.journeyState.setProgress(0.45);
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+
+      // Navigate away to Station 1 (Lab)
+      await app.navigateTo(1);
+      expect(labCard.classList.contains('active')).toBe(true);
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+
+      // Navigate back to Station 0 (Gateway)
+      await app.navigateTo(0);
+
+      // Because progress is still 0.45, Gateway card must remain hidden
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+
+      app.destroy();
+    });
   });
 });
