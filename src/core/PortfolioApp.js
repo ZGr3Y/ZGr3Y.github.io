@@ -5,6 +5,10 @@ import { AssetLibrary } from './AssetLibrary.js';
 import { LoaderController } from './LoaderController.js';
 import { LoaderUI } from '../ui/Loader.js';
 import { JourneyScene } from './JourneyScene.js';
+import { JourneyState } from './JourneyState.js';
+import { ScrollEngine } from './ScrollEngine.js';
+import { JourneyHud } from '../ui/JourneyHud.js';
+import { CreditsDialog } from '../ui/CreditsDialog.js';
 
 /**
  * PortfolioApp — Primary Application Root Seam
@@ -37,6 +41,10 @@ export class PortfolioApp {
     this.journeyScene = null;
     this.loaderUI = null;
     this.loaderController = null;
+    this.journeyState = null;
+    this.scrollEngine = null;
+    this.journeyHud = null;
+    this.creditsDialog = null;
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
@@ -726,6 +734,26 @@ export class PortfolioApp {
         });
 
         this.loaderController.start();
+
+        // Initialize JourneyState, ScrollEngine, Minimal HUD, and Credits Dialog
+        this.journeyState = new JourneyState();
+        this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
+        this.creditsDialog = new CreditsDialog({
+          onLockScroll: (locked) => {
+            if (this.scrollEngine) this.scrollEngine.setLocked(locked);
+          }
+        });
+        this.journeyHud = new JourneyHud({
+          container: this.container,
+          journeyState: this.journeyState,
+          onOpenCredits: () => {
+            if (this.creditsDialog) {
+              const trigger = this.container.querySelector('.btn-credits-trigger');
+              this.creditsDialog.open(trigger);
+            }
+          }
+        });
+        this.journeyHud.mount();
       }
     }
 
@@ -974,6 +1002,13 @@ export class PortfolioApp {
         this.journeyScene.update(delta, speedFactor);
       }
 
+      if (this.scrollEngine) {
+        this.scrollEngine.update(delta);
+      }
+      if (this.journeyHud) {
+        this.journeyHud.update();
+      }
+
       if (this.topology) {
         this.topology.update(delta, speedFactor);
       }
@@ -1212,6 +1247,26 @@ export class PortfolioApp {
     if (this.loaderUI) {
       this.loaderUI.dispose();
       this.loaderUI = null;
+    }
+
+    if (this.scrollEngine) {
+      this.scrollEngine.dispose();
+      this.scrollEngine = null;
+    }
+
+    if (this.journeyHud) {
+      this.journeyHud.dispose();
+      this.journeyHud = null;
+    }
+
+    if (this.creditsDialog) {
+      this.creditsDialog.dispose();
+      this.creditsDialog = null;
+    }
+
+    if (this.journeyState) {
+      this.journeyState.dispose();
+      this.journeyState = null;
     }
 
     if (this.journeyScene) {
