@@ -319,5 +319,70 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       app.destroy();
     });
+
+    it('advances station camera transition and clears transition flag even when GatewayAct is active', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(app.gatewayAct).toBeDefined();
+
+      // Navigate to Station 1 (Lab)
+      await app.navigateTo(1);
+      expect(app.isCameraTransitioning()).toBe(true);
+
+      // Simulate render frames
+      for (let frame = 0; frame < 100; frame++) {
+        app._renderFrame(1000 + frame * 16);
+      }
+
+      // Transition flag should clear and camera should reach target
+      expect(app.isCameraTransitioning()).toBe(false);
+      expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+
+      app.destroy();
+    });
+
+    it('does not unhide Gateway card on journey progress when another station is active', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: false,
+        enableJourney: true
+      });
+
+      // Select Station 1 (Lab)
+      await app.navigateTo(1);
+      const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
+      const labCard = container.querySelector('.station-card[data-station="lab"]');
+
+      expect(labCard.classList.contains('active')).toBe(true);
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+
+      // Trigger progress update at or below 0.38
+      app.journeyState.setProgress(0.15);
+
+      // Gateway card must remain inactive/hidden
+      expect(gatewayCard.classList.contains('active')).toBe(false);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+      expect(labCard.classList.contains('active')).toBe(true);
+
+      app.destroy();
+    });
   });
 });

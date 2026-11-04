@@ -631,7 +631,9 @@ export class PortfolioApp {
     const gatewayCard = this.stationContainer.querySelector('.station-card[data-station="gateway"]');
     if (!gatewayCard) return;
 
-    if (progress <= 0.38) {
+    const isGatewayActiveStation = this.getActiveStation().id === 'gateway';
+
+    if (isGatewayActiveStation && progress <= 0.38) {
       gatewayCard.classList.add('active');
       gatewayCard.removeAttribute('hidden');
     } else {
@@ -1023,8 +1025,10 @@ export class PortfolioApp {
       const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
       this._lastFrameTime = currentTime;
 
-      // 1. Advance spatial camera waypoint transition (legacy stations when gatewayAct is inactive)
-      if (this.camera && !this.gatewayAct && (this._isCameraTransitioning || this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001)) {
+      // 1. Advance spatial camera waypoint transition
+      const isGatewayStation = this.getActiveStation().id === 'gateway';
+      const shouldAdvanceWaypoint = this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001);
+      if (this.camera && shouldAdvanceWaypoint) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
@@ -1054,7 +1058,7 @@ export class PortfolioApp {
 
       const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
 
-      if (this.gatewayAct && !this._isCameraTransitioning) {
+      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning) {
         this.gatewayAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
