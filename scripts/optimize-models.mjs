@@ -92,8 +92,8 @@ async function run() {
     const destPath = path.join(outputDir, modelConfig.name);
 
     if (!fs.existsSync(srcPath)) {
-      console.warn(`[SKIP] Source file missing: ${modelConfig.name}`);
-      continue;
+      console.error(`[ERROR] Required source model missing: ${srcPath}`);
+      process.exit(1);
     }
 
     const rawStat = fs.statSync(srcPath);
