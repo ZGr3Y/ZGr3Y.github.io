@@ -157,6 +157,30 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       act.dispose();
     });
+
+    it('settles parallax offset and camera towards equilibrium when speedFactor is zero', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // First let camera settle at progress: 0.1 with non-zero pointer parallax
+      for (let i = 0; i < 120; i++) {
+        act.update({ progress: 0.1, pointer: { x: 0.8, y: 0.5 }, delta: 0.016, speedFactor: 1.0 });
+      }
+      expect(act.isResting()).toBe(true);
+      expect(act.parallaxOffset.lengthSq()).toBeGreaterThan(0);
+
+      // Now reset pointer to (0, 0) while speedFactor is 0 (idle)
+      for (let i = 0; i < 60; i++) {
+        act.update({ progress: 0.1, pointer: { x: 0, y: 0 }, delta: 0.016, speedFactor: 0 });
+      }
+
+      // It must settle to target (0, 0) and report resting true
+      expect(act.isResting()).toBe(true);
+      expect(act.parallaxOffset.lengthSq()).toBeLessThan(0.0005);
+
+      act.dispose();
+    });
   });
 
   describe('GatewayAct: Teardown & Resource Cleanup', () => {
@@ -497,6 +521,55 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       app._renderFrame(5000);
 
       // Loop should suspend because GatewayAct is ignored when Gateway is inactive
+      expect(app.isLoopRunning()).toBe(false);
+
+      app.destroy();
+    });
+
+    it('suspends animation loop after pointer reset when idling at Gateway station per CODING_STANDARDS §5', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Let camera settle at init
+      for (let frame = 0; frame < 60; frame++) {
+        app._renderFrame(1000 + frame * 16);
+      }
+
+      // Pointer moved to top-right
+      app._updatePointerFromClient(window.innerWidth * 0.9, window.innerHeight * 0.1);
+      for (let frame = 0; frame < 10; frame++) {
+        app._renderFrame(2000 + frame * 16);
+      }
+
+      // Parallax is now non-zero
+      expect(app.gatewayAct.parallaxOffset.lengthSq()).toBeGreaterThan(0);
+
+      // Simulate idle damping reaching zero speed
+      if (app.idleManager) {
+        vi.spyOn(app.idleManager, 'getSpeedFactor').mockReturnValue(0);
+      }
+
+      // Cursor leaves viewport
+      app._clearPointer();
+      expect(app.isLoopRunning()).toBe(true);
+
+      // Advance frames to allow settling
+      for (let frame = 0; frame < 60; frame++) {
+        app._renderFrame(3000 + frame * 16);
+      }
+
+      // Loop should suspend once settled
+      expect(app.gatewayAct.isResting()).toBe(true);
       expect(app.isLoopRunning()).toBe(false);
 
       app.destroy();

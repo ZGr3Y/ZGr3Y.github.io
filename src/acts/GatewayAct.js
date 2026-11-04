@@ -145,9 +145,13 @@ export class GatewayAct {
       this.targetParallax.set(0, 0);
     }
 
-    // Smoothly lerp parallax offset allowing true 0-damping when idle
-    const parallaxLerp = Math.min(1.0, delta * 3.5 * speedFactor);
+    // Smoothly lerp parallax offset allowing true 0-damping when idle but settling when resetting
+    const settleSpeed = speedFactor > 0.0001 ? speedFactor : 1.0;
+    const parallaxLerp = Math.min(1.0, delta * 3.5 * settleSpeed);
     this.parallaxOffset.lerp(this.targetParallax, parallaxLerp);
+    if (this.parallaxOffset.distanceToSquared(this.targetParallax) < 0.0005) {
+      this.parallaxOffset.copy(this.targetParallax);
+    }
 
     // Subtle ambient camera drift when inside Matrix White Room (Act 1)
     let driftX = 0;
@@ -166,9 +170,15 @@ export class GatewayAct {
     this.targetFinalLookAt.x += this.parallaxOffset.x + driftX * 0.5;
     this.targetFinalLookAt.y += this.parallaxOffset.y + driftY * 0.5;
 
-    const camLerp = Math.min(1.0, delta * 4.0 * speedFactor);
+    const camLerp = Math.min(1.0, delta * 4.0 * settleSpeed);
     this.currentCamPos.lerp(this.targetFinalCamPos, camLerp);
     this.currentLookAt.lerp(this.targetFinalLookAt, camLerp);
+    if (this.currentCamPos.distanceToSquared(this.targetFinalCamPos) < 0.0005) {
+      this.currentCamPos.copy(this.targetFinalCamPos);
+    }
+    if (this.currentLookAt.distanceToSquared(this.targetFinalLookAt) < 0.0005) {
+      this.currentLookAt.copy(this.targetFinalLookAt);
+    }
 
     this.camera.position.copy(this.currentCamPos);
     this.camera.lookAt(this.currentLookAt);
