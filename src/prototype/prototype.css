@@ -1,0 +1,332 @@
+/* Prototype 2.0: 3D Narrative Journey Aesthetic Explorer */
+
+:root {
+  --proto-bg: #EAECEF;
+  --proto-text: #1E232A;
+  --proto-text-muted: #64748B;
+  --proto-accent: #2563EB;
+  --proto-cyan: #0284C7;
+  --proto-red: #E11D48;
+  --proto-border: rgba(148, 163, 184, 0.25);
+  --proto-panel-bg: rgba(248, 250, 252, 0.85);
+  --proto-panel-blur: blur(12px);
+  --proto-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --proto-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+#prototype-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--proto-bg);
+  font-family: var(--proto-font-sans);
+  color: var(--proto-text);
+  user-select: none;
+}
+
+#prototype-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+}
+
+/* --- Top Telemetry HUD --- */
+.proto-hud-top {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.proto-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.proto-title {
+  font-family: var(--proto-font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--proto-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.proto-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10B981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  animation: protoPulse 2s ease-in-out infinite;
+}
+
+@keyframes protoPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.proto-subtitle {
+  font-family: var(--proto-font-mono);
+  font-size: 0.75rem;
+  color: var(--proto-text-muted);
+}
+
+.proto-telemetry-badge {
+  font-family: var(--proto-font-mono);
+  font-size: 0.72rem;
+  color: var(--proto-text-muted);
+  background: var(--proto-panel-bg);
+  backdrop-filter: var(--proto-panel-blur);
+  -webkit-backdrop-filter: var(--proto-panel-blur);
+  border: 1px solid var(--proto-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  display: flex;
+  gap: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* --- Center Narrative Overlay --- */
+.proto-narrative-overlay {
+  position: absolute;
+  top: 5rem;
+  left: 2rem;
+  z-index: 10;
+  pointer-events: none;
+  max-width: 440px;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.proto-act-tag {
+  font-family: var(--proto-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--proto-accent);
+  margin-bottom: 0.4rem;
+}
+
+.proto-act-heading {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.6rem;
+  color: var(--proto-text);
+}
+
+.proto-act-desc {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--proto-text-muted);
+}
+
+/* --- Floating Bottom Control Dock --- */
+.proto-dock {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+/* Act Navigation Bar */
+.proto-acts-bar {
+  display: flex;
+  gap: 0.35rem;
+  background: var(--proto-panel-bg);
+  backdrop-filter: var(--proto-panel-blur);
+  -webkit-backdrop-filter: var(--proto-panel-blur);
+  border: 1px solid var(--proto-border);
+  border-radius: 12px;
+  padding: 0.35rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.proto-act-btn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  font-family: var(--proto-font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--proto-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.proto-act-btn:hover {
+  color: var(--proto-text);
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.proto-act-btn.active {
+  color: #FFFFFF;
+  background: var(--proto-text);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Secondary Controls Row (Variant Switcher + Cam Mode) */
+.proto-controls-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Variant Switcher Pill */
+.proto-variant-switcher {
+  display: flex;
+  align-items: center;
+  background: var(--proto-text);
+  color: #F8FAFC;
+  border-radius: 9999px;
+  padding: 0.25rem 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-family: var(--proto-font-mono);
+  font-size: 0.78rem;
+}
+
+.proto-arrow-btn {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  font-size: 1rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.proto-arrow-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.proto-variant-label {
+  padding: 0 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Cam Mode Toggle & Action Button */
+.proto-tool-btn {
+  background: var(--proto-panel-bg);
+  backdrop-filter: var(--proto-panel-blur);
+  -webkit-backdrop-filter: var(--proto-panel-blur);
+  border: 1px solid var(--proto-border);
+  border-radius: 9999px;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--proto-font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--proto-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.proto-tool-btn:hover {
+  background: #FFFFFF;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.proto-tool-btn.active {
+  background: var(--proto-accent);
+  color: #FFFFFF;
+  border-color: var(--proto-accent);
+}
+
+/* --- Interactive Model Tooltip --- */
+.proto-interactive-pill {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  font-family: var(--proto-font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  color: #FFFFFF;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 15;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.proto-interactive-pill.visible {
+  opacity: 1;
+  transform: translate(-50%, -120%);
+}
+
+.proto-interactive-pill.blue {
+  background: #0284C7;
+  border: 1px solid #38BDF8;
+}
+
+.proto-interactive-pill.red {
+  background: #E11D48;
+  border: 1px solid #FB7185;
+}
+
+/* --- Loading Overlay inside Prototype --- */
+.proto-loader-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--proto-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  z-index: 50;
+  transition: opacity 0.5s ease;
+}
+
+.proto-loader-screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.proto-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(148, 163, 184, 0.2);
+  border-top-color: var(--proto-text);
+  border-radius: 50%;
+  animation: protoSpin 0.8s linear infinite;
+}
+
+@keyframes protoSpin {
+  to { transform: rotate(360deg); }
+}
+
+.proto-loader-text {
+  font-family: var(--proto-font-mono);
+  font-size: 0.82rem;
+  color: var(--proto-text-muted);
+}
