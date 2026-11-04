@@ -5,6 +5,11 @@ import { AssetLibrary } from './AssetLibrary.js';
 import { LoaderController } from './LoaderController.js';
 import { LoaderUI } from '../ui/Loader.js';
 import { JourneyScene } from './JourneyScene.js';
+import { JourneyState } from './JourneyState.js';
+import { ScrollEngine } from './ScrollEngine.js';
+import { JourneyHud } from '../ui/JourneyHud.js';
+import { CreditsDialog } from '../ui/CreditsDialog.js';
+import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
  * PortfolioApp — Primary Application Root Seam
@@ -17,12 +22,14 @@ export class PortfolioApp {
    * @param {HTMLCanvasElement} [options.canvas] - Target WebGL canvas (#cloud-canvas)
    * @param {HTMLElement} [options.srAnnouncer] - Live accessibility region
    * @param {boolean} [options.enableLoader=false] - Whether to mount the "DON'T PANIC" narrative loader and preload assets
+   * @param {boolean} [options.enableJourney=true] - Whether to initialize the narrative journey state and scroll engine
    */
-  constructor({ container, canvas, srAnnouncer, enableLoader = false } = {}) {
+  constructor({ container, canvas, srAnnouncer, enableLoader = false, enableJourney = true } = {}) {
     this.container = container;
     this.canvas = canvas;
     this.srAnnouncer = srAnnouncer || (typeof document !== 'undefined' ? document.getElementById('sr-announcements') : null);
     this.enableLoader = enableLoader;
+    this.enableJourney = enableJourney;
 
     this.stations = STATIONS;
     this.currentStationIndex = 0;
@@ -37,6 +44,10 @@ export class PortfolioApp {
     this.journeyScene = null;
     this.loaderUI = null;
     this.loaderController = null;
+    this.journeyState = null;
+    this.scrollEngine = null;
+    this.journeyHud = null;
+    this.creditsDialog = null;
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
@@ -97,6 +108,9 @@ export class PortfolioApp {
     }
 
     this.hudNav = hud;
+    if (this.enableJourney) {
+      this.container.setAttribute('data-journey-active', 'true');
+    }
     this._renderHUD();
   }
 
@@ -531,25 +545,7 @@ export class PortfolioApp {
       }
 
       if (e.key === 'Tab') {
-        const focusableElements = modal.querySelectorAll(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusableElements.length === 0) return;
-
-        const firstEl = focusableElements[0];
-        const lastEl = focusableElements[focusableElements.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === firstEl) {
-            e.preventDefault();
-            lastEl.focus();
-          }
-        } else {
-          if (document.activeElement === lastEl) {
-            e.preventDefault();
-            firstEl.focus();
-          }
-        }
+        trapFocus(modal, e);
       }
     };
     window.addEventListener('keydown', this._modalKeyHandler);
@@ -557,6 +553,10 @@ export class PortfolioApp {
     if (this.stationContainer) {
       this._previousContainerOverflow = this.stationContainer.style.overflow;
       this.stationContainer.style.overflow = 'hidden';
+    }
+
+    if (this.scrollEngine) {
+      this.scrollEngine.setLocked(true);
     }
 
     this.container.appendChild(modal);
@@ -580,6 +580,10 @@ export class PortfolioApp {
     if (this.activeModal) {
       this.activeModal.remove();
       this.activeModal = null;
+    }
+
+    if (this.scrollEngine) {
+      this.scrollEngine.setLocked(false);
     }
 
     if (this.stationContainer) {
@@ -726,6 +730,40 @@ export class PortfolioApp {
         });
 
         this.loaderController.start();
+      }
+    }
+
+    // Initialize JourneyState, ScrollEngine, Minimal HUD, and Credits Dialog (Ticket 04)
+    if (this.enableJourney && this.container && typeof document !== 'undefined') {
+      this.journeyState = new JourneyState();
+      this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
+      this.creditsDialog = new CreditsDialog({
+        onLockScroll: (locked) => {
+          if (this.scrollEngine) this.scrollEngine.setLocked(locked);
+        },
+        onOpenModal: () => {
+          this.activeModal = 'credits';
+        },
+        onCloseModal: () => {
+          if (this.activeModal === 'credits') {
+            this.activeModal = null;
+          }
+        }
+      });
+      this.journeyHud = new JourneyHud({
+        container: this.container,
+        journeyState: this.journeyState,
+        onOpenCredits: () => {
+          if (this.creditsDialog) {
+            const trigger = this.container.querySelector('.btn-credits-trigger');
+            this.creditsDialog.open(trigger);
+          }
+        }
+      });
+      this.journeyHud.mount();
+
+      if (this.hudNav) {
+        this.container.setAttribute('data-journey-active', 'true');
       }
     }
 
@@ -974,6 +1012,13 @@ export class PortfolioApp {
         this.journeyScene.update(delta, speedFactor);
       }
 
+      if (this.scrollEngine) {
+        this.scrollEngine.update(delta);
+      }
+      if (this.journeyHud) {
+        this.journeyHud.update();
+      }
+
       if (this.topology) {
         this.topology.update(delta, speedFactor);
       }
@@ -1212,6 +1257,26 @@ export class PortfolioApp {
     if (this.loaderUI) {
       this.loaderUI.dispose();
       this.loaderUI = null;
+    }
+
+    if (this.scrollEngine) {
+      this.scrollEngine.dispose();
+      this.scrollEngine = null;
+    }
+
+    if (this.journeyHud) {
+      this.journeyHud.dispose();
+      this.journeyHud = null;
+    }
+
+    if (this.creditsDialog) {
+      this.creditsDialog.dispose();
+      this.creditsDialog = null;
+    }
+
+    if (this.journeyState) {
+      this.journeyState.dispose();
+      this.journeyState = null;
     }
 
     if (this.journeyScene) {
