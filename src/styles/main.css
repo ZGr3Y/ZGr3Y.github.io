@@ -1050,6 +1050,8 @@ html, body {
   justify-content: center;
   align-items: center;
   padding: 1.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .credits-dialog-panel {
@@ -1060,9 +1062,16 @@ html, body {
   width: 100%;
   max-width: 580px;
   max-height: 85vh;
+  margin: auto 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Deprecation rule for legacy discrete 4-button HUD */
+[data-journey-active] .hud-nav,
+.hud-nav.deprecated {
+  display: none !important;
 }
 
 .credits-dialog-header {

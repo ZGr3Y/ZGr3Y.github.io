@@ -3,6 +3,7 @@ import { JourneyState } from '../src/core/JourneyState.js';
 import { ScrollEngine } from '../src/core/ScrollEngine.js';
 import { JourneyHud } from '../src/ui/JourneyHud.js';
 import { CreditsDialog } from '../src/ui/CreditsDialog.js';
+import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', () => {
   beforeEach(() => {
@@ -59,8 +60,12 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       expect(state.getCurrentSegment().id).toBe('act1');
       expect(state.getCurrentSegment().title).toContain('Matrix White Room');
 
-      // Progress 0.5 -> Act 2 (Pill Choice)
+      // Progress 0.5 & 0.6 (gated threshold boundary) -> Act 2 (Pill Choice)
       state.setProgress(0.5);
+      expect(state.getCurrentSegment().id).toBe('act2');
+      expect(state.getCurrentSegment().title).toContain('Pill Choice');
+
+      state.setProgress(0.6);
       expect(state.getCurrentSegment().id).toBe('act2');
       expect(state.getCurrentSegment().title).toContain('Pill Choice');
 
@@ -124,7 +129,27 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       window.dispatchEvent(ctrlKey);
       expect(engine.getTargetProgress()).toBe(0);
 
-      // 4. Modal scroll lock prevents progress mutation
+      // 4. Multi-touch swipe (pinch-to-zoom) must be ignored
+      const multiTouch = new TouchEvent('touchmove', {
+        touches: [{ clientY: 200 }, { clientY: 250 }]
+      });
+      window.dispatchEvent(multiTouch);
+      expect(engine.getTargetProgress()).toBe(0);
+
+      // 5. Scroll headroom isolation per §8
+      const scrollablePanel = document.createElement('div');
+      scrollablePanel.style.overflowY = 'auto';
+      Object.defineProperty(scrollablePanel, 'scrollHeight', { value: 500 });
+      Object.defineProperty(scrollablePanel, 'clientHeight', { value: 200 });
+      Object.defineProperty(scrollablePanel, 'scrollTop', { value: 50, writable: true });
+      document.body.appendChild(scrollablePanel);
+
+      const panelWheel = new WheelEvent('wheel', { deltaY: 50 });
+      Object.defineProperty(panelWheel, 'target', { value: scrollablePanel });
+      window.dispatchEvent(panelWheel);
+      expect(engine.getTargetProgress()).toBe(0);
+
+      // 6. Modal scroll lock prevents progress mutation
       engine.setLocked(true);
       expect(engine.isLocked()).toBe(true);
 
@@ -208,6 +233,42 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       expect(document.activeElement).toBe(triggerBtn);
 
       dialog.dispose();
+    });
+  });
+
+  describe('PortfolioApp Integration (Journey Scroll & Legacy HUD Deprecation)', () => {
+    it('deprecates legacy discrete HUD and coordinates modal scroll locking', () => {
+      const container = document.createElement('div');
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+      container.appendChild(canvas);
+      container.appendChild(srAnnouncer);
+      document.body.appendChild(container);
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableJourney: true
+      });
+
+      expect(app.journeyState).not.toBeNull();
+      expect(app.scrollEngine).not.toBeNull();
+      expect(app.journeyHud).not.toBeNull();
+      expect(container.getAttribute('data-journey-active')).toBe('true');
+      expect(app.hudNav.classList.contains('deprecated')).toBe(true);
+
+      // Open credits dialog -> locks scrollEngine & sets activeModal
+      app.creditsDialog.open();
+      expect(app.activeModal).toBe('credits');
+      expect(app.scrollEngine.isLocked()).toBe(true);
+
+      // Close credits dialog -> unlocks scrollEngine & clears activeModal
+      app.creditsDialog.close();
+      expect(app.activeModal).toBeNull();
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      app.destroy();
     });
   });
 });

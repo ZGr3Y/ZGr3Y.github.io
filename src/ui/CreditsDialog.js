@@ -1,3 +1,5 @@
+import { trapFocus } from '../utils/a11yUtils.js';
+
 /**
  * CreditsDialog — Accessible 3D Creative Attributions Modal
  * Satisfies CODING_STANDARDS §10 (focus trap, ARIA dialog, Escape dismissal, focus restoration).
@@ -6,9 +8,13 @@ export class CreditsDialog {
   /**
    * @param {Object} [options]
    * @param {Function} [options.onLockScroll] Callback to lock/unlock scroll engine
+   * @param {Function} [options.onOpenModal] Callback when dialog opens
+   * @param {Function} [options.onCloseModal] Callback when dialog closes
    */
-  constructor({ onLockScroll } = {}) {
+  constructor({ onLockScroll, onOpenModal, onCloseModal } = {}) {
     this.onLockScroll = onLockScroll;
+    this.onOpenModal = onOpenModal;
+    this.onCloseModal = onCloseModal;
     this.dialogElement = null;
     this.triggerElement = null;
     this.isOpen = false;
@@ -27,6 +33,9 @@ export class CreditsDialog {
 
     if (typeof this.onLockScroll === 'function') {
       this.onLockScroll(true);
+    }
+    if (typeof this.onOpenModal === 'function') {
+      this.onOpenModal();
     }
 
     this._render();
@@ -54,6 +63,9 @@ export class CreditsDialog {
 
     if (typeof this.onLockScroll === 'function') {
       this.onLockScroll(false);
+    }
+    if (typeof this.onCloseModal === 'function') {
+      this.onCloseModal();
     }
 
     if (this.triggerElement && typeof this.triggerElement.focus === 'function') {
@@ -144,25 +156,7 @@ export class CreditsDialog {
     }
 
     if (e.key === 'Tab') {
-      const focusable = this.dialogElement.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+      trapFocus(this.dialogElement, e);
     }
   }
 

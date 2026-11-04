@@ -90,18 +90,21 @@ export class JourneyState {
   getCurrentSegment() {
     const p = this.progress;
 
-    if (p < 0.2) return this.segments[0];
-    if (p < 0.4) return this.segments[1];
-    if (p < 0.6) return this.segments[2];
-
-    if (p < 0.8) {
-      if (this.branchState === 'red') {
-        return this.segments[4]; // Wheatley Core
-      }
-      return this.segments[3]; // Origami Unicorns (default / blue)
+    // Gated boundary at gateThreshold (0.6): Act 2 remains active while waiting at the gate
+    if (this.branchState === 'unselected' && p >= this.gateThreshold) {
+      return this.segments[2]; // Act 02 Pill Choice
     }
 
-    return this.segments[5]; // Transmission
+    for (const seg of this.segments) {
+      if (p >= seg.min && (p < seg.max || (seg.max === 1.0 && p <= 1.0))) {
+        if (seg.id === 'act3_blue' && this.branchState === 'red') {
+          return this.segments[4]; // Act 03-B Wheatley Core
+        }
+        return seg;
+      }
+    }
+
+    return this.segments[0];
   }
 
   /**

@@ -102,12 +102,40 @@ export class ScrollEngine {
   }
 
   /**
+   * Checks whether the event target or any ancestor has scroll headroom per CODING_STANDARDS §8
+   * @private
+   */
+  _hasScrollHeadroom(target, deltaY) {
+    if (!target || typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+
+    let el = target;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (typeof window !== 'undefined') {
+        const style = window.getComputedStyle(el);
+        const overflowY = style.overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          const maxScroll = el.scrollHeight - el.clientHeight;
+          if (maxScroll > 0) {
+            if (deltaY > 0 && el.scrollTop < maxScroll - 1) return true;
+            if (deltaY < 0 && el.scrollTop > 1) return true;
+          }
+        }
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  /**
    * Handles wheel interactions, strictly isolating zoom keys per CODING_STANDARDS §8
    * @private
    */
   _handleWheel(e) {
     // Zoom keys immunity: ignore pinch-to-zoom and Ctrl/Cmd-wheel
     if (e.ctrlKey || e.metaKey || this.locked) return;
+
+    // Scroll isolation: preserve inner panel scroll headroom
+    if (this._hasScrollHeadroom(e.target, e.deltaY)) return;
 
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     const delta = e.deltaY * this.sensitivity;
@@ -129,11 +157,13 @@ export class ScrollEngine {
     }
 
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
+    const isDown = e.key === 'ArrowDown' || e.key === 'PageDown';
+    const isUp = e.key === 'ArrowUp' || e.key === 'PageUp';
 
-    if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-      this.targetProgress = Math.max(0, Math.min(this.targetProgress + this.keyboardStep, max));
-    } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-      this.targetProgress = Math.max(0, Math.min(this.targetProgress - this.keyboardStep, max));
+    if (isDown || isUp) {
+      const step = isDown ? this.keyboardStep : -this.keyboardStep;
+      if (this._hasScrollHeadroom(activeEl, step)) return;
+      this.targetProgress = Math.max(0, Math.min(this.targetProgress + step, max));
     }
   }
 
@@ -142,21 +172,25 @@ export class ScrollEngine {
    * @private
    */
   _handleTouchStart(e) {
-    if (e.touches && e.touches.length > 0) {
+    if (e.touches && e.touches.length === 1) {
       this.touchStartY = e.touches[0].clientY;
     }
   }
 
   /**
-   * Handles touch move swipe
+   * Handles touch move swipe, preserving multi-touch pinch-to-zoom
    * @private
    */
   _handleTouchMove(e) {
-    if (this.locked || !e.touches || e.touches.length === 0) return;
+    // Multi-touch immunity: preserve pinch-to-zoom gestures (CODING_STANDARDS §8)
+    if (this.locked || !e.touches || e.touches.length !== 1) return;
 
     const currentY = e.touches[0].clientY;
     const deltaY = this.touchStartY - currentY;
     this.touchStartY = currentY;
+
+    // Scroll isolation: preserve inner panel scroll headroom
+    if (this._hasScrollHeadroom(e.target, deltaY)) return;
 
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     const delta = deltaY * this.sensitivity * 2.0;
