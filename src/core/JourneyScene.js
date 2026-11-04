@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { disposeThreeObject } from '../utils/threeUtils.js';
 
 /**
@@ -16,7 +17,7 @@ export class JourneyScene {
   }
 
   /**
-   * Sets the 3D Hitchhiker's Guide book model in the scene
+   * Sets the 3D Hitchhiker's Guide book model in the scene, normalizing its scale
    * @param {THREE.Object3D} model
    */
   setHitchhikerModel(model) {
@@ -27,8 +28,21 @@ export class JourneyScene {
     }
 
     this.hitchhikerModel = model;
+
+    // Normalize model scale from bounding box so it fits cleanly in the background
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    if (Number.isFinite(maxDim) && maxDim > 0) {
+      const targetSize = 4.2;
+      const scale = targetSize / maxDim;
+      this.hitchhikerModel.scale.set(scale, scale, scale);
+    }
+
     this.hitchhikerModel.position.set(0, 0, -2.5);
-    this.hitchhikerModel.rotation.set(0.1, 0, 0);
+    this.hitchhikerModel.rotation.set(0.12, 0, 0);
 
     if (this.scene) {
       this.scene.add(this.hitchhikerModel);

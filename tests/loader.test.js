@@ -224,5 +224,23 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       journey.dispose();
       expect(scene.children).not.toContain(bookModel);
     });
+
+    it('normalizes model scale based on bounding box', () => {
+      const scene = new THREE.Scene();
+      const journey = new JourneyScene({ scene });
+
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(100, 50, 20));
+      const model = new THREE.Group();
+      model.add(mesh);
+
+      journey.setHitchhikerModel(model);
+
+      // maxDim is 100, targetSize is 4.2 -> scale = 0.042
+      expect(model.scale.x).toBeCloseTo(0.042, 5);
+      expect(model.scale.y).toBeCloseTo(0.042, 5);
+      expect(model.scale.z).toBeCloseTo(0.042, 5);
+
+      journey.dispose();
+    });
   });
 });
