@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { STATIONS } from '../stations/stationsData.js';
-import { CloudMeshTopology } from './CloudMeshTopology.js';
 import { IdleManager } from './IdleManager.js';
 
 /**
@@ -646,11 +645,8 @@ export class PortfolioApp {
       this.renderer = null;
     }
 
-    // Initialize 3D cloud mesh topology (56 particles: ~30% lighter constellation)
-    this.topology = new CloudMeshTopology({
-      scene: this.scene,
-      nodeCount: 56
-    });
+    // 3D scene topology placeholder (superseded by Journey scrollytelling acts in Phase 2)
+    this.topology = null;
 
     // Initialize 5s slow-motion idle power damping
     this.idleManager = new IdleManager({

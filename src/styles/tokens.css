@@ -4,11 +4,12 @@
  */
 
 :root {
-  /* Surfaces */
-  --bg-ice: #F4F7FB;
+  /* Surfaces & Canvas */
+  --bg-canvas: #EAECEF;
+  --bg-ice: #EAECEF;
   --bg-surface: #FFFFFF;
   --bg-surface-elevated: #FFFFFF;
-  --bg-surface-subtle: #EDF2F7;
+  --bg-surface-subtle: #F0F2F5;
 
   /* Typography Colors */
   --text-primary: #0F172A;
