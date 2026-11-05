@@ -886,10 +886,10 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: #0d1117 url('/images/hitchhiker-magrathea.webp') no-repeat center bottom / cover;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  transition: opacity 400ms ease, visibility 400ms ease;
+  transition: opacity 600ms ease, visibility 600ms ease;
   pointer-events: none;
 }
 
@@ -915,7 +915,8 @@ body.has-loader-active .station-card {
   position: relative;
   width: 240px;
   height: 240px;
-  margin: auto auto 0 auto;
+  margin: auto;
+  transform: translateY(48px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -924,7 +925,7 @@ body.has-loader-active .station-card {
 
 /* Falling Whale & Petunia Pot Artifacts — Douglas Adams Homage */
 .loader-falling-artifacts {
-  display: flex;
+  display: none; /* Authentic Douglas Adams falling whale and petunia pot are now rendered in the Magrathea background scene */
   align-items: center;
   justify-content: center;
   gap: 2.5rem;
