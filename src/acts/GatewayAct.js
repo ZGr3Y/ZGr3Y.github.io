@@ -51,7 +51,51 @@ export class GatewayAct {
     this.parallaxOffset = new THREE.Vector2(0, 0);
     this.targetParallax = new THREE.Vector2(0, 0);
 
+    this.contactShadow = this._createContactShadow();
+    if (this.contactShadow && this.scene) {
+      this.scene.add(this.contactShadow);
+    }
+
     this._setupLighting();
+  }
+
+  /**
+   * Creates a subtle procedural contact shadow disc underneath the furniture
+   * @private
+   * @returns {THREE.Mesh|null}
+   */
+  _createContactShadow() {
+    if (typeof document === 'undefined') return null;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext && canvas.getContext('2d');
+      let texture = null;
+      if (ctx && typeof ctx.createRadialGradient === 'function') {
+        const gradient = ctx.createRadialGradient(64, 64, 5, 64, 64, 60);
+        gradient.addColorStop(0, 'rgba(15, 23, 42, 0.35)');
+        gradient.addColorStop(0.5, 'rgba(15, 23, 42, 0.12)');
+        gradient.addColorStop(1, 'rgba(15, 23, 42, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+        texture = new THREE.CanvasTexture(canvas);
+      }
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        color: texture ? 0xffffff : 0x0f172a,
+        transparent: true,
+        depthWrite: false,
+        opacity: texture ? 0.75 : 0.05
+      });
+      const geometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(this.roomPosition.x, this.roomPosition.y + 0.01, this.roomPosition.z);
+      return mesh;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -261,6 +305,14 @@ export class GatewayAct {
         this.scene.remove(this.whiteRoomModel);
       }
       this.whiteRoomModel = null;
+    }
+
+    if (this.contactShadow) {
+      disposeThreeObject(this.contactShadow);
+      if (this.scene) {
+        this.scene.remove(this.contactShadow);
+      }
+      this.contactShadow = null;
     }
 
     if (this.lights && this.lights.length > 0) {
