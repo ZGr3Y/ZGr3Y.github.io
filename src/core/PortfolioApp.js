@@ -153,6 +153,7 @@ export class PortfolioApp {
       btn.appendChild(nameSpan);
 
       btn.addEventListener('click', () => {
+        if (this.loaderController && !this.loaderController.isCompleted()) return;
         this.navigateTo(idx);
       });
 
@@ -710,6 +711,9 @@ export class PortfolioApp {
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
       this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
+      this.camera.position.copy(this.gatewayAct.act0CamPos);
+      this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
+      this.camera.lookAt(this._currentCamLookAt);
 
       // Preload critical models and set Hitchhiker Guide in background
       const criticalModels = [
@@ -751,8 +755,15 @@ export class PortfolioApp {
 
         this.loaderController = new LoaderController({
           minDwellMs: 4000,
-          assetPromise
+          assetPromise,
+          requireClick: true
         });
+
+        if (this.loaderUI) {
+          this.loaderUI.onEnter(() => {
+            this.loaderController.complete();
+          });
+        }
 
         this.loaderController.onProgress((state) => {
           if (this.loaderUI) {
@@ -761,6 +772,9 @@ export class PortfolioApp {
         });
 
         this.loaderController.onComplete(() => {
+          if (this.scrollEngine) {
+            this.scrollEngine.setLocked(false);
+          }
           if (this.loaderUI) {
             this.loaderUI.dismiss().then(() => {
               this.loaderUI = null;
@@ -786,7 +800,15 @@ export class PortfolioApp {
       this.journeyState.onProgress((progress) => {
         this._updateJourneyCardVisibility(progress);
       });
-      this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
+      this.scrollEngine = new ScrollEngine({
+        journeyState: this.journeyState,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true,
+        hasScrollHeadroom: (dir) => this._canScrollInDirection(dir)
+      });
+      if (this.loaderController && !this.loaderController.isCompleted()) {
+        this.scrollEngine.setLocked(true);
+      }
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {
           if (this.scrollEngine) this.scrollEngine.setLocked(locked);
@@ -1076,7 +1098,12 @@ export class PortfolioApp {
       }
 
       if (this.journeyScene) {
-        this.journeyScene.update(delta, speedFactor, this.pointer);
+        this.journeyScene.update(
+          delta,
+          speedFactor,
+          this.pointer,
+          this.journeyState ? this.journeyState.getProgress() : 0
+        );
       }
 
       if (this.scrollEngine) {
@@ -1221,6 +1248,7 @@ export class PortfolioApp {
    * @private
    */
   _triggerSequentialNav(direction) {
+    if (this.loaderController && !this.loaderController.isCompleted()) return;
     const now = Date.now();
     if (now - this._lastNavTime < this._navCooldownMs) return;
     this._lastNavTime = now;
@@ -1247,6 +1275,11 @@ export class PortfolioApp {
 
     this.currentStationIndex = stationIndex;
     const activeStation = this.getActiveStation();
+
+    // Synchronize narrative journey progress with discrete station snap point
+    if (this.scrollEngine && this.scrollEngine.snapPoints && this.scrollEngine.snapPoints[stationIndex] !== undefined) {
+      this.scrollEngine.scrollTo(this.scrollEngine.snapPoints[stationIndex]);
+    }
 
     // Trigger smooth 3D camera waypoint transition
     if (this.camera && activeStation && activeStation.camera) {

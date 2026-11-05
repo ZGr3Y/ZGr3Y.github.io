@@ -179,6 +179,127 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
 
       engine.dispose();
     });
+
+    it('enforces repeat suppression and snap cooldown on keyboard stage snapping', () => {
+      const state = new JourneyState();
+      state.selectBranch('blue');
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapMode: true,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapCooldownMs: 450
+      });
+
+      expect(engine.getTargetProgress()).toBe(0);
+
+      // First ArrowDown snaps to 0.20
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // Key repeat must be dropped
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: true }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // Rapid successive keydown within cooldown must be dropped
+      vi.advanceTimersByTime(200);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // After cooldown (450ms), next ArrowDown snaps to 0.45
+      vi.advanceTimersByTime(300);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.45);
+
+      engine.dispose();
+    });
+
+    it('preserves branch gate cap and does not snap backwards when snapping forward at cap', () => {
+      const state = new JourneyState();
+      // Unselected branch caps max at 0.6
+      expect(state.getMaxReachable()).toBe(0.6);
+
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true
+      });
+
+      // Simulate reaching branch gate
+      engine.setTargetProgress(0.6);
+      expect(engine.getTargetProgress()).toBe(0.6);
+
+      // Snapping forward when no further snap point is reachable under the 0.6 cap
+      // must preserve 0.6 and NOT jump backwards to 0.45
+      engine.snapDirection(1);
+      expect(engine.getTargetProgress()).toBe(0.6);
+
+      // Snapping backward from 0.6 snaps back to 0.45
+      engine.snapDirection(-1);
+      expect(engine.getTargetProgress()).toBe(0.45);
+
+      engine.dispose();
+    });
+
+    it('enforces stage snapping on touch gestures and avoids continuous progression in snapMode', () => {
+      const state = new JourneyState();
+      state.selectBranch('blue'); // Unlocks 1.0
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true,
+        snapCooldownMs: 450
+      });
+      engine.setTargetProgress(0.20);
+
+      // 1. Touch start
+      const touchStart = new TouchEvent('touchstart', {
+        touches: [{ clientY: 300 }]
+      });
+      window.dispatchEvent(touchStart);
+
+      // 2. Touch move (e.g. 15px drag) must NOT alter progress continuously in snapMode
+      const touchMove1 = new TouchEvent('touchmove', {
+        touches: [{ clientY: 285 }]
+      });
+      window.dispatchEvent(touchMove1);
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // 3. Short touch release (< 40px) leaves progress exactly at 0.20
+      window.dispatchEvent(new TouchEvent('touchend'));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // 4. Large touch swipe (>= 40px upward drag) triggers snapDirection(1) to 0.45 on touchend
+      const touchStart2 = new TouchEvent('touchstart', {
+        touches: [{ clientY: 300 }]
+      });
+      window.dispatchEvent(touchStart2);
+
+      const touchMove2 = new TouchEvent('touchmove', {
+        touches: [{ clientY: 230 }] // 70px drag
+      });
+      window.dispatchEvent(touchMove2);
+      expect(engine.getTargetProgress()).toBe(0.20); // Still 0.20 during drag
+
+      window.dispatchEvent(new TouchEvent('touchend'));
+      expect(engine.getTargetProgress()).toBe(0.45); // Snapped cleanly to next stage
+
+      // 5. Multi-touch (pinch) or remaining touches must NOT snap
+      vi.advanceTimersByTime(500);
+      window.dispatchEvent(new TouchEvent('touchstart', { touches: [{ clientY: 300 }] }));
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }] })); // 100px move
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }, { clientY: 220 }] })); // 2nd finger added
+      window.dispatchEvent(new TouchEvent('touchend', { touches: [{ clientY: 220 }] })); // 1 finger remaining
+      expect(engine.getTargetProgress()).toBe(0.45); // Remained at 0.45
+
+      // 6. Touchcancel must abort snap
+      vi.advanceTimersByTime(500);
+      window.dispatchEvent(new TouchEvent('touchstart', { touches: [{ clientY: 300 }] }));
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }] })); // 100px move
+      window.dispatchEvent(new TouchEvent('touchcancel'));
+      expect(engine.getTargetProgress()).toBe(0.45); // Aborted snap
+
+      engine.dispose();
+    });
   });
 
   describe('ui/JourneyHud (Minimal Progress Bar & Chapter Indicator)', () => {

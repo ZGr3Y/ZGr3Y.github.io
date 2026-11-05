@@ -4,7 +4,7 @@ import { PortfolioApp } from './core/PortfolioApp.js';
 /**
  * Main Browser Bootstrap
  */
-window.addEventListener('DOMContentLoaded', () => {
+function bootstrap() {
   const container = document.getElementById('app');
   const canvas = document.getElementById('cloud-canvas');
   const srAnnouncer = document.getElementById('sr-announcements');
@@ -15,4 +15,10 @@ window.addEventListener('DOMContentLoaded', () => {
   if (import.meta.env.DEV) {
     window.__PORTFOLIO_APP__ = app;
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', bootstrap);
+} else {
+  bootstrap();
+}

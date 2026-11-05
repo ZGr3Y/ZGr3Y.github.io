@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { disposeThreeObject } from '../utils/threeUtils.js';
 
-const ROOM_NORMALIZED_SIZE = 28;
+const ROOM_NORMALIZED_SIZE = 5.2;
 const ACT0_END_PROGRESS = 0.2;
 const ACT1_END_PROGRESS = 0.4;
 
@@ -24,21 +24,31 @@ export class GatewayAct {
     this.roomPosition = roomPosition;
 
     this.whiteRoomModel = null;
+    this.mixer = null;
+    this.tvAction = null;
     this.lights = [];
     this.isDisposed = false;
     this.elapsedTime = 0;
 
     // Waypoints for Act 0 (Loader / Hitchhiker) and Act 1 (Gateway / White Room)
-    this.act0CamPos = new THREE.Vector3(0, 0.4, 4.5);
-    this.act0LookAt = new THREE.Vector3(0, 0, 0);
+    this.act0CamPos = new THREE.Vector3(0, 0.30, 1.25);
+    this.act0LookAt = new THREE.Vector3(0, 0.34, 0);
 
-    // Entrance into Matrix Room (yawing right)
-    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 0.9, 6.0);
-    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x, 0.7, -4.0);
+    // Fog & Background palettes for Act 0 (Hitchhiker Magrathea) & Act 1 (White Room)
+    this.act0FogColor = 0xb4b8b8;
+    this.act1FogColor = 0xeaecef;
+    if (this.scene) {
+      this.scene.background = new THREE.Color(this.act0FogColor);
+      this.scene.fog = new THREE.Fog(this.act0FogColor, 0.77, 2.32);
+    }
+
+    // Entrance into Matrix Room (yawing right, cinematic 3/4 framing both armchairs and TV)
+    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.3, 2.0, 6.2);
+    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x + 0.2, 0.9, -0.5);
 
     // Interior exploration waypoint within Act 1
-    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x, 0.8, 4.2);
-    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x, 0.6, -6.0);
+    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 1.9, 5.5);
+    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x + 0.1, 0.9, -1.2);
 
     // Dynamic camera coordinates and parallax state
     this.currentCamPos = this.act0CamPos.clone();
@@ -49,7 +59,51 @@ export class GatewayAct {
     this.parallaxOffset = new THREE.Vector2(0, 0);
     this.targetParallax = new THREE.Vector2(0, 0);
 
+    this.contactShadow = this._createContactShadow();
+    if (this.contactShadow && this.scene) {
+      this.scene.add(this.contactShadow);
+    }
+
     this._setupLighting();
+  }
+
+  /**
+   * Creates a subtle procedural contact shadow disc underneath the furniture
+   * @private
+   * @returns {THREE.Mesh|null}
+   */
+  _createContactShadow() {
+    if (typeof document === 'undefined') return null;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext && canvas.getContext('2d');
+      let texture = null;
+      if (ctx && typeof ctx.createRadialGradient === 'function') {
+        const gradient = ctx.createRadialGradient(64, 64, 5, 64, 64, 60);
+        gradient.addColorStop(0, 'rgba(15, 23, 42, 0.35)');
+        gradient.addColorStop(0.5, 'rgba(15, 23, 42, 0.12)');
+        gradient.addColorStop(1, 'rgba(15, 23, 42, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+        texture = new THREE.CanvasTexture(canvas);
+      }
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        color: texture ? 0xffffff : 0x0f172a,
+        transparent: true,
+        depthWrite: false,
+        opacity: texture ? 0.75 : 0.05
+      });
+      const geometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(this.roomPosition.x, this.roomPosition.y + 0.01, this.roomPosition.z);
+      return mesh;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -82,11 +136,26 @@ export class GatewayAct {
     if (this.isDisposed || !model) return;
 
     if (this.whiteRoomModel && this.scene) {
+      if (this.mixer) {
+        this.mixer.stopAllAction();
+        this.mixer = null;
+        this.tvAction = null;
+      }
       this.scene.remove(this.whiteRoomModel);
       disposeThreeObject(this.whiteRoomModel);
     }
 
     this.whiteRoomModel = model;
+
+    // Initialize animation mixer for built-in CRT TV playback clip
+    if (model.animations && model.animations.length > 0) {
+      this.mixer = new THREE.AnimationMixer(this.whiteRoomModel);
+      const clip = THREE.AnimationClip.findByName(model.animations, 'Animation') || model.animations[0];
+      if (clip) {
+        this.tvAction = this.mixer.clipAction(clip);
+        this.tvAction.play();
+      }
+    }
 
     // Normalize model scale from bounding box so it frames properly
     const box = new THREE.Box3().setFromObject(model);
@@ -119,6 +188,28 @@ export class GatewayAct {
 
     if (speedFactor > 0.0001) {
       this.elapsedTime += delta * speedFactor;
+    }
+
+    if (this.mixer && speedFactor > 0.0001) {
+      this.mixer.update(delta * speedFactor);
+    }
+
+    // Dynamic fog & background interpolation between Act 0 (Magrathea) and Act 1 (White Room)
+    if (this.scene && this.scene.fog) {
+      if (progress <= ACT0_END_PROGRESS) {
+        const t = Math.max(0, Math.min(progress / ACT0_END_PROGRESS, 1.0));
+        this.scene.fog.near = 0.77 + t * 50;
+        this.scene.fog.far = 2.32 + t * 200;
+        if (this.scene.background && this.scene.background.isColor) {
+          this.scene.background.setHex(t < 0.5 ? this.act0FogColor : this.act1FogColor);
+        }
+      } else {
+        this.scene.fog.near = 100;
+        this.scene.fog.far = 500;
+        if (this.scene.background && this.scene.background.isColor) {
+          this.scene.background.setHex(this.act1FogColor);
+        }
+      }
     }
 
     let baseCamPos;
@@ -228,12 +319,26 @@ export class GatewayAct {
   dispose() {
     this.isDisposed = true;
 
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer = null;
+      this.tvAction = null;
+    }
+
     if (this.whiteRoomModel) {
       disposeThreeObject(this.whiteRoomModel);
       if (this.scene) {
         this.scene.remove(this.whiteRoomModel);
       }
       this.whiteRoomModel = null;
+    }
+
+    if (this.contactShadow) {
+      disposeThreeObject(this.contactShadow);
+      if (this.scene) {
+        this.scene.remove(this.contactShadow);
+      }
+      this.contactShadow = null;
     }
 
     if (this.lights && this.lights.length > 0) {
@@ -246,6 +351,11 @@ export class GatewayAct {
         }
       });
       this.lights = [];
+    }
+
+    if (this.scene) {
+      this.scene.fog = null;
+      this.scene.background = null;
     }
 
     this.scene = null;

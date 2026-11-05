@@ -51,6 +51,9 @@ export class AssetLibrary {
           clearTimeout(timer);
           if (isTimedOut) return;
           const scene = gltf && gltf.scene ? gltf.scene : gltf;
+          if (scene && gltf && Array.isArray(gltf.animations)) {
+            scene.animations = gltf.animations;
+          }
           this._cache.set(url, scene);
           resolve(scene);
         })

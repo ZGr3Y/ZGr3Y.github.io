@@ -130,6 +130,32 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(completeSpy).not.toHaveBeenCalled();
       expect(controller.isDisposed).toBe(true);
     });
+
+    it('halts tick interval upon readiness when requireClick is true to ensure zero-CPU idle', async () => {
+      const controller = new LoaderController({
+        minDwellMs: 4000,
+        requireClick: true
+      });
+      const progressSpy = vi.fn();
+      controller.onProgress(progressSpy);
+      controller.start();
+
+      await vi.advanceTimersByTimeAsync(4050);
+      expect(controller.isReady).toBe(true);
+      expect(controller.isCompleted()).toBe(false);
+      expect(controller._tickInterval).toBeNull();
+
+      const callCountAtReady = progressSpy.mock.calls.length;
+
+      // Further time advancement while waiting for user click must not emit ticks or consume CPU
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(progressSpy.mock.calls.length).toBe(callCountAtReady);
+
+      // User click completes
+      controller.complete();
+      expect(controller.isCompleted()).toBe(true);
+      controller.dispose();
+    });
   });
 
   describe('LoaderUI (SVG Circle & Curved DON\'T PANIC textPath)', () => {
@@ -161,6 +187,14 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       loaderUI.update({ actualPercent: 60, displayPercent: 60, isGlitching: false });
       expect(percentEl.textContent).toBe('60%');
       expect(root.classList.contains('glitching')).toBe(false);
+
+      // On readiness, progressbar role is removed so child button is exposed to assistive tech
+      loaderUI.update({ actualPercent: 100, displayPercent: 100, isReady: true });
+      expect(root.getAttribute('role')).toBeNull();
+      expect(root.hasAttribute('aria-valuenow')).toBe(false);
+      const ringWrapper = container.querySelector('.loader-ring-wrapper');
+      expect(ringWrapper.getAttribute('role')).toBe('button');
+      expect(ringWrapper.getAttribute('aria-label')).toBe('Enter Portfolio');
 
       // Dismiss triggers fade-out transition before unmounting
       const dismissPromise = loaderUI.dismiss(400);

@@ -49,8 +49,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(roomModel.position.y).toBe(act.roomPosition.y);
       expect(roomModel.position.z).toBe(act.roomPosition.z);
 
-      // Normalization should scale bounding box to target architectural room size (~28)
-      expect(roomModel.scale.x).toBeCloseTo(0.28, 2);
+      // Normalization should scale bounding box to target architectural room size (~5.2)
+      expect(roomModel.scale.x).toBeCloseTo(0.052, 2);
 
       act.dispose();
       expect(scene.children).not.toContain(roomModel);
@@ -304,6 +304,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       expect(app.gatewayAct).toBeDefined();
 
       app.destroy();
@@ -322,6 +324,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       expect(app.journeyState.getProgress()).toBe(0);
 
@@ -377,6 +381,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       expect(app.gatewayAct).toBeDefined();
 
@@ -443,6 +449,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       // Move camera to White Room in Act 1
       app.scrollEngine.scrollTo(0.25);
       app.scrollEngine.currentProgress = 0.25;
@@ -498,6 +506,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       // Navigate to Station 1 (Lab)
       await app.navigateTo(1);
 
@@ -539,6 +549,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       // Let camera settle at init
       for (let frame = 0; frame < 60; frame++) {
@@ -608,6 +620,54 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       // Because progress is still 0.45, Gateway card must remain hidden
       expect(gatewayCard.classList.contains('active')).toBe(false);
       expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+
+      app.destroy();
+    });
+
+    it('blocks station navigation and scroll gestures until loader completion', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(app.loaderController.isCompleted()).toBe(false);
+      expect(app.scrollEngine.isLocked()).toBe(true);
+
+      // Attempt ArrowDown navigation while loader is active
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.journeyState.getProgress()).toBe(0);
+
+      // Attempt Wheel navigation while loader is active
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 200 }));
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.journeyState.getProgress()).toBe(0);
+
+      // Attempt HUD button navigation while loader is active
+      const hudBtn = container.querySelector('.hud-btn[data-station-index="1"]');
+      if (hudBtn) {
+        hudBtn.click();
+        expect(app.getActiveStationIndex()).toBe(0);
+      }
+
+      // Complete loader (simulating user clicking enter ring)
+      app.loaderController.complete();
+      expect(app.loaderController.isCompleted()).toBe(true);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      // Once completed, HUD button navigation functions normally
+      if (hudBtn) {
+        hudBtn.click();
+        expect(app.getActiveStationIndex()).toBe(1);
+      }
 
       app.destroy();
     });

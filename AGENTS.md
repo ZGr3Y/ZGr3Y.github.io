@@ -6,11 +6,15 @@ This document defines the working agreements, pace, and interaction style for ag
 - **Never advance past a step on your own initiative.** Do not start coding, branching, or merging without explicit user confirmation.
 - **User is the MITM Gatekeeper:** Treat the user as an active Man-in-the-Middle (MITM) controller. Any procedure, file creation, architectural shift, or transition to a new seam MUST be explicitly vetted and authorized by the user before execution. Never batch decisions or rush ahead.
 - **Close the Vertical Slice Before Advancing:** Complete and integrate the current slice end-to-end (wired to the DOM/canvas and verified on screen) before designing subsequent abstractions or writing new test files. Never introduce anticipatory or speculative architecture. In an already-navigable spatial canvas, maintain DOM stability by rendering minimal semantic placeholders (`hidden=""`) for unbuilt stations so layout and accessibility invariants remain valid across navigation.
-- **Strict TDD Micro-Step Pacing (Never Combine RED & GREEN in One Turn):**
-  - **Phase RED**: Write **only** the failing test, run the test runner, present the failing error message to the user, and **STOP the turn immediately**.
-  - **User Gatekeeping**: Await explicit user authorization before writing *any* implementation code.
-  - **Phase GREEN**: Write **only** the minimal implementation required to satisfy the test, run the test runner to prove it passes, present the passing result to the user, and **STOP the turn immediately**.
-  - Under no circumstances may an agent write a failing test and its implementation in a single shot/turn.
+- **Creative Development Flow: "Spike & Stabilize" (Default for 3D/Visual/UI Acts):**
+  - **Phase 1 — Visual Spike & Iteration**: Implement Three.js scenes, camera choreographies, lighting, 3D models, and DOM interactions directly. Prioritize visual impact, cinematic rhythm, and aesthetic feedback. Do not write premature unit tests for visual or aesthetic coordinates.
+  - **Multimodal Visual Inspection**: The agent must actively use headless Chromium (`chromium --headless --screenshot`) and multimodality (`read_file` on PNG screenshots) to visually verify composition, model scales, lighting, frustum clipping, and DOM overlay alignment. Present visual snapshots to the user for collaborative review.
+  - **User Visual Gatekeeping**: The user evaluates the live 60 FPS experience (`npm run dev`) and agent screenshots to approve the visual direction.
+  - **Phase 2 — Stabilize & Harden**: Once the visual slice is vetted, consolidate the engineering foundations:
+    - Guarantee zero memory leaks: explicit disposal of Three.js geometries, materials, and textures on scene unmount/transition.
+    - Guarantee zero-CPU idle loop: ensure render loops halt when the station is at rest (0% CPU / 0% GPU).
+    - Add regression/lifecycle unit tests and atomic commits without artificial micro-step stops.
+- **Deterministic / Core Logic TDD**: Pure mathematical algorithms, data parsers, or security utilities continue to follow standard test-first practices, without blocking creative momentum.
 - **Merge Gatekeeping:** Never urge, prompt, or suggest merging a PR. Present CI check results and review findings objectively, then stop and await the user's explicit instructions. The user alone determines when all automated checks and reviewers (including external bots like Codex) are satisfied before merging.
 - **Coach the user:** At each stage, clearly name the next step in the Matt Pocock flow and instruct the user on which slash command/skill to type (e.g. `/implement`, `/tdd`, `/code-review`, `/pr`). The user must invoke the command so they learn and internalize the framework.
 

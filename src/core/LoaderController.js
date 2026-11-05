@@ -13,11 +13,13 @@ export class LoaderController {
    * @param {number} [options.minDwellMs=DEFAULT_MIN_DWELL_MS] - Minimum display dwell in milliseconds
    * @param {number} [options.maxTimeoutMs=DEFAULT_MAX_TIMEOUT_MS] - Fallback timeout if assets take too long
    * @param {Promise} [options.assetPromise] - Promise signaling asset readiness
+   * @param {boolean} [options.requireClick=false] - When true, waits for user click to complete
    */
-  constructor({ minDwellMs = DEFAULT_MIN_DWELL_MS, maxTimeoutMs = DEFAULT_MAX_TIMEOUT_MS, assetPromise = null } = {}) {
+  constructor({ minDwellMs = DEFAULT_MIN_DWELL_MS, maxTimeoutMs = DEFAULT_MAX_TIMEOUT_MS, assetPromise = null, requireClick = false } = {}) {
     this.minDwellMs = minDwellMs;
     this.maxTimeoutMs = maxTimeoutMs;
     this.assetPromise = assetPromise;
+    this.requireClick = requireClick;
 
     this._progressCallbacks = [];
     this._completeCallbacks = [];
@@ -25,6 +27,7 @@ export class LoaderController {
     this._isCompleted = false;
     this.isDisposed = false;
     this._isAssetReady = false;
+    this.isReady = false;
 
     this._startTime = null;
     this._timer = null;
@@ -107,12 +110,14 @@ export class LoaderController {
     const dwellRatio = Math.min(1.0, elapsed / this.minDwellMs);
     this.actualPercent = Math.min(99, Math.floor(dwellRatio * 100));
 
-    // Glitch windows: when climbing past 42% (at ~55%, ~77%, and ~92%), glitch back to 42
-    const inFirstGlitch = elapsed >= 2200 && elapsed <= 2500;
-    const inSecondGlitch = elapsed >= 3100 && elapsed <= 3400;
-    const inLateGlitch = elapsed >= 3700 && elapsed <= 3900;
+    // 5 Rhythmic glitch windows: resetting display to 42 while actual climbs past 42
+    const inGlitch1 = elapsed >= 1850 && elapsed <= 2150;
+    const inGlitch2 = elapsed >= 2400 && elapsed <= 2700;
+    const inGlitch3 = elapsed >= 2950 && elapsed <= 3250;
+    const inGlitch4 = elapsed >= 3450 && elapsed <= 3700;
+    const inGlitch5 = elapsed >= 3800 && elapsed <= 3950;
 
-    if (inFirstGlitch || inSecondGlitch || inLateGlitch) {
+    if (inGlitch1 || inGlitch2 || inGlitch3 || inGlitch4 || inGlitch5) {
       this.isGlitching = true;
       this.displayPercent = HITCHHIKER_GLITCH_NUMBER;
     } else {
@@ -137,26 +142,67 @@ export class LoaderController {
 
     const dwellSatisfied = currentElapsed >= this.minDwellMs;
     const timedOut = currentElapsed >= this.maxTimeoutMs;
-    const canComplete = (dwellSatisfied && this._isAssetReady) || timedOut;
+    const canReady = (dwellSatisfied && this._isAssetReady) || timedOut;
 
-    if (canComplete) {
-      this._isCompleted = true;
+    if (canReady) {
       this.actualPercent = 100;
       this.displayPercent = 100;
       this.isGlitching = false;
+      this.isReady = true;
 
+      // Halt progress tick interval on readiness to guarantee zero-CPU idle while awaiting user click
       if (this._tickInterval) {
         clearInterval(this._tickInterval);
         this._tickInterval = null;
       }
+      if (this._dwellTimer) {
+        clearTimeout(this._dwellTimer);
+        this._dwellTimer = null;
+      }
+      if (this._timeoutTimer) {
+        clearTimeout(this._timeoutTimer);
+        this._timeoutTimer = null;
+      }
 
       this._emitProgress();
-      for (const cb of this._completeCallbacks) {
-        try {
-          cb();
-        } catch (err) {
-          console.error('[LoaderController] Error in complete callback:', err);
-        }
+
+      if (!this.requireClick) {
+        this.complete();
+      }
+    }
+  }
+
+  /**
+   * Completes the loader and triggers registered complete callbacks
+   */
+  complete() {
+    if (this.isDisposed || this._isCompleted) return;
+    this._isCompleted = true;
+    this.isReady = true;
+    this.actualPercent = 100;
+    this.displayPercent = 100;
+    this.isGlitching = false;
+
+    if (this._tickInterval) {
+      clearInterval(this._tickInterval);
+      this._tickInterval = null;
+    }
+    if (this._dwellTimer) {
+      clearTimeout(this._dwellTimer);
+      this._dwellTimer = null;
+    }
+    if (this._timeoutTimer) {
+      clearTimeout(this._timeoutTimer);
+      this._timeoutTimer = null;
+    }
+
+    this._emitProgress();
+
+    for (const cb of this._completeCallbacks) {
+      try {
+        cb();
+      } catch (err) {
+        console.error('[LoaderController] Error in complete callback:', err);
       }
     }
   }
@@ -169,7 +215,8 @@ export class LoaderController {
     const state = {
       actualPercent: this.actualPercent,
       displayPercent: this.displayPercent,
-      isGlitching: this.isGlitching
+      isGlitching: this.isGlitching,
+      isReady: this.isReady
     };
 
     for (const cb of this._progressCallbacks) {
@@ -179,14 +226,6 @@ export class LoaderController {
         console.error('[LoaderController] Error in progress callback:', err);
       }
     }
-  }
-
-  /**
-   * Immediately completes loading if not already completed
-   */
-  complete() {
-    this._isAssetReady = true;
-    this._checkCompletion(this.minDwellMs);
   }
 
   /**

@@ -15,12 +15,23 @@ export class ScrollEngine {
     journeyState,
     lerpSpeed = 0.08,
     sensitivity = 0.0006,
-    keyboardStep = 0.05
+    keyboardStep = 0.05,
+    snapMode = false,
+    snapPoints = [0.20, 0.45, 0.70, 0.95],
+    snapCooldownMs = 450,
+    onSnap = null,
+    hasScrollHeadroom = null
   } = {}) {
     this.journeyState = journeyState;
     this.lerpSpeed = lerpSpeed;
     this.sensitivity = sensitivity;
     this.keyboardStep = keyboardStep;
+    this.snapMode = snapMode;
+    this.snapPoints = snapPoints;
+    this.snapCooldownMs = snapCooldownMs;
+    this.onSnap = onSnap;
+    this._customHasScrollHeadroom = hasScrollHeadroom;
+    this._lastSnapTime = 0;
 
     this.currentProgress = 0;
     this.targetProgress = 0;
@@ -83,7 +94,6 @@ export class ScrollEngine {
    * @param {number} value
    */
   setTargetProgress(value) {
-    if (this.locked) return;
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     this.targetProgress = Math.max(0, Math.min(value, max));
   }
@@ -118,24 +128,86 @@ export class ScrollEngine {
    * @private
    */
   _hasScrollHeadroom(target, deltaY) {
-    if (!target || typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+    if (typeof this._customHasScrollHeadroom === 'function') {
+      const dir = deltaY > 0 ? 1 : -1;
+      if (this._customHasScrollHeadroom(dir, target)) return true;
+    }
 
-    let el = target;
-    while (el && el !== document.body && el !== document.documentElement) {
-      if (typeof window !== 'undefined') {
-        const style = window.getComputedStyle(el);
-        const overflowY = style.overflowY;
-        if (overflowY === 'auto' || overflowY === 'scroll') {
-          const maxScroll = el.scrollHeight - el.clientHeight;
-          if (maxScroll > 0) {
-            if (deltaY > 0 && el.scrollTop < maxScroll - 1) return true;
-            if (deltaY < 0 && el.scrollTop > 1) return true;
+    if (target && typeof HTMLElement !== 'undefined' && target instanceof HTMLElement) {
+      let el = target;
+      while (el && el !== document.body && el !== document.documentElement) {
+        if (typeof window !== 'undefined') {
+          const style = window.getComputedStyle(el);
+          const overflowY = style.overflowY;
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            const maxScroll = el.scrollHeight - el.clientHeight;
+            if (maxScroll > 5) {
+              if (deltaY > 0 && el.scrollTop < maxScroll - 5) return true;
+              if (deltaY < 0 && el.scrollTop > 5) return true;
+            }
           }
         }
+        el = el.parentElement;
       }
-      el = el.parentElement;
     }
+
+    // Check station container in document when focus/target is on body or document root
+    if (typeof document !== 'undefined') {
+      const sc = document.querySelector('.station-container');
+      if (sc && sc instanceof HTMLElement) {
+        const maxScroll = sc.scrollHeight - sc.clientHeight;
+        if (maxScroll > 5) {
+          if (deltaY > 0 && sc.scrollTop < maxScroll - 5) return true;
+          if (deltaY < 0 && sc.scrollTop > 5) return true;
+        }
+      }
+    }
+
     return false;
+  }
+
+  /**
+   * Snaps target progress directly to the next or previous discrete station snap point
+   * @param {number} direction - 1 for forward/down, -1 for backward/up
+   */
+  snapDirection(direction) {
+    if (this.locked) return;
+    const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
+    const current = this.targetProgress;
+    const validPoints = this.snapPoints.filter((p) => p <= max + 0.001);
+    if (validPoints.length === 0) return;
+
+    let targetIndex = -1;
+    if (direction > 0) {
+      for (let i = 0; i < validPoints.length; i++) {
+        if (validPoints[i] > current + 0.02) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) {
+        // No later snap point is reachable (e.g. unselected branch cap 0.6 or already at final station)
+        // Keep progress at current / cap without snapping backwards
+        return;
+      }
+    } else {
+      for (let i = validPoints.length - 1; i >= 0; i--) {
+        if (validPoints[i] < current - 0.02) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) {
+        // No earlier snap point is reachable
+        return;
+      }
+    }
+
+    const nextProgress = Math.max(0, Math.min(validPoints[targetIndex], max));
+    this.targetProgress = nextProgress;
+    if (typeof this.onSnap === 'function') {
+      this.onSnap(targetIndex, nextProgress);
+    }
   }
 
   /**
@@ -148,6 +220,17 @@ export class ScrollEngine {
 
     // Scroll isolation: preserve inner panel scroll headroom
     if (this._hasScrollHeadroom(e.target, e.deltaY)) return;
+
+    if (this.snapMode) {
+      if (Math.abs(e.deltaY) < 15) return;
+      const now = Date.now();
+      if (now - this._lastSnapTime < this.snapCooldownMs) return;
+      this._lastSnapTime = now;
+
+      const direction = e.deltaY > 0 ? 1 : -1;
+      this.snapDirection(direction);
+      return;
+    }
 
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     const delta = e.deltaY * this.sensitivity;
@@ -173,6 +256,17 @@ export class ScrollEngine {
     const isUp = e.key === 'ArrowUp' || e.key === 'PageUp';
 
     if (isDown || isUp) {
+      if (e.repeat) return;
+
+      if (this.snapMode) {
+        if (this._hasScrollHeadroom(activeEl, isDown ? 1 : -1)) return;
+        const now = Date.now();
+        if (now - this._lastSnapTime < this.snapCooldownMs) return;
+        this._lastSnapTime = now;
+        this.snapDirection(isDown ? 1 : -1);
+        return;
+      }
+
       const step = isDown ? this.keyboardStep : -this.keyboardStep;
       if (this._hasScrollHeadroom(activeEl, step)) return;
       this.targetProgress = Math.max(0, Math.min(this.targetProgress + step, max));
@@ -207,7 +301,14 @@ export class ScrollEngine {
   _handleTouchStart(e) {
     if (e.touches && e.touches.length === 1) {
       this.touchStartY = e.touches[0].clientY;
+      this.touchInitialY = e.touches[0].clientY;
+      this.touchCurrentY = e.touches[0].clientY;
       this.touchStartedInScrollable = this._isScrollable(e.target);
+    } else {
+      // Clear tracking when multi-touch gesture begins (pinch-to-zoom immunity)
+      this.touchInitialY = null;
+      this.touchCurrentY = null;
+      this.touchStartedInScrollable = false;
     }
   }
 
@@ -217,10 +318,22 @@ export class ScrollEngine {
    */
   _handleTouchMove(e) {
     // Multi-touch immunity: preserve pinch-to-zoom gestures (CODING_STANDARDS §8)
+    if (e.touches && e.touches.length > 1) {
+      this.touchInitialY = null;
+      this.touchCurrentY = null;
+      return;
+    }
     // Touch isolation: keep entire gesture inside panel if it started in a scrollable element
     if (this.locked || !e.touches || e.touches.length !== 1 || this.touchStartedInScrollable) return;
 
     const currentY = e.touches[0].clientY;
+    this.touchCurrentY = currentY;
+
+    if (this.snapMode) {
+      // In snapMode, avoid altering targetProgress continuously to prevent lingering between stages
+      return;
+    }
+
     const deltaY = this.touchStartY - currentY;
     this.touchStartY = currentY;
 
@@ -237,8 +350,33 @@ export class ScrollEngine {
    * Handles touch end and resets touch scroll ownership
    * @private
    */
-  _handleTouchEnd() {
+  _handleTouchEnd(e) {
+    const hasRemainingTouches = Boolean(e && e.touches && e.touches.length > 0);
+    const isCancel = Boolean(e && e.type === 'touchcancel');
+
+    if (
+      !isCancel &&
+      !hasRemainingTouches &&
+      this.snapMode &&
+      !this.locked &&
+      !this.touchStartedInScrollable &&
+      typeof this.touchInitialY === 'number' &&
+      typeof this.touchCurrentY === 'number'
+    ) {
+      const diffY = this.touchInitialY - this.touchCurrentY;
+      if (Math.abs(diffY) >= 40) {
+        if (!this._hasScrollHeadroom(e?.target, diffY)) {
+          const now = Date.now();
+          if (now - this._lastSnapTime >= this.snapCooldownMs) {
+            this._lastSnapTime = now;
+            this.snapDirection(diffY > 0 ? 1 : -1);
+          }
+        }
+      }
+    }
     this.touchStartedInScrollable = false;
+    this.touchInitialY = null;
+    this.touchCurrentY = null;
   }
 
   /**
