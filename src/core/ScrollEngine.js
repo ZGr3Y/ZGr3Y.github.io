@@ -301,6 +301,8 @@ export class ScrollEngine {
   _handleTouchStart(e) {
     if (e.touches && e.touches.length === 1) {
       this.touchStartY = e.touches[0].clientY;
+      this.touchInitialY = e.touches[0].clientY;
+      this.touchCurrentY = e.touches[0].clientY;
       this.touchStartedInScrollable = this._isScrollable(e.target);
     }
   }
@@ -315,6 +317,13 @@ export class ScrollEngine {
     if (this.locked || !e.touches || e.touches.length !== 1 || this.touchStartedInScrollable) return;
 
     const currentY = e.touches[0].clientY;
+    this.touchCurrentY = currentY;
+
+    if (this.snapMode) {
+      // In snapMode, avoid altering targetProgress continuously to prevent lingering between stages
+      return;
+    }
+
     const deltaY = this.touchStartY - currentY;
     this.touchStartY = currentY;
 
@@ -331,8 +340,28 @@ export class ScrollEngine {
    * Handles touch end and resets touch scroll ownership
    * @private
    */
-  _handleTouchEnd() {
+  _handleTouchEnd(e) {
+    if (
+      this.snapMode &&
+      !this.locked &&
+      !this.touchStartedInScrollable &&
+      typeof this.touchInitialY === 'number' &&
+      typeof this.touchCurrentY === 'number'
+    ) {
+      const diffY = this.touchInitialY - this.touchCurrentY;
+      if (Math.abs(diffY) >= 40) {
+        if (!this._hasScrollHeadroom(e?.target, diffY)) {
+          const now = Date.now();
+          if (now - this._lastSnapTime >= this.snapCooldownMs) {
+            this._lastSnapTime = now;
+            this.snapDirection(diffY > 0 ? 1 : -1);
+          }
+        }
+      }
+    }
     this.touchStartedInScrollable = false;
+    this.touchInitialY = null;
+    this.touchCurrentY = null;
   }
 
   /**

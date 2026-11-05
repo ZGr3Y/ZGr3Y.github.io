@@ -239,6 +239,52 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
 
       engine.dispose();
     });
+
+    it('enforces stage snapping on touch gestures and avoids continuous progression in snapMode', () => {
+      const state = new JourneyState();
+      state.selectBranch('blue'); // Unlocks 1.0
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true,
+        snapCooldownMs: 450
+      });
+      engine.setTargetProgress(0.20);
+
+      // 1. Touch start
+      const touchStart = new TouchEvent('touchstart', {
+        touches: [{ clientY: 300 }]
+      });
+      window.dispatchEvent(touchStart);
+
+      // 2. Touch move (e.g. 15px drag) must NOT alter progress continuously in snapMode
+      const touchMove1 = new TouchEvent('touchmove', {
+        touches: [{ clientY: 285 }]
+      });
+      window.dispatchEvent(touchMove1);
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // 3. Short touch release (< 40px) leaves progress exactly at 0.20
+      window.dispatchEvent(new TouchEvent('touchend'));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // 4. Large touch swipe (>= 40px upward drag) triggers snapDirection(1) to 0.45 on touchend
+      const touchStart2 = new TouchEvent('touchstart', {
+        touches: [{ clientY: 300 }]
+      });
+      window.dispatchEvent(touchStart2);
+
+      const touchMove2 = new TouchEvent('touchmove', {
+        touches: [{ clientY: 230 }] // 70px drag
+      });
+      window.dispatchEvent(touchMove2);
+      expect(engine.getTargetProgress()).toBe(0.20); // Still 0.20 during drag
+
+      window.dispatchEvent(new TouchEvent('touchend'));
+      expect(engine.getTargetProgress()).toBe(0.45); // Snapped cleanly to next stage
+
+      engine.dispose();
+    });
   });
 
   describe('ui/JourneyHud (Minimal Progress Bar & Chapter Indicator)', () => {
