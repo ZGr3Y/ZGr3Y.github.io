@@ -173,6 +173,16 @@ html, body {
   animation: fadeIn 600ms var(--transition-normal);
 }
 
+/* Elevated Gateway Bio Card per Ticket 05 & Light Gray Architectural Aesthetic */
+.gateway-card {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  z-index: 10;
+}
+
 .station-card[hidden],
 [hidden] {
   display: none !important;
@@ -858,6 +868,7 @@ html, body {
   inset: 0;
   z-index: 1000;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: transparent;
@@ -881,11 +892,93 @@ html, body {
   position: relative;
   width: 240px;
   height: 240px;
-  margin: auto;
+  margin: auto auto 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+}
+
+/* Falling Whale & Petunia Pot Artifacts — Douglas Adams Homage */
+.loader-falling-artifacts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  margin: 1.5rem auto auto auto;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.loader-falling-artifacts[hidden],
+.falling-whale[hidden],
+.falling-petunias[hidden] {
+  display: none !important;
+}
+
+.falling-whale,
+.falling-petunias {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.85;
+  transition: transform 300ms ease, opacity 300ms ease;
+}
+
+.falling-whale {
+  animation: whaleFloat 4.5s ease-in-out infinite alternate;
+}
+
+.falling-petunias {
+  animation: petuniasFloat 3.8s ease-in-out infinite alternate 0.4s;
+}
+
+.falling-whale-svg {
+  width: 58px;
+  height: 30px;
+  color: var(--text-secondary);
+  filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.08));
+}
+
+.falling-petunias-svg {
+  width: 38px;
+  height: 32px;
+  color: var(--text-secondary);
+  filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.08));
+}
+
+.artifact-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+@keyframes whaleFloat {
+  0% {
+    transform: translateY(0px) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(12px) rotate(-14deg);
+  }
+  100% {
+    transform: translateY(6px) rotate(-6deg);
+  }
+}
+
+@keyframes petuniasFloat {
+  0% {
+    transform: translateY(0px) rotate(6deg);
+  }
+  50% {
+    transform: translateY(14px) rotate(12deg);
+  }
+  100% {
+    transform: translateY(4px) rotate(4deg);
+  }
 }
 
 .loader-svg {

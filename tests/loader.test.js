@@ -209,7 +209,7 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
   });
 
   describe('JourneyScene (Hitchhiker Foundation & Rotation)', () => {
-    it('initializes with Hitchhiker book model in background and rotates during update', () => {
+    it('initializes with Hitchhiker book model in background and responds to pointer tilt', () => {
       const scene = new THREE.Scene();
       const journey = new JourneyScene({ scene });
 
@@ -220,7 +220,7 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(scene.children).toContain(bookModel);
 
       const initialRotY = bookModel.rotation.y;
-      journey.update(0.016, 1.0);
+      journey.update(0.016, 1.0, { x: 1.0, y: 0 });
       expect(bookModel.rotation.y).toBeGreaterThan(initialRotY);
 
       journey.dispose();
@@ -336,7 +336,7 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       await Promise.resolve();
 
       expect(recordSpy).toHaveBeenCalledTimes(1);
-      expect(resumeSpy).toHaveBeenCalledTimes(1);
+      expect(resumeSpy).toHaveBeenCalled();
 
       AssetLibrary.prototype.load = originalLoad;
       AssetLibrary.prototype.preloadCritical = originalPreload;

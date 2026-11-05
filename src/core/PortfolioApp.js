@@ -9,6 +9,7 @@ import { JourneyState } from './JourneyState.js';
 import { ScrollEngine } from './ScrollEngine.js';
 import { JourneyHud } from '../ui/JourneyHud.js';
 import { CreditsDialog } from '../ui/CreditsDialog.js';
+import { GatewayAct } from '../acts/GatewayAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
@@ -48,6 +49,8 @@ export class PortfolioApp {
     this.scrollEngine = null;
     this.journeyHud = null;
     this.creditsDialog = null;
+    this.gatewayAct = null;
+    this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
@@ -603,6 +606,7 @@ export class PortfolioApp {
    */
   _updateStationVisibility() {
     if (!this.stationContainer) return;
+
     const activeStation = this.getActiveStation();
     const cards = this.stationContainer.querySelectorAll('.station-card');
     cards.forEach((card) => {
@@ -615,6 +619,31 @@ export class PortfolioApp {
         card.setAttribute('hidden', '');
       }
     });
+
+    if (this.journeyState) {
+      this._updateJourneyCardVisibility(this.journeyState.getProgress());
+    }
+  }
+
+  /**
+   * Synchronizes station card visibility windows with continuous journey progress
+   * @param {number} progress
+   * @private
+   */
+  _updateJourneyCardVisibility(progress) {
+    if (!this.stationContainer) return;
+    const gatewayCard = this.stationContainer.querySelector('.station-card[data-station="gateway"]');
+    if (!gatewayCard) return;
+
+    const isGatewayActiveStation = this.getActiveStation().id === 'gateway';
+
+    if (isGatewayActiveStation && progress <= 0.38) {
+      gatewayCard.classList.add('active');
+      gatewayCard.removeAttribute('hidden');
+    } else {
+      gatewayCard.classList.remove('active');
+      gatewayCard.setAttribute('hidden', '');
+    }
   }
 
   /**
@@ -676,10 +705,11 @@ export class PortfolioApp {
     this.placeholderMesh.name = 'JourneyPlaceholder';
     this.scene.add(this.placeholderMesh);
 
-    // Initialize AssetLibrary, JourneyScene, and "DON'T PANIC" Loader when enabled
+    // Initialize AssetLibrary, JourneyScene, GatewayAct, and "DON'T PANIC" Loader when enabled
     if (this.enableLoader) {
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
+      this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
 
       // Preload critical models and set Hitchhiker Guide in background
       const criticalModels = [
@@ -700,6 +730,15 @@ export class PortfolioApp {
             if (this.idleManager) {
               this.idleManager.recordActivity();
             }
+            this._resumeLoop();
+          }
+        })
+        .catch(() => {});
+
+      this.assetLibrary.load('./models/the_matrix_white_room.glb')
+        .then((model) => {
+          if (model && !this.isDestroyed && this.gatewayAct) {
+            this.gatewayAct.setWhiteRoomModel(model);
             this._resumeLoop();
           }
         })
@@ -727,6 +766,14 @@ export class PortfolioApp {
               this.loaderUI = null;
             });
           }
+          // Smooth zoom-through from Hitchhiker Guide into Matrix White Room upon loader completion
+          if (this.scrollEngine && this.journeyState && this.journeyState.getProgress() < 0.2) {
+            this.scrollEngine.scrollTo(0.2);
+            if (this.idleManager) {
+              this.idleManager.recordActivity();
+            }
+            this._resumeLoop();
+          }
         });
 
         this.loaderController.start();
@@ -736,6 +783,9 @@ export class PortfolioApp {
     // Initialize JourneyState, ScrollEngine, Minimal HUD, and Credits Dialog (Ticket 04)
     if (this.enableJourney && this.container && typeof document !== 'undefined') {
       this.journeyState = new JourneyState();
+      this.journeyState.onProgress((progress) => {
+        this._updateJourneyCardVisibility(progress);
+      });
       this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {
@@ -980,7 +1030,9 @@ export class PortfolioApp {
       this._lastFrameTime = currentTime;
 
       // 1. Advance spatial camera waypoint transition
-      if (this.camera && (this._isCameraTransitioning || this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001)) {
+      const isGatewayStation = this.getActiveStation().id === 'gateway';
+      const shouldAdvanceWaypoint = this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001);
+      if (this.camera && shouldAdvanceWaypoint) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
@@ -995,6 +1047,10 @@ export class PortfolioApp {
           this.camera.lookAt(this._currentCamLookAt);
           this._isCameraTransitioning = false;
         }
+
+        if (this.gatewayAct && isGatewayStation && typeof this.gatewayAct.rebaseCamera === 'function') {
+          this.gatewayAct.rebaseCamera(this.camera.position, this._currentCamLookAt);
+        }
       }
 
       if (this.idleManager) {
@@ -1008,8 +1064,19 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
+      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
+
+      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning) {
+        this.gatewayAct.update({
+          progress: currentProgress,
+          pointer: this.pointer || { x: 0, y: 0 },
+          delta,
+          speedFactor
+        });
+      }
+
       if (this.journeyScene) {
-        this.journeyScene.update(delta, speedFactor);
+        this.journeyScene.update(delta, speedFactor, this.pointer);
       }
 
       if (this.scrollEngine) {
@@ -1026,7 +1093,8 @@ export class PortfolioApp {
       // Idle Damping GPU throttling & Hidden Tab Freeze (0% GPU + 0% CPU)
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
-      const isResting = !this._isCameraTransitioning && isTopologyResting;
+      const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
+      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (!shouldSuspend && this.renderer && this.scene && this.camera) {
@@ -1058,11 +1126,13 @@ export class PortfolioApp {
    */
   _updatePointerFromClient(clientX, clientY) {
     if (typeof window === 'undefined') return;
+    const width = window.innerWidth || 800;
+    const height = window.innerHeight || 600;
+    const normX = (clientX / width) * 2 - 1;
+    const normY = -(clientY / height) * 2 + 1;
+    this.pointer = { x: normX, y: normY };
+
     if (this.topology && typeof this.topology.setPointer === 'function') {
-      const width = window.innerWidth || 800;
-      const height = window.innerHeight || 600;
-      const normX = (clientX / width) * 2 - 1;
-      const normY = -(clientY / height) * 2 + 1;
       this.topology.setPointer(normX, normY);
     }
     if (this.idleManager) {
@@ -1077,6 +1147,7 @@ export class PortfolioApp {
    */
   _clearPointer() {
     if (typeof window === 'undefined') return;
+    this.pointer = { x: 0, y: 0 };
     if (this.topology && typeof this.topology.setPointer === 'function') {
       this.topology.setPointer(null, null);
     }
@@ -1282,6 +1353,11 @@ export class PortfolioApp {
     if (this.journeyScene) {
       this.journeyScene.dispose();
       this.journeyScene = null;
+    }
+
+    if (this.gatewayAct) {
+      this.gatewayAct.dispose();
+      this.gatewayAct = null;
     }
 
     if (this.assetLibrary) {

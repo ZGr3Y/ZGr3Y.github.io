@@ -89,6 +89,14 @@ export class ScrollEngine {
   }
 
   /**
+   * Smoothly scrolls to a designated progress target
+   * @param {number} value Target progress [0.0 - 1.0]
+   */
+  scrollTo(value) {
+    this.setTargetProgress(value);
+  }
+
+  /**
    * Advances the lerp smoothing physics tick
    * @param {number} delta Delta time in seconds
    */
