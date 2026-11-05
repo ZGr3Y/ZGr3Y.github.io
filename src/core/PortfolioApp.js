@@ -710,6 +710,9 @@ export class PortfolioApp {
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
       this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
+      this.camera.position.copy(this.gatewayAct.act0CamPos);
+      this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
+      this.camera.lookAt(this._currentCamLookAt);
 
       // Preload critical models and set Hitchhiker Guide in background
       const criticalModels = [

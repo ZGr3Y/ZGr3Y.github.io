@@ -186,6 +186,18 @@ html, body {
   z-index: 10;
 }
 
+/* Split Desktop Composition for Gateway Act: Card on Left, 3D Scene on Right */
+@media (min-width: 1024px) {
+  .station-container {
+    justify-content: flex-start;
+  }
+  .station-card.gateway-card {
+    max-width: 520px;
+    margin-left: 5vw;
+    margin-right: auto;
+  }
+}
+
 .station-card[hidden],
 [hidden] {
   display: none !important;

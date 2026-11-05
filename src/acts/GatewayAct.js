@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { disposeThreeObject } from '../utils/threeUtils.js';
 
-const ROOM_NORMALIZED_SIZE = 28;
+const ROOM_NORMALIZED_SIZE = 5.2;
 const ACT0_END_PROGRESS = 0.2;
 const ACT1_END_PROGRESS = 0.4;
 
@@ -32,13 +32,13 @@ export class GatewayAct {
     this.act0CamPos = new THREE.Vector3(0, 0.4, 4.5);
     this.act0LookAt = new THREE.Vector3(0, 0, 0);
 
-    // Entrance into Matrix Room (yawing right)
-    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 0.9, 6.0);
-    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x, 0.7, -4.0);
+    // Entrance into Matrix Room (yawing right, cinematic 3/4 framing both armchairs and TV)
+    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.3, 2.0, 6.2);
+    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x + 0.2, 0.9, -0.5);
 
     // Interior exploration waypoint within Act 1
-    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x, 0.8, 4.2);
-    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x, 0.6, -6.0);
+    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 1.9, 5.5);
+    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x + 0.1, 0.9, -1.2);
 
     // Dynamic camera coordinates and parallax state
     this.currentCamPos = this.act0CamPos.clone();

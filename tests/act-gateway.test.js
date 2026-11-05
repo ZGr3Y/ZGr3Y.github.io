@@ -49,8 +49,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(roomModel.position.y).toBe(act.roomPosition.y);
       expect(roomModel.position.z).toBe(act.roomPosition.z);
 
-      // Normalization should scale bounding box to target architectural room size (~28)
-      expect(roomModel.scale.x).toBeCloseTo(0.28, 2);
+      // Normalization should scale bounding box to target architectural room size (~5.2)
+      expect(roomModel.scale.x).toBeCloseTo(0.052, 2);
 
       act.dispose();
       expect(scene.children).not.toContain(roomModel);
