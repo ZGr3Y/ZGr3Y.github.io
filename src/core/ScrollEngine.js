@@ -19,7 +19,8 @@ export class ScrollEngine {
     snapMode = false,
     snapPoints = [0.20, 0.45, 0.70, 0.95],
     snapCooldownMs = 450,
-    onSnap = null
+    onSnap = null,
+    hasScrollHeadroom = null
   } = {}) {
     this.journeyState = journeyState;
     this.lerpSpeed = lerpSpeed;
@@ -29,6 +30,7 @@ export class ScrollEngine {
     this.snapPoints = snapPoints;
     this.snapCooldownMs = snapCooldownMs;
     this.onSnap = onSnap;
+    this._customHasScrollHeadroom = hasScrollHeadroom;
     this._lastSnapTime = 0;
 
     this.currentProgress = 0;
@@ -126,23 +128,41 @@ export class ScrollEngine {
    * @private
    */
   _hasScrollHeadroom(target, deltaY) {
-    if (!target || typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false;
+    if (typeof this._customHasScrollHeadroom === 'function') {
+      const dir = deltaY > 0 ? 1 : -1;
+      if (this._customHasScrollHeadroom(dir, target)) return true;
+    }
 
-    let el = target;
-    while (el && el !== document.body && el !== document.documentElement) {
-      if (typeof window !== 'undefined') {
-        const style = window.getComputedStyle(el);
-        const overflowY = style.overflowY;
-        if (overflowY === 'auto' || overflowY === 'scroll') {
-          const maxScroll = el.scrollHeight - el.clientHeight;
-          if (maxScroll > 0) {
-            if (deltaY > 0 && el.scrollTop < maxScroll - 1) return true;
-            if (deltaY < 0 && el.scrollTop > 1) return true;
+    if (target && typeof HTMLElement !== 'undefined' && target instanceof HTMLElement) {
+      let el = target;
+      while (el && el !== document.body && el !== document.documentElement) {
+        if (typeof window !== 'undefined') {
+          const style = window.getComputedStyle(el);
+          const overflowY = style.overflowY;
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            const maxScroll = el.scrollHeight - el.clientHeight;
+            if (maxScroll > 5) {
+              if (deltaY > 0 && el.scrollTop < maxScroll - 5) return true;
+              if (deltaY < 0 && el.scrollTop > 5) return true;
+            }
           }
         }
+        el = el.parentElement;
       }
-      el = el.parentElement;
     }
+
+    // Check station container in document when focus/target is on body or document root
+    if (typeof document !== 'undefined') {
+      const sc = document.querySelector('.station-container');
+      if (sc && sc instanceof HTMLElement) {
+        const maxScroll = sc.scrollHeight - sc.clientHeight;
+        if (maxScroll > 5) {
+          if (deltaY > 0 && sc.scrollTop < maxScroll - 5) return true;
+          if (deltaY < 0 && sc.scrollTop > 5) return true;
+        }
+      }
+    }
+
     return false;
   }
 

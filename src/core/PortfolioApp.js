@@ -803,7 +803,8 @@ export class PortfolioApp {
       this.scrollEngine = new ScrollEngine({
         journeyState: this.journeyState,
         snapPoints: [0.20, 0.45, 0.70, 0.95],
-        snapMode: true
+        snapMode: true,
+        hasScrollHeadroom: (dir) => this._canScrollInDirection(dir)
       });
       if (this.loaderController && !this.loaderController.isCompleted()) {
         this.scrollEngine.setLocked(true);
