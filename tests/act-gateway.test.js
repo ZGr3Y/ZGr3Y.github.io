@@ -623,5 +623,53 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       app.destroy();
     });
+
+    it('blocks station navigation and scroll gestures until loader completion', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(app.loaderController.isCompleted()).toBe(false);
+      expect(app.scrollEngine.isLocked()).toBe(true);
+
+      // Attempt ArrowDown navigation while loader is active
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.journeyState.getProgress()).toBe(0);
+
+      // Attempt Wheel navigation while loader is active
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 200 }));
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.journeyState.getProgress()).toBe(0);
+
+      // Attempt HUD button navigation while loader is active
+      const hudBtn = container.querySelector('.hud-btn[data-station-index="1"]');
+      if (hudBtn) {
+        hudBtn.click();
+        expect(app.getActiveStationIndex()).toBe(0);
+      }
+
+      // Complete loader (simulating user clicking enter ring)
+      app.loaderController.complete();
+      expect(app.loaderController.isCompleted()).toBe(true);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      // Once completed, HUD button navigation functions normally
+      if (hudBtn) {
+        hudBtn.click();
+        expect(app.getActiveStationIndex()).toBe(1);
+      }
+
+      app.destroy();
+    });
   });
 });

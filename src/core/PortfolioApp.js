@@ -153,6 +153,7 @@ export class PortfolioApp {
       btn.appendChild(nameSpan);
 
       btn.addEventListener('click', () => {
+        if (this.loaderController && !this.loaderController.isCompleted()) return;
         this.navigateTo(idx);
       });
 
@@ -771,6 +772,9 @@ export class PortfolioApp {
         });
 
         this.loaderController.onComplete(() => {
+          if (this.scrollEngine) {
+            this.scrollEngine.setLocked(false);
+          }
           if (this.loaderUI) {
             this.loaderUI.dismiss().then(() => {
               this.loaderUI = null;
@@ -801,6 +805,9 @@ export class PortfolioApp {
         snapPoints: [0.20, 0.45, 0.70, 0.95],
         snapMode: true
       });
+      if (this.loaderController && !this.loaderController.isCompleted()) {
+        this.scrollEngine.setLocked(true);
+      }
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {
           if (this.scrollEngine) this.scrollEngine.setLocked(locked);
@@ -1240,6 +1247,7 @@ export class PortfolioApp {
    * @private
    */
   _triggerSequentialNav(direction) {
+    if (this.loaderController && !this.loaderController.isCompleted()) return;
     const now = Date.now();
     if (now - this._lastNavTime < this._navCooldownMs) return;
     this._lastNavTime = now;

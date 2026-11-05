@@ -92,7 +92,6 @@ export class ScrollEngine {
    * @param {number} value
    */
   setTargetProgress(value) {
-    if (this.locked) return;
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     this.targetProgress = Math.max(0, Math.min(value, max));
   }
