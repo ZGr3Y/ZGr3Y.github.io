@@ -179,6 +179,39 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
 
       engine.dispose();
     });
+
+    it('enforces repeat suppression and snap cooldown on keyboard stage snapping', () => {
+      const state = new JourneyState();
+      state.selectBranch('blue');
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapMode: true,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapCooldownMs: 450
+      });
+
+      expect(engine.getTargetProgress()).toBe(0);
+
+      // First ArrowDown snaps to 0.20
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // Key repeat must be dropped
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: true }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // Rapid successive keydown within cooldown must be dropped
+      vi.advanceTimersByTime(200);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.20);
+
+      // After cooldown (450ms), next ArrowDown snaps to 0.45
+      vi.advanceTimersByTime(300);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', repeat: false }));
+      expect(engine.getTargetProgress()).toBe(0.45);
+
+      engine.dispose();
+    });
   });
 
   describe('ui/JourneyHud (Minimal Progress Bar & Chapter Indicator)', () => {

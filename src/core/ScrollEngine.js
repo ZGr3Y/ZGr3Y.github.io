@@ -230,8 +230,13 @@ export class ScrollEngine {
     const isUp = e.key === 'ArrowUp' || e.key === 'PageUp';
 
     if (isDown || isUp) {
+      if (e.repeat) return;
+
       if (this.snapMode) {
         if (this._hasScrollHeadroom(activeEl, isDown ? 1 : -1)) return;
+        const now = Date.now();
+        if (now - this._lastSnapTime < this.snapCooldownMs) return;
+        this._lastSnapTime = now;
         this.snapDirection(isDown ? 1 : -1);
         return;
       }
