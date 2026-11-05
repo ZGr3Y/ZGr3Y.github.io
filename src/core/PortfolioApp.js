@@ -798,7 +798,8 @@ export class PortfolioApp {
       });
       this.scrollEngine = new ScrollEngine({
         journeyState: this.journeyState,
-        snapPoints: [0.20, 0.45, 0.70, 0.95]
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true
       });
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {

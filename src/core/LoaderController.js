@@ -149,6 +149,21 @@ export class LoaderController {
       this.displayPercent = 100;
       this.isGlitching = false;
       this.isReady = true;
+
+      // Halt progress tick interval on readiness to guarantee zero-CPU idle while awaiting user click
+      if (this._tickInterval) {
+        clearInterval(this._tickInterval);
+        this._tickInterval = null;
+      }
+      if (this._dwellTimer) {
+        clearTimeout(this._dwellTimer);
+        this._dwellTimer = null;
+      }
+      if (this._timeoutTimer) {
+        clearTimeout(this._timeoutTimer);
+        this._timeoutTimer = null;
+      }
+
       this._emitProgress();
 
       if (!this.requireClick) {

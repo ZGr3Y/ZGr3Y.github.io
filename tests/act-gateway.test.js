@@ -304,6 +304,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       expect(app.gatewayAct).toBeDefined();
 
       app.destroy();
@@ -322,6 +324,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       expect(app.journeyState.getProgress()).toBe(0);
 
@@ -377,6 +381,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       expect(app.gatewayAct).toBeDefined();
 
@@ -443,6 +449,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       // Move camera to White Room in Act 1
       app.scrollEngine.scrollTo(0.25);
       app.scrollEngine.currentProgress = 0.25;
@@ -498,6 +506,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
+      expect(app.scrollEngine.snapMode).toBe(true);
+
       // Navigate to Station 1 (Lab)
       await app.navigateTo(1);
 
@@ -539,6 +549,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableLoader: true,
         enableJourney: true
       });
+
+      expect(app.scrollEngine.snapMode).toBe(true);
 
       // Let camera settle at init
       for (let frame = 0; frame < 60; frame++) {
