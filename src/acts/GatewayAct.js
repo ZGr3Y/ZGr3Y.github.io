@@ -24,6 +24,8 @@ export class GatewayAct {
     this.roomPosition = roomPosition;
 
     this.whiteRoomModel = null;
+    this.mixer = null;
+    this.tvAction = null;
     this.lights = [];
     this.isDisposed = false;
     this.elapsedTime = 0;
@@ -82,11 +84,26 @@ export class GatewayAct {
     if (this.isDisposed || !model) return;
 
     if (this.whiteRoomModel && this.scene) {
+      if (this.mixer) {
+        this.mixer.stopAllAction();
+        this.mixer = null;
+        this.tvAction = null;
+      }
       this.scene.remove(this.whiteRoomModel);
       disposeThreeObject(this.whiteRoomModel);
     }
 
     this.whiteRoomModel = model;
+
+    // Initialize animation mixer for built-in CRT TV playback clip
+    if (model.animations && model.animations.length > 0) {
+      this.mixer = new THREE.AnimationMixer(this.whiteRoomModel);
+      const clip = THREE.AnimationClip.findByName(model.animations, 'Animation') || model.animations[0];
+      if (clip) {
+        this.tvAction = this.mixer.clipAction(clip);
+        this.tvAction.play();
+      }
+    }
 
     // Normalize model scale from bounding box so it frames properly
     const box = new THREE.Box3().setFromObject(model);
@@ -119,6 +136,10 @@ export class GatewayAct {
 
     if (speedFactor > 0.0001) {
       this.elapsedTime += delta * speedFactor;
+    }
+
+    if (this.mixer && speedFactor > 0.0001) {
+      this.mixer.update(delta * speedFactor);
     }
 
     let baseCamPos;
@@ -227,6 +248,12 @@ export class GatewayAct {
    */
   dispose() {
     this.isDisposed = true;
+
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer = null;
+      this.tvAction = null;
+    }
 
     if (this.whiteRoomModel) {
       disposeThreeObject(this.whiteRoomModel);
