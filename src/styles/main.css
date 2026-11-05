@@ -891,6 +891,14 @@ html, body {
   pointer-events: none;
 }
 
+/* Keep station cards completely isolated while narrative loader is running */
+#app:has(.narrative-loader:not(.loader-hidden)) .station-card,
+body.has-loader-active .station-card {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .loader-ring-wrapper {
   position: relative;
   width: 240px;

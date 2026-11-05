@@ -75,6 +75,10 @@ export class LoaderUI {
     }
 
     container.appendChild(wrapper);
+
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.add('has-loader-active');
+    }
   }
 
   /**
@@ -115,6 +119,10 @@ export class LoaderUI {
   dismiss(durationMs = 400) {
     if (this.isDisposed || !this.root) return Promise.resolve();
 
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.remove('has-loader-active');
+    }
+
     this.root.classList.add('loader-hidden');
 
     return new Promise((resolve) => {
@@ -129,6 +137,9 @@ export class LoaderUI {
    * Unmounts element from the DOM
    */
   unmount() {
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.remove('has-loader-active');
+    }
     if (this._dismissTimer) {
       clearTimeout(this._dismissTimer);
       this._dismissTimer = null;
