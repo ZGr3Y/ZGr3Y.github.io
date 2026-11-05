@@ -73,13 +73,25 @@ export class JourneyState {
   }
 
   /**
-   * Selects a narrative branch ('blue' or 'red'), unlocking the rest of the journey
-   * @param {'blue' | 'red'} branch
+   * Selects a narrative branch ('blue'/'experiences' or 'red'/'harness'), unlocking the rest of the journey
+   * @param {'blue' | 'red' | 'experiences' | 'harness'} branch
    */
   selectBranch(branch) {
-    if (branch !== 'blue' && branch !== 'red') return;
-    this.branchState = branch;
+    let normalized = branch;
+    if (branch === 'experiences') normalized = 'blue';
+    if (branch === 'harness') normalized = 'red';
+    if (normalized !== 'blue' && normalized !== 'red') return;
+    this.branchState = normalized;
     this.maxReachable = 1.0;
+    this.branchListeners.forEach((fn) => fn(this.branchState));
+  }
+
+  /**
+   * Resets branch selection to unselected and re-arms the progression gate
+   */
+  resetBranch() {
+    this.branchState = 'unselected';
+    this.maxReachable = this.gateThreshold;
     this.branchListeners.forEach((fn) => fn(this.branchState));
   }
 

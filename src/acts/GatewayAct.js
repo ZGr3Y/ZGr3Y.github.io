@@ -42,13 +42,13 @@ export class GatewayAct {
       this.scene.fog = new THREE.Fog(this.act0FogColor, 0.77, 2.32);
     }
 
-    // Entrance into Matrix Room (yawing right, cinematic 3/4 framing both armchairs and TV)
-    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.3, 2.0, 6.2);
-    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x + 0.2, 0.9, -0.5);
+    // Entrance into Matrix Room: centered framing on CRT TV and flanking armchairs
+    this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 0.2, 1.8, 5.6);
+    this.act1EntranceLookAt = new THREE.Vector3(this.roomPosition.x - 0.2, 0.8, -0.5);
 
-    // Interior exploration waypoint within Act 1
-    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x - 1.0, 1.9, 5.5);
-    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x + 0.1, 0.9, -1.2);
+    // Pill choice descent waypoint: camera pitches downward to frame open hands holding pills
+    this.act1InteriorCamPos = new THREE.Vector3(this.roomPosition.x - 0.2, 1.6, 5.4);
+    this.act1InteriorLookAt = new THREE.Vector3(this.roomPosition.x - 0.2, 0.4, 1.5);
 
     // Dynamic camera coordinates and parallax state
     this.currentCamPos = this.act0CamPos.clone();
@@ -186,12 +186,14 @@ export class GatewayAct {
   update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0 } = {}) {
     if (this.isDisposed || !this.camera) return;
 
+    const safeDelta = Math.max(0, Math.min(delta, 0.1));
+
     if (speedFactor > 0.0001) {
-      this.elapsedTime += delta * speedFactor;
+      this.elapsedTime += safeDelta * speedFactor;
     }
 
     if (this.mixer && speedFactor > 0.0001) {
-      this.mixer.update(delta * speedFactor);
+      this.mixer.update(safeDelta * speedFactor);
     }
 
     // Dynamic fog & background interpolation between Act 0 (Magrathea) and Act 1 (White Room)
@@ -238,9 +240,9 @@ export class GatewayAct {
 
     // Smoothly lerp parallax offset allowing true 0-damping when idle but settling when resetting
     const settleSpeed = speedFactor > 0.0001 ? speedFactor : 1.0;
-    const parallaxLerp = Math.min(1.0, delta * 3.5 * settleSpeed);
-    this.parallaxOffset.lerp(this.targetParallax, parallaxLerp);
-    if (this.parallaxOffset.distanceToSquared(this.targetParallax) < 0.0005) {
+    const parallaxDamp = 1.0 - Math.exp(-6.5 * safeDelta * settleSpeed);
+    this.parallaxOffset.lerp(this.targetParallax, parallaxDamp);
+    if (this.parallaxOffset.distanceToSquared(this.targetParallax) < 1e-7) {
       this.parallaxOffset.copy(this.targetParallax);
     }
 
@@ -248,8 +250,8 @@ export class GatewayAct {
     let driftX = 0;
     let driftY = 0;
     if (progress > 0.1 && speedFactor > 0.0001) {
-      driftX = Math.sin(this.elapsedTime * 0.6) * 0.08 * speedFactor;
-      driftY = Math.cos(this.elapsedTime * 0.45) * 0.05 * speedFactor;
+      driftX = Math.sin(this.elapsedTime * 0.5) * 0.03 * speedFactor;
+      driftY = Math.cos(this.elapsedTime * 0.38) * 0.02 * speedFactor;
     }
 
     // Final target positions
@@ -261,13 +263,13 @@ export class GatewayAct {
     this.targetFinalLookAt.x += this.parallaxOffset.x + driftX * 0.5;
     this.targetFinalLookAt.y += this.parallaxOffset.y + driftY * 0.5;
 
-    const camLerp = Math.min(1.0, delta * 4.0 * settleSpeed);
-    this.currentCamPos.lerp(this.targetFinalCamPos, camLerp);
-    this.currentLookAt.lerp(this.targetFinalLookAt, camLerp);
-    if (this.currentCamPos.distanceToSquared(this.targetFinalCamPos) < 0.0005) {
+    const camDamp = 1.0 - Math.exp(-7.5 * safeDelta * settleSpeed);
+    this.currentCamPos.lerp(this.targetFinalCamPos, camDamp);
+    this.currentLookAt.lerp(this.targetFinalLookAt, camDamp);
+    if (this.currentCamPos.distanceToSquared(this.targetFinalCamPos) < 1e-7) {
       this.currentCamPos.copy(this.targetFinalCamPos);
     }
-    if (this.currentLookAt.distanceToSquared(this.targetFinalLookAt) < 0.0005) {
+    if (this.currentLookAt.distanceToSquared(this.targetFinalLookAt) < 1e-7) {
       this.currentLookAt.copy(this.targetFinalLookAt);
     }
 
@@ -285,7 +287,7 @@ export class GatewayAct {
     const camPosDistSq = this.currentCamPos.distanceToSquared(this.targetFinalCamPos);
     const lookAtDistSq = this.currentLookAt.distanceToSquared(this.targetFinalLookAt);
 
-    return parallaxDistSq < 0.0005 && camPosDistSq < 0.0005 && lookAtDistSq < 0.0005;
+    return parallaxDistSq < 1e-5 && camPosDistSq < 1e-5 && lookAtDistSq < 1e-5;
   }
 
   /**

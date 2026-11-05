@@ -10,6 +10,7 @@ import { ScrollEngine } from './ScrollEngine.js';
 import { JourneyHud } from '../ui/JourneyHud.js';
 import { CreditsDialog } from '../ui/CreditsDialog.js';
 import { GatewayAct } from '../acts/GatewayAct.js';
+import { PillChoiceAct } from '../acts/PillChoiceAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
@@ -50,6 +51,7 @@ export class PortfolioApp {
     this.journeyHud = null;
     this.creditsDialog = null;
     this.gatewayAct = null;
+    this.pillChoiceAct = null;
     this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
@@ -638,12 +640,26 @@ export class PortfolioApp {
 
     const isGatewayActiveStation = this.getActiveStation().id === 'gateway';
 
-    if (isGatewayActiveStation && progress <= 0.38) {
+    if (isGatewayActiveStation && progress <= 0.25) {
       gatewayCard.classList.add('active');
+      gatewayCard.classList.remove('faded');
+      gatewayCard.removeAttribute('hidden');
+    } else if (isGatewayActiveStation && progress > 0.25 && progress <= 0.42) {
+      gatewayCard.classList.add('active');
+      gatewayCard.classList.add('faded');
       gatewayCard.removeAttribute('hidden');
     } else {
       gatewayCard.classList.remove('active');
+      gatewayCard.classList.remove('faded');
       gatewayCard.setAttribute('hidden', '');
+    }
+
+    // Scrolling back up to the armchairs view restores choice gate and enables re-selection
+    if (progress <= 0.24 && this.journeyState && this.journeyState.getBranch() !== 'unselected') {
+      this.journeyState.resetBranch();
+      if (this.pillChoiceAct) {
+        this.pillChoiceAct.resetSelection();
+      }
     }
   }
 
@@ -711,6 +727,21 @@ export class PortfolioApp {
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
       this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
+      this.pillChoiceAct = new PillChoiceAct({
+        scene: this.scene,
+        camera: this.camera,
+        roomPosition: this.gatewayAct.roomPosition,
+        canvas: this.canvas,
+        onSelect: (branch) => {
+          if (this.journeyState) {
+            this.journeyState.selectBranch(branch);
+          }
+          if (this.idleManager) {
+            this.idleManager.recordActivity();
+          }
+          this._resumeLoop();
+        }
+      });
       this.camera.position.copy(this.gatewayAct.act0CamPos);
       this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
       this.camera.lookAt(this._currentCamLookAt);
@@ -743,6 +774,24 @@ export class PortfolioApp {
         .then((model) => {
           if (model && !this.isDestroyed && this.gatewayAct) {
             this.gatewayAct.setWhiteRoomModel(model);
+            this._resumeLoop();
+          }
+        })
+        .catch(() => {});
+
+      this.assetLibrary.load('./models/hand.glb')
+        .then((model) => {
+          if (model && !this.isDestroyed && this.pillChoiceAct) {
+            this.pillChoiceAct.setHumanHandModel(model);
+            this._resumeLoop();
+          }
+        })
+        .catch(() => {});
+
+      this.assetLibrary.load('./models/robotic_hand.glb')
+        .then((model) => {
+          if (model && !this.isDestroyed && this.pillChoiceAct) {
+            this.pillChoiceAct.setRoboticHandModel(model);
             this._resumeLoop();
           }
         })
@@ -1010,6 +1059,21 @@ export class PortfolioApp {
         }
         this._resumeLoop();
       }
+
+      // Check Pill Choice raycast click when in Gateway station
+      if (this.pillChoiceAct && this.pointer && this.getActiveStation().id === 'gateway') {
+        const clickedPill = this.pillChoiceAct.handlePointerClick(this.pointer);
+        if (clickedPill) {
+          if (this.journeyState) {
+            this.journeyState.selectBranch(clickedPill);
+          }
+          if (this.idleManager) {
+            this.idleManager.recordActivity();
+          }
+          this._resumeLoop();
+        }
+      }
+
       if (this.topology && typeof this.topology.triggerPulse === 'function') {
         this.topology.triggerPulse(null, 1.0);
       }
@@ -1048,7 +1112,7 @@ export class PortfolioApp {
         return;
       }
 
-      const delta = Math.min((currentTime - this._lastFrameTime) / 1000, 0.1);
+      const delta = Math.max(0, Math.min((currentTime - this._lastFrameTime) / 1000, 0.1));
       this._lastFrameTime = currentTime;
 
       // 1. Advance spatial camera waypoint transition
@@ -1097,6 +1161,15 @@ export class PortfolioApp {
         });
       }
 
+      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning) {
+        this.pillChoiceAct.update({
+          progress: currentProgress,
+          pointer: this.pointer || { x: 0, y: 0 },
+          delta,
+          speedFactor
+        });
+      }
+
       if (this.journeyScene) {
         this.journeyScene.update(
           delta,
@@ -1121,7 +1194,8 @@ export class PortfolioApp {
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
-      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting;
+      const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
+      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (!shouldSuspend && this.renderer && this.scene && this.camera) {
@@ -1161,6 +1235,9 @@ export class PortfolioApp {
 
     if (this.topology && typeof this.topology.setPointer === 'function') {
       this.topology.setPointer(normX, normY);
+    }
+    if (this.pillChoiceAct && this.getActiveStation().id === 'gateway') {
+      this.pillChoiceAct.handlePointerMove(this.pointer);
     }
     if (this.idleManager) {
       this.idleManager.recordActivity();
@@ -1252,6 +1329,43 @@ export class PortfolioApp {
     const now = Date.now();
     if (now - this._lastNavTime < this._navCooldownMs) return;
     this._lastNavTime = now;
+
+    const isGateway = Boolean(this.enableLoader) && this.getActiveStation().id === 'gateway';
+    const currentProg = this.scrollEngine ? this.scrollEngine.getCurrentProgress() : 0;
+
+    if (isGateway) {
+      if (direction > 0) {
+        if (currentProg < 0.28) {
+          // Descent within Gateway: tilts down to Pill Choice scene
+          if (this.scrollEngine) {
+            this.scrollEngine.scrollTo(0.38);
+          }
+          if (this.idleManager) {
+            this.idleManager.recordActivity();
+          }
+          this._resumeLoop();
+          return;
+        } else if (this.journeyState && this.journeyState.getBranch() === 'unselected') {
+          // Gated: strictly block navigation past pill choice until user selects a pill
+          if (this.pillChoiceAct) {
+            this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
+          }
+          return;
+        }
+      } else if (direction < 0) {
+        if (currentProg > 0.28) {
+          // Ascend within Gateway: tilts up to armchairs view above TV
+          if (this.scrollEngine) {
+            this.scrollEngine.scrollTo(0.20);
+          }
+          if (this.idleManager) {
+            this.idleManager.recordActivity();
+          }
+          this._resumeLoop();
+          return;
+        }
+      }
+    }
 
     if (direction > 0) {
       this.navigateNext();
@@ -1391,6 +1505,11 @@ export class PortfolioApp {
     if (this.gatewayAct) {
       this.gatewayAct.dispose();
       this.gatewayAct = null;
+    }
+
+    if (this.pillChoiceAct) {
+      this.pillChoiceAct.dispose();
+      this.pillChoiceAct = null;
     }
 
     if (this.assetLibrary) {
