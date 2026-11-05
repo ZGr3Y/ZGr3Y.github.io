@@ -304,6 +304,11 @@ export class ScrollEngine {
       this.touchInitialY = e.touches[0].clientY;
       this.touchCurrentY = e.touches[0].clientY;
       this.touchStartedInScrollable = this._isScrollable(e.target);
+    } else {
+      // Clear tracking when multi-touch gesture begins (pinch-to-zoom immunity)
+      this.touchInitialY = null;
+      this.touchCurrentY = null;
+      this.touchStartedInScrollable = false;
     }
   }
 
@@ -313,6 +318,11 @@ export class ScrollEngine {
    */
   _handleTouchMove(e) {
     // Multi-touch immunity: preserve pinch-to-zoom gestures (CODING_STANDARDS §8)
+    if (e.touches && e.touches.length > 1) {
+      this.touchInitialY = null;
+      this.touchCurrentY = null;
+      return;
+    }
     // Touch isolation: keep entire gesture inside panel if it started in a scrollable element
     if (this.locked || !e.touches || e.touches.length !== 1 || this.touchStartedInScrollable) return;
 
@@ -341,7 +351,12 @@ export class ScrollEngine {
    * @private
    */
   _handleTouchEnd(e) {
+    const hasRemainingTouches = Boolean(e && e.touches && e.touches.length > 0);
+    const isCancel = Boolean(e && e.type === 'touchcancel');
+
     if (
+      !isCancel &&
+      !hasRemainingTouches &&
       this.snapMode &&
       !this.locked &&
       !this.touchStartedInScrollable &&

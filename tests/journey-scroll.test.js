@@ -283,6 +283,21 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       window.dispatchEvent(new TouchEvent('touchend'));
       expect(engine.getTargetProgress()).toBe(0.45); // Snapped cleanly to next stage
 
+      // 5. Multi-touch (pinch) or remaining touches must NOT snap
+      vi.advanceTimersByTime(500);
+      window.dispatchEvent(new TouchEvent('touchstart', { touches: [{ clientY: 300 }] }));
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }] })); // 100px move
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }, { clientY: 220 }] })); // 2nd finger added
+      window.dispatchEvent(new TouchEvent('touchend', { touches: [{ clientY: 220 }] })); // 1 finger remaining
+      expect(engine.getTargetProgress()).toBe(0.45); // Remained at 0.45
+
+      // 6. Touchcancel must abort snap
+      vi.advanceTimersByTime(500);
+      window.dispatchEvent(new TouchEvent('touchstart', { touches: [{ clientY: 300 }] }));
+      window.dispatchEvent(new TouchEvent('touchmove', { touches: [{ clientY: 200 }] })); // 100px move
+      window.dispatchEvent(new TouchEvent('touchcancel'));
+      expect(engine.getTargetProgress()).toBe(0.45); // Aborted snap
+
       engine.dispose();
     });
   });
