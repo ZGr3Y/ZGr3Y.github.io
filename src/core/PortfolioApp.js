@@ -1079,7 +1079,12 @@ export class PortfolioApp {
       }
 
       if (this.journeyScene) {
-        this.journeyScene.update(delta, speedFactor, this.pointer);
+        this.journeyScene.update(
+          delta,
+          speedFactor,
+          this.pointer,
+          this.journeyState ? this.journeyState.getProgress() : 0
+        );
       }
 
       if (this.scrollEngine) {

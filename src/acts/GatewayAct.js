@@ -31,8 +31,16 @@ export class GatewayAct {
     this.elapsedTime = 0;
 
     // Waypoints for Act 0 (Loader / Hitchhiker) and Act 1 (Gateway / White Room)
-    this.act0CamPos = new THREE.Vector3(0, 0.4, 4.5);
-    this.act0LookAt = new THREE.Vector3(0, 0, 0);
+    this.act0CamPos = new THREE.Vector3(0, 0.258, 1.28);
+    this.act0LookAt = new THREE.Vector3(0, 0.335, 0);
+
+    // Fog & Background palettes for Act 0 (Hitchhiker Magrathea) & Act 1 (White Room)
+    this.act0FogColor = 0xb4b8b8;
+    this.act1FogColor = 0xeaecef;
+    if (this.scene) {
+      this.scene.background = new THREE.Color(this.act0FogColor);
+      this.scene.fog = new THREE.Fog(this.act0FogColor, 0.77, 2.32);
+    }
 
     // Entrance into Matrix Room (yawing right, cinematic 3/4 framing both armchairs and TV)
     this.act1EntranceCamPos = new THREE.Vector3(this.roomPosition.x - 1.3, 2.0, 6.2);
@@ -186,6 +194,24 @@ export class GatewayAct {
       this.mixer.update(delta * speedFactor);
     }
 
+    // Dynamic fog & background interpolation between Act 0 (Magrathea) and Act 1 (White Room)
+    if (this.scene && this.scene.fog) {
+      if (progress <= ACT0_END_PROGRESS) {
+        const t = Math.max(0, Math.min(progress / ACT0_END_PROGRESS, 1.0));
+        this.scene.fog.near = 0.77 + t * 50;
+        this.scene.fog.far = 2.32 + t * 200;
+        if (this.scene.background && this.scene.background.isColor) {
+          this.scene.background.setHex(t < 0.5 ? this.act0FogColor : this.act1FogColor);
+        }
+      } else {
+        this.scene.fog.near = 100;
+        this.scene.fog.far = 500;
+        if (this.scene.background && this.scene.background.isColor) {
+          this.scene.background.setHex(this.act1FogColor);
+        }
+      }
+    }
+
     let baseCamPos;
     let baseLookAt;
 
@@ -325,6 +351,11 @@ export class GatewayAct {
         }
       });
       this.lights = [];
+    }
+
+    if (this.scene) {
+      this.scene.fog = null;
+      this.scene.background = null;
     }
 
     this.scene = null;
