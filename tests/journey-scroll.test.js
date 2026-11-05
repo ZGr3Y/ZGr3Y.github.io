@@ -212,6 +212,33 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
 
       engine.dispose();
     });
+
+    it('preserves branch gate cap and does not snap backwards when snapping forward at cap', () => {
+      const state = new JourneyState();
+      // Unselected branch caps max at 0.6
+      expect(state.getMaxReachable()).toBe(0.6);
+
+      const engine = new ScrollEngine({
+        journeyState: state,
+        snapPoints: [0.20, 0.45, 0.70, 0.95],
+        snapMode: true
+      });
+
+      // Simulate reaching branch gate
+      engine.setTargetProgress(0.6);
+      expect(engine.getTargetProgress()).toBe(0.6);
+
+      // Snapping forward when no further snap point is reachable under the 0.6 cap
+      // must preserve 0.6 and NOT jump backwards to 0.45
+      engine.snapDirection(1);
+      expect(engine.getTargetProgress()).toBe(0.6);
+
+      // Snapping backward from 0.6 snaps back to 0.45
+      engine.snapDirection(-1);
+      expect(engine.getTargetProgress()).toBe(0.45);
+
+      engine.dispose();
+    });
   });
 
   describe('ui/JourneyHud (Minimal Progress Bar & Chapter Indicator)', () => {

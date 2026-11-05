@@ -185,7 +185,11 @@ export class ScrollEngine {
           break;
         }
       }
-      if (targetIndex === -1) targetIndex = validPoints.length - 1;
+      if (targetIndex === -1) {
+        // No later snap point is reachable (e.g. unselected branch cap 0.6 or already at final station)
+        // Keep progress at current / cap without snapping backwards
+        return;
+      }
     } else {
       for (let i = validPoints.length - 1; i >= 0; i--) {
         if (validPoints[i] < current - 0.02) {
@@ -193,7 +197,10 @@ export class ScrollEngine {
           break;
         }
       }
-      if (targetIndex === -1) targetIndex = 0;
+      if (targetIndex === -1) {
+        // No earlier snap point is reachable
+        return;
+      }
     }
 
     const nextProgress = Math.max(0, Math.min(validPoints[targetIndex], max));
