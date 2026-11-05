@@ -754,8 +754,15 @@ export class PortfolioApp {
 
         this.loaderController = new LoaderController({
           minDwellMs: 4000,
-          assetPromise
+          assetPromise,
+          requireClick: true
         });
+
+        if (this.loaderUI) {
+          this.loaderUI.onEnter(() => {
+            this.loaderController.complete();
+          });
+        }
 
         this.loaderController.onProgress((state) => {
           if (this.loaderUI) {
@@ -789,7 +796,10 @@ export class PortfolioApp {
       this.journeyState.onProgress((progress) => {
         this._updateJourneyCardVisibility(progress);
       });
-      this.scrollEngine = new ScrollEngine({ journeyState: this.journeyState });
+      this.scrollEngine = new ScrollEngine({
+        journeyState: this.journeyState,
+        snapPoints: [0.20, 0.45, 0.70, 0.95]
+      });
       this.creditsDialog = new CreditsDialog({
         onLockScroll: (locked) => {
           if (this.scrollEngine) this.scrollEngine.setLocked(locked);
@@ -1255,6 +1265,11 @@ export class PortfolioApp {
 
     this.currentStationIndex = stationIndex;
     const activeStation = this.getActiveStation();
+
+    // Synchronize narrative journey progress with discrete station snap point
+    if (this.scrollEngine && this.scrollEngine.snapPoints && this.scrollEngine.snapPoints[stationIndex] !== undefined) {
+      this.scrollEngine.scrollTo(this.scrollEngine.snapPoints[stationIndex]);
+    }
 
     // Trigger smooth 3D camera waypoint transition
     if (this.camera && activeStation && activeStation.camera) {

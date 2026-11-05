@@ -15,12 +15,21 @@ export class ScrollEngine {
     journeyState,
     lerpSpeed = 0.08,
     sensitivity = 0.0006,
-    keyboardStep = 0.05
+    keyboardStep = 0.05,
+    snapMode = false,
+    snapPoints = [0.20, 0.45, 0.70, 0.95],
+    snapCooldownMs = 450,
+    onSnap = null
   } = {}) {
     this.journeyState = journeyState;
     this.lerpSpeed = lerpSpeed;
     this.sensitivity = sensitivity;
     this.keyboardStep = keyboardStep;
+    this.snapMode = snapMode;
+    this.snapPoints = snapPoints;
+    this.snapCooldownMs = snapCooldownMs;
+    this.onSnap = onSnap;
+    this._lastSnapTime = 0;
 
     this.currentProgress = 0;
     this.targetProgress = 0;
@@ -139,6 +148,43 @@ export class ScrollEngine {
   }
 
   /**
+   * Snaps target progress directly to the next or previous discrete station snap point
+   * @param {number} direction - 1 for forward/down, -1 for backward/up
+   */
+  snapDirection(direction) {
+    if (this.locked) return;
+    const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
+    const current = this.targetProgress;
+    const validPoints = this.snapPoints.filter((p) => p <= max + 0.001);
+    if (validPoints.length === 0) return;
+
+    let targetIndex = -1;
+    if (direction > 0) {
+      for (let i = 0; i < validPoints.length; i++) {
+        if (validPoints[i] > current + 0.02) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) targetIndex = validPoints.length - 1;
+    } else {
+      for (let i = validPoints.length - 1; i >= 0; i--) {
+        if (validPoints[i] < current - 0.02) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) targetIndex = 0;
+    }
+
+    const nextProgress = Math.max(0, Math.min(validPoints[targetIndex], max));
+    this.targetProgress = nextProgress;
+    if (typeof this.onSnap === 'function') {
+      this.onSnap(targetIndex, nextProgress);
+    }
+  }
+
+  /**
    * Handles wheel interactions, strictly isolating zoom keys per CODING_STANDARDS §8
    * @private
    */
@@ -148,6 +194,17 @@ export class ScrollEngine {
 
     // Scroll isolation: preserve inner panel scroll headroom
     if (this._hasScrollHeadroom(e.target, e.deltaY)) return;
+
+    if (this.snapMode) {
+      if (Math.abs(e.deltaY) < 15) return;
+      const now = Date.now();
+      if (now - this._lastSnapTime < this.snapCooldownMs) return;
+      this._lastSnapTime = now;
+
+      const direction = e.deltaY > 0 ? 1 : -1;
+      this.snapDirection(direction);
+      return;
+    }
 
     const max = this.journeyState ? this.journeyState.getMaxReachable() : 1.0;
     const delta = e.deltaY * this.sensitivity;
@@ -173,6 +230,12 @@ export class ScrollEngine {
     const isUp = e.key === 'ArrowUp' || e.key === 'PageUp';
 
     if (isDown || isUp) {
+      if (this.snapMode) {
+        if (this._hasScrollHeadroom(activeEl, isDown ? 1 : -1)) return;
+        this.snapDirection(isDown ? 1 : -1);
+        return;
+      }
+
       const step = isDown ? this.keyboardStep : -this.keyboardStep;
       if (this._hasScrollHeadroom(activeEl, step)) return;
       this.targetProgress = Math.max(0, Math.min(this.targetProgress + step, max));

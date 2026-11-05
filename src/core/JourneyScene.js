@@ -43,7 +43,7 @@ export class JourneyScene {
       this.hitchhikerModel.scale.set(scale, scale, scale);
     }
 
-    this.hitchhikerModel.position.set(0, 0, 0);
+    this.hitchhikerModel.position.set(0, -0.22, 0);
     this.hitchhikerModel.rotation.set(this.baseRotX, this.baseRotY, 0);
 
     // Apply authentic monochrome grayscale shader to KHR_materials_unlit texture

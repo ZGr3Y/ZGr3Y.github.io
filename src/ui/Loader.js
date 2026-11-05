@@ -7,9 +7,20 @@ export class LoaderUI {
   constructor() {
     this.container = null;
     this.root = null;
+    this.ringWrapper = null;
     this.arcCircle = null;
     this.counterEl = null;
     this.isDisposed = false;
+    this.isReady = false;
+    this._onEnter = null;
+  }
+
+  /**
+   * Sets callback to invoke when user clicks to enter
+   * @param {Function} cb
+   */
+  onEnter(cb) {
+    this._onEnter = cb;
   }
 
   /**
@@ -36,7 +47,7 @@ export class LoaderUI {
           </defs>
           <circle class="loader-track" cx="120" cy="120" r="80" />
           <circle class="loader-arc" cx="120" cy="120" r="80" />
-          <text class="loader-textpath-element" font-family="'JetBrains Mono', monospace" font-weight="700" letter-spacing="0.15em">
+          <text class="loader-textpath-element" font-family="'JetBrains Mono', monospace" font-weight="800" letter-spacing="0.18em">
             <textPath href="#dont-panic-circle-path" startOffset="50%" text-anchor="middle">DON'T PANIC</textPath>
           </text>
         </svg>
@@ -64,8 +75,25 @@ export class LoaderUI {
     `;
 
     this.root = wrapper;
+    this.ringWrapper = wrapper.querySelector('.loader-ring-wrapper');
     this.arcCircle = wrapper.querySelector('.loader-arc');
     this.counterEl = wrapper.querySelector('.loader-counter');
+
+    const handleTrigger = () => {
+      if (this.isReady && typeof this._onEnter === 'function') {
+        this._onEnter();
+      }
+    };
+
+    if (this.ringWrapper) {
+      this.ringWrapper.addEventListener('click', handleTrigger);
+      this.ringWrapper.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleTrigger();
+        }
+      });
+    }
 
     if (this.arcCircle) {
       const radius = 80;
@@ -87,14 +115,31 @@ export class LoaderUI {
    * @param {number} state.actualPercent - Real progression (0 to 100)
    * @param {number} state.displayPercent - Visual progression (glitches on 42)
    * @param {boolean} state.isGlitching - Whether glitch animation is active
+   * @param {boolean} [state.isReady=false] - Whether loader is in ready-to-enter state
    */
-  update({ actualPercent = 0, displayPercent = 0, isGlitching = false } = {}) {
+  update({ actualPercent = 0, displayPercent = 0, isGlitching = false, isReady = false } = {}) {
     if (this.isDisposed || !this.root) return;
 
     this.root.setAttribute('aria-valuenow', String(actualPercent));
 
-    if (this.counterEl) {
-      this.counterEl.textContent = `${displayPercent}%`;
+    if (isReady && !this.isReady) {
+      this.isReady = true;
+      this.root.classList.add('is-ready');
+      if (this.ringWrapper) {
+        this.ringWrapper.setAttribute('role', 'button');
+        this.ringWrapper.setAttribute('tabindex', '0');
+        this.ringWrapper.setAttribute('aria-label', 'Enter Portfolio');
+      }
+      if (this.counterEl) {
+        this.counterEl.innerHTML = `
+          <span class="enter-label">ENTER</span>
+          <span class="enter-sub">// CLICK //</span>
+        `;
+      }
+    } else if (!this.isReady) {
+      if (this.counterEl) {
+        this.counterEl.textContent = `${displayPercent}%`;
+      }
     }
 
     if (this.arcCircle) {

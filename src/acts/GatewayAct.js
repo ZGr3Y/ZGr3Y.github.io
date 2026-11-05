@@ -31,8 +31,8 @@ export class GatewayAct {
     this.elapsedTime = 0;
 
     // Waypoints for Act 0 (Loader / Hitchhiker) and Act 1 (Gateway / White Room)
-    this.act0CamPos = new THREE.Vector3(0, 0.258, 1.28);
-    this.act0LookAt = new THREE.Vector3(0, 0.335, 0);
+    this.act0CamPos = new THREE.Vector3(0, 0.30, 1.25);
+    this.act0LookAt = new THREE.Vector3(0, 0.34, 0);
 
     // Fog & Background palettes for Act 0 (Hitchhiker Magrathea) & Act 1 (White Room)
     this.act0FogColor = 0xb4b8b8;
