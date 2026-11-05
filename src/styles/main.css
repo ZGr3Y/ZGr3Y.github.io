@@ -1140,6 +1140,10 @@ body.has-loader-active .station-card {
   text-align: center;
 }
 
+.loader-counter[hidden] {
+  display: none !important;
+}
+
 .narrative-loader.is-ready .loader-ring-wrapper {
   cursor: pointer;
   pointer-events: auto;

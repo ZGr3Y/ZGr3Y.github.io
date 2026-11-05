@@ -12,7 +12,9 @@ function bootstrap() {
   const app = new PortfolioApp({ container, canvas, srAnnouncer, enableLoader: true });
 
   // Expose on window for debugging/inspection in dev environment
-  window.__PORTFOLIO_APP__ = app;
+  if (import.meta.env.DEV) {
+    window.__PORTFOLIO_APP__ = app;
+  }
 }
 
 if (document.readyState === 'loading') {

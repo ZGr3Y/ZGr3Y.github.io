@@ -193,8 +193,10 @@ export class LoaderUI {
       this.root.parentNode.removeChild(this.root);
     }
     this.root = null;
+    this.ringWrapper = null;
     this.arcCircle = null;
     this.counterEl = null;
+    this._onEnter = null;
   }
 
   /**
