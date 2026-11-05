@@ -188,6 +188,14 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(percentEl.textContent).toBe('60%');
       expect(root.classList.contains('glitching')).toBe(false);
 
+      // On readiness, progressbar role is removed so child button is exposed to assistive tech
+      loaderUI.update({ actualPercent: 100, displayPercent: 100, isReady: true });
+      expect(root.getAttribute('role')).toBeNull();
+      expect(root.hasAttribute('aria-valuenow')).toBe(false);
+      const ringWrapper = container.querySelector('.loader-ring-wrapper');
+      expect(ringWrapper.getAttribute('role')).toBe('button');
+      expect(ringWrapper.getAttribute('aria-label')).toBe('Enter Portfolio');
+
       // Dismiss triggers fade-out transition before unmounting
       const dismissPromise = loaderUI.dismiss(400);
       expect(root.classList.contains('loader-hidden')).toBe(true);

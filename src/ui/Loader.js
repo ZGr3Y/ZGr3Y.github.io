@@ -120,11 +120,16 @@ export class LoaderUI {
   update({ actualPercent = 0, displayPercent = 0, isGlitching = false, isReady = false } = {}) {
     if (this.isDisposed || !this.root) return;
 
-    this.root.setAttribute('aria-valuenow', String(actualPercent));
-
     if (isReady && !this.isReady) {
       this.isReady = true;
       this.root.classList.add('is-ready');
+      // Remove progressbar semantics from root once ready so screen readers expose child button
+      this.root.removeAttribute('role');
+      this.root.removeAttribute('aria-valuenow');
+      this.root.removeAttribute('aria-valuemin');
+      this.root.removeAttribute('aria-valuemax');
+      this.root.removeAttribute('aria-label');
+
       if (this.ringWrapper) {
         this.ringWrapper.setAttribute('role', 'button');
         this.ringWrapper.setAttribute('tabindex', '0');
@@ -137,6 +142,7 @@ export class LoaderUI {
         `;
       }
     } else if (!this.isReady) {
+      this.root.setAttribute('aria-valuenow', String(actualPercent));
       if (this.counterEl) {
         this.counterEl.textContent = `${displayPercent}%`;
       }
