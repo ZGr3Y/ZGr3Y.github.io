@@ -20,8 +20,8 @@ export class JourneyState {
     // Narrative segments definitions
     this.segments = [
       { id: 'act0', min: 0.0, max: 0.2, tag: 'ACT 00', title: "DON'T PANIC (Loader & Gateway)" },
-      { id: 'act1', min: 0.2, max: 0.4, tag: 'ACT 01', title: 'Matrix White Room (Architectural Horizon)' },
-      { id: 'act2', min: 0.4, max: 0.6, tag: 'ACT 02', title: 'Pill Choice (Creation of Intelligence)' },
+      { id: 'act1', min: 0.2, max: 0.35, tag: 'ACT 01', title: 'Matrix White Room (Architectural Horizon)' },
+      { id: 'act2', min: 0.35, max: 0.6, tag: 'ACT 02', title: 'Pill Choice (Creation of Intelligence)' },
       { id: 'act3_blue', min: 0.6, max: 0.8, tag: 'ACT 03-A', title: 'Origami Unicorns (Experiences)' },
       { id: 'act3_red', min: 0.6, max: 0.8, tag: 'ACT 03-B', title: 'Wheatley Core (Harness)' },
       { id: 'act4', min: 0.8, max: 1.0, tag: 'ACT 04', title: "Rick's Ship & Transmission Horizon" }

@@ -62,6 +62,10 @@ export class PortfolioApp {
     this.hudNav = null;
     this._hudButtons = [];
 
+    // Holographic Bio Pop-up state projected from CRT TV
+    this.isBioHologramOpen = false;
+    this.hologramBeamSvg = null;
+
     // Spatial Camera Waypoint Controller state
     this._targetCamPos = new THREE.Vector3(0, 0, 16);
     this._targetCamLookAt = new THREE.Vector3(0, 0, 0);
@@ -90,6 +94,18 @@ export class PortfolioApp {
         (typeof document !== 'undefined' ? document.getElementById('station-container') : null);
       this._initHUD();
       this._initStations();
+
+      if (typeof document !== 'undefined') {
+        this.hologramBeamSvg = (this.container && this.container.querySelector('.hologram-beam-svg')) ||
+          document.querySelector('.hologram-beam-svg');
+        const gatewayCloseBtn = this.container.querySelector('.station-card.gateway-card .card-close-btn');
+        if (gatewayCloseBtn) {
+          gatewayCloseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeBioHologram();
+          });
+        }
+      }
     }
 
     if (this.canvas) {
@@ -252,10 +268,16 @@ export class PortfolioApp {
     }).join('');
 
     const card = document.createElement('section');
-    card.className = 'station-card gateway-card active';
+    card.className = 'station-card gateway-card';
     card.setAttribute('data-station', 'gateway');
     card.setAttribute('aria-label', 'Station 01: Gateway');
     card.innerHTML = `
+      <button type="button" class="card-close-btn" aria-label="Close Bio Hologram" title="Close Bio Hologram">✕</button>
+      <div class="holo-scan-line" aria-hidden="true"></div>
+      <div class="holo-corner holo-corner-tl" aria-hidden="true"></div>
+      <div class="holo-corner holo-corner-tr" aria-hidden="true"></div>
+      <div class="holo-corner holo-corner-bl" aria-hidden="true"></div>
+      <div class="holo-corner holo-corner-br" aria-hidden="true"></div>
       <div class="station-badge">
         <span class="badge-dot" aria-hidden="true"></span>
         <span>${hero.badge || 'SYSTEM ONLINE // CLOUD MESH PROTOCOL'}</span>
@@ -272,6 +294,14 @@ export class PortfolioApp {
       </div>
     `;
     this.stationContainer.appendChild(card);
+
+    const closeBtn = card.querySelector('.card-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeBioHologram();
+      });
+    }
   }
 
   /**
@@ -604,6 +634,190 @@ export class PortfolioApp {
   }
 
   /**
+   * Opens the holographic Bio pop-up projected from the CRT TV
+   */
+  openBioHologram() {
+    this.isBioHologramOpen = true;
+    if (this.gatewayAct) {
+      this.gatewayAct.setBioHologramOpen(true);
+    }
+    const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
+    if (gatewayCard) {
+      gatewayCard.classList.add('is-open');
+    }
+    if (this.hologramBeamSvg) {
+      this.hologramBeamSvg.classList.add('is-open');
+    }
+    this._updateHologramBeam();
+    if (this.idleManager) {
+      this.idleManager.recordActivity();
+    }
+    this._resumeLoop();
+  }
+
+  /**
+   * Closes the holographic Bio pop-up
+   */
+  closeBioHologram() {
+    if (!this.isBioHologramOpen) return;
+    this.isBioHologramOpen = false;
+    if (this.gatewayAct) {
+      this.gatewayAct.setBioHologramOpen(false);
+    }
+    const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
+    if (gatewayCard) {
+      gatewayCard.classList.remove('is-open');
+    }
+    if (this.hologramBeamSvg) {
+      this.hologramBeamSvg.classList.remove('is-open');
+    }
+    if (this.idleManager) {
+      this.idleManager.recordActivity();
+    }
+    this._resumeLoop();
+  }
+
+  /**
+   * Toggles the holographic Bio pop-up open/closed
+   */
+  toggleBioHologram() {
+    if (this.isBioHologramOpen) {
+      this.closeBioHologram();
+    } else {
+      this.openBioHologram();
+    }
+  }
+
+  /**
+   * Synchronizes SVG holographic projection beam between 3D TV screen and DOM card.
+   * Maps 4-corner frustum: TV top connects to Card top, TV bottom connects to Card bottom.
+   * @private
+   */
+  _updateHologramBeam() {
+    if (!this.isBioHologramOpen || !this.hologramBeamSvg || !this.camera || !this.gatewayAct || typeof window === 'undefined') {
+      return;
+    }
+    const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
+    if (!gatewayCard) return;
+
+    const tvWorldPos = this.gatewayAct.getTvScreenWorldPosition();
+    const projected = tvWorldPos.clone().project(this.camera);
+
+    const tvScreenX = (projected.x * 0.5 + 0.5) * window.innerWidth;
+    const tvScreenY = (-projected.y * 0.5 + 0.5) * window.innerHeight;
+
+    // Project TV screen bounds using actual CRT screen extents
+    const extents = typeof this.gatewayAct.getTvScreenExtents === 'function'
+      ? this.gatewayAct.getTvScreenExtents()
+      : { halfWidth: 0.42, halfHeight: 0.30 };
+
+    const pTL = new THREE.Vector3(tvWorldPos.x - extents.halfWidth, tvWorldPos.y + extents.halfHeight, tvWorldPos.z).project(this.camera);
+    const pBR = new THREE.Vector3(tvWorldPos.x + extents.halfWidth, tvWorldPos.y - extents.halfHeight, tvWorldPos.z).project(this.camera);
+
+    const tvLeft = (pTL.x * 0.5 + 0.5) * window.innerWidth;
+    const tvRight = (pBR.x * 0.5 + 0.5) * window.innerWidth;
+    const tvTop = (-pTL.y * 0.5 + 0.5) * window.innerHeight;
+    const tvBottom = (-pBR.y * 0.5 + 0.5) * window.innerHeight;
+    const tvMidX = (tvLeft + tvRight) * 0.5;
+    const tvMidY = (tvTop + tvBottom) * 0.5;
+
+    const cardRect = gatewayCard.getBoundingClientRect();
+    const cardLeft = cardRect.left;
+    const cardRight = cardRect.right;
+    const cardTop = cardRect.top;
+    const cardBottom = cardRect.bottom;
+    const cardMidX = (cardLeft + cardRight) * 0.5;
+    const cardMidY = (cardTop + cardBottom) * 0.5;
+
+    // 1. Center pulsing emitter on CRT TV screen
+    const emitter = this.hologramBeamSvg.querySelector('.beam-emitter');
+    if (emitter) {
+      emitter.setAttribute('cx', tvMidX);
+      emitter.setAttribute('cy', tvMidY);
+    }
+
+    // 2. Primary 4-Corner Laser Rays
+    // User requirement: Top of TV -> Top of Hologram, Bottom of TV -> Bottom of Hologram
+    const rayTL = this.hologramBeamSvg.querySelector('.beam-ray-top-left');
+    if (rayTL) {
+      rayTL.setAttribute('x1', tvLeft);
+      rayTL.setAttribute('y1', tvTop);
+      rayTL.setAttribute('x2', cardLeft);
+      rayTL.setAttribute('y2', cardTop);
+    }
+
+    const rayTR = this.hologramBeamSvg.querySelector('.beam-ray-top-right');
+    if (rayTR) {
+      rayTR.setAttribute('x1', tvRight);
+      rayTR.setAttribute('y1', tvTop);
+      rayTR.setAttribute('x2', cardRight);
+      rayTR.setAttribute('y2', cardTop);
+    }
+
+    const rayBL = this.hologramBeamSvg.querySelector('.beam-ray-bottom-left');
+    if (rayBL) {
+      rayBL.setAttribute('x1', tvLeft);
+      rayBL.setAttribute('y1', tvBottom);
+      rayBL.setAttribute('x2', cardLeft);
+      rayBL.setAttribute('y2', cardBottom);
+    }
+
+    const rayBR = this.hologramBeamSvg.querySelector('.beam-ray-bottom-right');
+    if (rayBR) {
+      rayBR.setAttribute('x1', tvRight);
+      rayBR.setAttribute('y1', tvBottom);
+      rayBR.setAttribute('x2', cardRight);
+      rayBR.setAttribute('y2', cardBottom);
+    }
+
+    // 3. Center and Intermediate Guide Rays
+    const rayTM = this.hologramBeamSvg.querySelector('.beam-ray-top-mid');
+    if (rayTM) {
+      rayTM.setAttribute('x1', tvMidX);
+      rayTM.setAttribute('y1', tvTop);
+      rayTM.setAttribute('x2', cardMidX);
+      rayTM.setAttribute('y2', cardTop);
+    }
+
+    const rayBM = this.hologramBeamSvg.querySelector('.beam-ray-bottom-mid');
+    if (rayBM) {
+      rayBM.setAttribute('x1', tvMidX);
+      rayBM.setAttribute('y1', tvBottom);
+      rayBM.setAttribute('x2', cardMidX);
+      rayBM.setAttribute('y2', cardBottom);
+    }
+
+    const rayC = this.hologramBeamSvg.querySelector('.beam-ray-center');
+    if (rayC) {
+      rayC.setAttribute('x1', tvMidX);
+      rayC.setAttribute('y1', tvMidY);
+      rayC.setAttribute('x2', cardMidX);
+      rayC.setAttribute('y2', cardMidY);
+    }
+
+    // 4. Volumetric Frustum Light Polygons (4 projection facets)
+    const polyTop = this.hologramBeamSvg.querySelector('.beam-poly-top');
+    if (polyTop) {
+      polyTop.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardRight},${cardTop} ${tvRight},${tvTop}`);
+    }
+
+    const polyBottom = this.hologramBeamSvg.querySelector('.beam-poly-bottom');
+    if (polyBottom) {
+      polyBottom.setAttribute('points', `${tvLeft},${tvBottom} ${cardLeft},${cardBottom} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
+    }
+
+    const polyLeft = this.hologramBeamSvg.querySelector('.beam-poly-left');
+    if (polyLeft) {
+      polyLeft.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardLeft},${cardBottom} ${tvLeft},${tvBottom}`);
+    }
+
+    const polyRight = this.hologramBeamSvg.querySelector('.beam-poly-right');
+    if (polyRight) {
+      polyRight.setAttribute('points', `${tvRight},${tvTop} ${cardRight},${cardTop} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
+    }
+  }
+
+  /**
    * Toggles visibility of station cards based on the currently active station
    * @private
    */
@@ -645,10 +859,16 @@ export class PortfolioApp {
       gatewayCard.classList.remove('faded');
       gatewayCard.removeAttribute('hidden');
     } else if (isGatewayActiveStation && progress > 0.25 && progress <= 0.42) {
+      if (this.isBioHologramOpen) {
+        this.closeBioHologram();
+      }
       gatewayCard.classList.add('active');
       gatewayCard.classList.add('faded');
       gatewayCard.removeAttribute('hidden');
     } else {
+      if (this.isBioHologramOpen) {
+        this.closeBioHologram();
+      }
       gatewayCard.classList.remove('active');
       gatewayCard.classList.remove('faded');
       gatewayCard.setAttribute('hidden', '');
@@ -853,7 +1073,18 @@ export class PortfolioApp {
         journeyState: this.journeyState,
         snapPoints: [0.20, 0.45, 0.70, 0.95],
         snapMode: true,
-        hasScrollHeadroom: (dir) => this._canScrollInDirection(dir)
+        hasScrollHeadroom: (dir) => this._canScrollInDirection(dir),
+        onSnap: (_targetIndex, nextProgress) => {
+          if (
+            this.enableLoader &&
+            this.getActiveStation().id === 'gateway' &&
+            this.journeyState &&
+            this.journeyState.getBranch() === 'unselected' &&
+            nextProgress > 0.38
+          ) {
+            this.scrollEngine.scrollTo(0.38);
+          }
+        }
       });
       if (this.loaderController && !this.loaderController.isCompleted()) {
         this.scrollEngine.setLocked(true);
@@ -920,14 +1151,35 @@ export class PortfolioApp {
 
     this._onPointerMove = (e) => {
       this._updatePointerFromClient(e.clientX, e.clientY);
+      if (this.gatewayAct && this.pointer && this.camera && this.getActiveStation().id === 'gateway') {
+        const prog = this.journeyState ? this.journeyState.getProgress() : 0;
+        const isLoaderDone = !this.loaderController || this.loaderController.isCompleted();
+        if (isLoaderDone && prog >= 0.19 && prog <= 0.26) {
+          const isTv = this.gatewayAct.isTvIntersected(this.pointer, this.camera);
+          if (isTv && !this.isBioHologramOpen) {
+            document.body.style.cursor = 'pointer';
+          } else if (document.body.style.cursor === 'pointer' && !e.target?.closest?.('a, button, .interactive')) {
+            document.body.style.cursor = '';
+          }
+        } else if (document.body.style.cursor === 'pointer' && !e.target?.closest?.('a, button, .interactive')) {
+          document.body.style.cursor = '';
+        }
+      }
     };
 
     this._onPointerLeave = () => {
+      if (document.body.style.cursor === 'pointer') {
+        document.body.style.cursor = '';
+      }
       this._clearPointer();
     };
 
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat || this.activeModal) return;
+      if (e.key === 'Escape' && this.isBioHologramOpen) {
+        this.closeBioHologram();
+        return;
+      }
       let direction = 0;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
         direction = 1;
@@ -1058,6 +1310,30 @@ export class PortfolioApp {
           this.idleManager.recordActivity();
         }
         this._resumeLoop();
+      }
+
+      // Check CRT TV click to toggle Bio Hologram pop-up
+      if (this.gatewayAct && this.pointer && this.camera && this.getActiveStation().id === 'gateway') {
+        const prog = this.journeyState ? this.journeyState.getProgress() : 0;
+        const isLoaderDone = !this.loaderController || this.loaderController.isCompleted();
+        if (isLoaderDone && prog >= 0.19 && prog <= 0.26) {
+          const isTvHit = this.gatewayAct.isTvIntersected(this.pointer, this.camera);
+          if (isTvHit) {
+            this.toggleBioHologram();
+            if (this.idleManager) {
+              this.idleManager.recordActivity();
+            }
+            this._resumeLoop();
+            return;
+          }
+        }
+      }
+
+      // Check click outside card to dismiss Bio Hologram
+      if (this.isBioHologramOpen && e && e.target && typeof e.target.closest === 'function') {
+        if (!e.target.closest('.station-card.gateway-card')) {
+          this.closeBioHologram();
+        }
       }
 
       // Check Pill Choice raycast click when in Gateway station
@@ -1197,6 +1473,10 @@ export class PortfolioApp {
       const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
       const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting;
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
+
+      if (this.isBioHologramOpen) {
+        this._updateHologramBeam();
+      }
 
       if (!shouldSuspend && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
@@ -1347,6 +1627,9 @@ export class PortfolioApp {
           return;
         } else if (this.journeyState && this.journeyState.getBranch() === 'unselected') {
           // Gated: strictly block navigation past pill choice until user selects a pill
+          if (this.scrollEngine) {
+            this.scrollEngine.scrollTo(0.38);
+          }
           if (this.pillChoiceAct) {
             this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
           }
@@ -1406,6 +1689,25 @@ export class PortfolioApp {
 
     if (this.container) {
       this.container.setAttribute('data-active-station', activeStation.id);
+    }
+
+    if (activeStation.id !== 'gateway') {
+      if (this.isBioHologramOpen) {
+        this.closeBioHologram();
+      }
+      if (this.gatewayAct) {
+        this.gatewayAct.setTvReticleVisible(false);
+      }
+      if (this.pillChoiceAct) {
+        if (this.pillChoiceAct.rootGroup) {
+          this.pillChoiceAct.rootGroup.visible = false;
+        }
+        this.pillChoiceAct.hoveredPill = null;
+        this.pillChoiceAct._applyHoverStates();
+      }
+      if (this.ambientLight) {
+        this.ambientLight.intensity = 0.9;
+      }
     }
 
     if (this._hudButtons && this._hudButtons.length > 0) {

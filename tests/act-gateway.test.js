@@ -268,7 +268,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -347,7 +347,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -412,7 +412,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -597,7 +597,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -668,6 +668,270 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         hudBtn.click();
         expect(app.getActiveStationIndex()).toBe(1);
       }
+
+      app.destroy();
+    });
+  });
+
+  describe('GatewayAct: 3D TV Screen Square Reticle & Bio Hologram Interaction', () => {
+    it('creates 3D TV screen reticle mesh in scene and defaults to hidden (visible = false)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      expect(act.tvReticle).toBeDefined();
+      expect(act.tvReticle.name).toBe('TvScreenReticle');
+      expect(scene.children).toContain(act.tvReticle);
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Verify reticle elements: fill, outer border, corner brackets, and center
+      const names = act.tvReticle.children.map((c) => c.name);
+      expect(names).toContain('TvReticleFill');
+      expect(names).toContain('TvReticleBorder');
+      expect(names).toContain('TvReticleCorners');
+      expect(names).toContain('TvReticleCenter');
+
+      act.dispose();
+      expect(scene.children).not.toContain(act.tvReticle);
+    });
+
+    it('keeps TV screen reticle hidden during loader (ACT 00: progress 0.0 - 0.20)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Progress at 0.0 (initial loader dwell)
+      act.update({ progress: 0.0, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Progress at 0.10 (Hitchhiker scene)
+      act.update({ progress: 0.10, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Progress at 0.19 (end of ACT 00 Hitchhiker camera zoom-through)
+      act.update({ progress: 0.19, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.dispose();
+    });
+
+    it('shows TV screen reticle when framing CRT TV in ACT 01 (progress 0.20 - 0.25)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // In Act 01 White Room at TV view (e.g. progress 0.20)
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Up to progress 0.25
+      act.update({ progress: 0.25, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      act.dispose();
+    });
+
+    it('hides TV screen reticle when descending into Pill Choice (progress > 0.25)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Descending to Pill Choice (e.g. progress 0.35)
+      act.update({ progress: 0.35, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.dispose();
+    });
+
+    it('hides TV screen reticle when Bio Hologram is open, and restores when closed', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Open hologram
+      act.setBioHologramOpen(true);
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Close hologram
+      act.setBioHologramOpen(false);
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      act.dispose();
+    });
+
+    it('raycasts TV reticle correctly and blocks interaction when hidden', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Frame camera towards TV reticle
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      for (let i = 0; i < 60; i++) {
+        act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      }
+
+      // Pointer pointing directly at reticle in screen center
+      const tvPos = act.getTvScreenWorldPosition();
+      const projected = tvPos.clone().project(camera);
+      const pointer = { x: projected.x, y: projected.y };
+
+      expect(act.isTvIntersected(pointer, camera)).toBe(true);
+
+      // During loader (progress 0.0), reticle is hidden so interaction is blocked
+      act.update({ progress: 0.0, delta: 0.016, speedFactor: 1.0 });
+      expect(act.isTvIntersected(pointer, camera)).toBe(false);
+
+      act.dispose();
+    });
+
+    it('cleans up 3D TV reticle geometries and materials upon dispose', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      const fillMesh = act.tvReticle.children.find((c) => c.name === 'TvReticleFill');
+      const geoSpy = vi.spyOn(fillMesh.geometry, 'dispose');
+      const matSpy = vi.spyOn(fillMesh.material, 'dispose');
+
+      act.dispose();
+
+      expect(geoSpy).toHaveBeenCalled();
+      expect(matSpy).toHaveBeenCalled();
+      expect(act.tvReticle).toBeNull();
+      expect(scene.children.length).toBe(0);
+    });
+
+    it('does not render .tv-interactive-hint DOM element in PortfolioApp', () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(container.querySelector('.tv-interactive-hint')).toBeNull();
+      expect(document.querySelector('.tv-interactive-hint')).toBeNull();
+
+      app.destroy();
+    });
+
+    it('prioritizes Object_527 (Screen_LowB) over earlier animated frame meshes when anchoring reticle', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Create model hierarchy mimicking the GLTF with internal frame mesh and front glass screen
+      const model = new THREE.Group();
+
+      const internalFrameParent = new THREE.Group();
+      internalFrameParent.name = 'TV Screen.001_0';
+      const internalFrameMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.01));
+      internalFrameMesh.name = 'Object_4';
+      internalFrameMesh.position.set(0, 0, -2.01);
+      internalFrameParent.add(internalFrameMesh);
+      model.add(internalFrameParent);
+
+      const screenGlassParent = new THREE.Group();
+      screenGlassParent.name = 'Screen_LowB_282';
+      const screenGlassMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.04));
+      screenGlassMesh.name = 'Object_527';
+      screenGlassMesh.position.set(0, 0, -1.97);
+      screenGlassParent.add(screenGlassMesh);
+      model.add(screenGlassParent);
+
+      act.setWhiteRoomModel(model);
+
+      expect(act.tvScreenMesh).toBe(screenGlassMesh);
+      // Reticle must be positioned at front of screenGlassMesh
+      const screenBox = new THREE.Box3().setFromObject(screenGlassMesh);
+      expect(act.tvReticle.position.z).toBeCloseTo(screenBox.max.z + 0.02, 3);
+      expect(act.tvReticle.renderOrder).toBe(10);
+
+      // getTvScreenExtents computes proportional extents from screen mesh
+      const extents = act.getTvScreenExtents();
+      expect(extents.halfWidth).toBeGreaterThan(0.2);
+      expect(extents.halfHeight).toBeGreaterThan(0.15);
+
+      act.dispose();
+    });
+
+    it('correctly maps 4-corner frustum beam projection: TV top to Card top, and TV bottom to Card bottom', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Position gateway card mock
+      const card = container.querySelector('.station-card.gateway-card');
+      expect(card).not.toBeNull();
+      card.getBoundingClientRect = () => ({
+        left: 500,
+        right: 900,
+        top: 150,
+        bottom: 450,
+        width: 400,
+        height: 300
+      });
+
+      // Open hologram
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+
+      const rayTL = container.querySelector('.beam-ray-top-left');
+      const rayBL = container.querySelector('.beam-ray-bottom-left');
+      const rayTR = container.querySelector('.beam-ray-top-right');
+      const rayBR = container.querySelector('.beam-ray-bottom-right');
+
+      // Top rays must terminate at cardTop (150)
+      expect(Number(rayTL.getAttribute('y2'))).toBe(150);
+      expect(Number(rayTR.getAttribute('y2'))).toBe(150);
+
+      // Bottom rays must terminate at cardBottom (450)
+      expect(Number(rayBL.getAttribute('y2'))).toBe(450);
+      expect(Number(rayBR.getAttribute('y2'))).toBe(450);
+
+      // Top ray origin y1 must be above bottom ray origin y1
+      expect(Number(rayTL.getAttribute('y1'))).toBeLessThan(Number(rayBL.getAttribute('y1')));
 
       app.destroy();
     });

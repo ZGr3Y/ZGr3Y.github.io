@@ -120,6 +120,11 @@ export class ScrollEngine {
     const factor = Math.min(1.0, this.lerpSpeed * (delta / 0.016));
     this.currentProgress += (this.targetProgress - this.currentProgress) * factor;
 
+    // Snap to target when within epsilon to eliminate asymptotic floating-point drag
+    if (Math.abs(this.targetProgress - this.currentProgress) < 0.0015) {
+      this.currentProgress = this.targetProgress;
+    }
+
     this.journeyState.setProgress(this.currentProgress);
   }
 

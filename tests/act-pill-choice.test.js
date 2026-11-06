@@ -56,10 +56,20 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       const humanModel = new THREE.Group();
       humanModel.add(humanMesh);
 
-      // Mock robotic hand mesh
-      const robotMesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.15, 0.08));
+      // Mock robotic hand mesh with sub-parts (pCube41, pCube42, polySurface1, polySurface39_covers_0)
+      const sharedRobotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.FrontSide });
+      const robotMesh = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.15, 0.08), sharedRobotMat);
+      robotMesh.name = 'pSphere5_Hand_0';
+      const pCube41 = new THREE.Group();
+      pCube41.name = 'pCube41';
+      const pCube42 = new THREE.Group();
+      pCube42.name = 'pCube42';
+      const polySurface1 = new THREE.Group();
+      polySurface1.name = 'polySurface1';
+      const cableMesh = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), sharedRobotMat);
+      cableMesh.name = 'polySurface39_covers_0';
       const robotModel = new THREE.Group();
-      robotModel.add(robotMesh);
+      robotModel.add(robotMesh, pCube41, pCube42, polySurface1, cableMesh);
 
       act.setHumanHandModel(humanModel);
       act.setRoboticHandModel(robotModel);
@@ -68,6 +78,23 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(act.roboticHandModel).toBeDefined();
       expect(act.leftGroup.children).toContain(act.humanHandModel);
       expect(act.rightGroup.children).toContain(act.roboticHandModel);
+
+      // Verify source asset material is never mutated in-place
+      expect(sharedRobotMat.side).toBe(THREE.FrontSide);
+      expect(sharedRobotMat.color.getHex()).toBe(0xffffff);
+
+      // Verify pCube41 & pCube42 remain visible as the carbon-fiber thumb pad while polySurface1 is hidden
+      let cloned41 = null;
+      let cloned42 = null;
+      let clonedPoly1 = null;
+      act.roboticHandModel.traverse((c) => {
+        if (c.name === 'pCube41') cloned41 = c;
+        if (c.name === 'pCube42') cloned42 = c;
+        if (c.name === 'polySurface1') clonedPoly1 = c;
+      });
+      expect(cloned41.visible).toBe(true);
+      expect(cloned42.visible).toBe(true);
+      expect(clonedPoly1.visible).toBe(false);
 
       // Verify normalization scales models to normalized hand dimension (and mirrors robotic hand X for anatomical right hand)
       expect(act.humanHandModel.scale.x).toBeCloseTo(1.25 / 25, 2);
@@ -274,16 +301,21 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       app = new PortfolioApp({ container, canvas, enableLoader: true });
       if (app.loaderController) app.loaderController.complete();
 
-      // At Pill Choice
+      // At Pill Choice (both targetProgress and currentProgress at 0.38)
       app.scrollEngine.scrollTo(0.38);
+      app.scrollEngine.currentProgress = 0.38;
       app.journeyState.setProgress(0.38);
 
       expect(app.journeyState.getBranch()).toBe('unselected');
 
-      // Attempt to scroll down further
+      // Advance past snap/navigation cooldown and attempt to scroll down via wheel and keyboard
+      vi.advanceTimersByTime(600);
       window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+      expect(app.getActiveStation().id).toBe('gateway');
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
 
-      // Station remains Gateway, cannot advance
+      vi.advanceTimersByTime(600);
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
       expect(app.getActiveStation().id).toBe('gateway');
       expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
     });
@@ -306,6 +338,100 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       // Now scroll down advances to next station
       window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
       expect(app.getActiveStationIndex()).toBe(1);
+    });
+
+    it('dims room lighting and background while tilting camera downward at Pill Choice (progress 0.38) and restores at 0.20', () => {
+      app = new PortfolioApp({ container, canvas, enableLoader: true });
+      if (app.loaderController) app.loaderController.complete();
+
+      // At progress 0.20 (Matrix White Room entrance): full high-key studio lighting
+      app.gatewayAct.update({ progress: 0.20, pointer: { x: 0, y: 0 }, delta: 0.016, speedFactor: 1.0 });
+      const keyIntensityAtEntrance = app.gatewayAct.keyLight.intensity;
+      const hemiIntensityAtEntrance = app.gatewayAct.hemiLight.intensity;
+      const ambIntensityAtEntrance = app.ambientLight.intensity;
+      const bgHexAtEntrance = app.scene.background.getHex();
+
+      expect(keyIntensityAtEntrance).toBeCloseTo(0.85, 2);
+      expect(hemiIntensityAtEntrance).toBeCloseTo(0.60, 2);
+      expect(ambIntensityAtEntrance).toBeCloseTo(0.90, 2);
+      expect(bgHexAtEntrance).toBe(0xeaecef);
+
+      // Descend to Pill Choice (progress 0.38): room lights dim down and background darkens
+      for (let i = 0; i < 60; i++) {
+        app.gatewayAct.update({ progress: 0.38, pointer: { x: 0, y: 0 }, delta: 0.05, speedFactor: 1.0 });
+        app.pillChoiceAct.update({ progress: 0.38, pointer: { x: 0, y: 0 }, delta: 0.05, speedFactor: 1.0 });
+      }
+
+      expect(app.gatewayAct.keyLight.intensity).toBeLessThan(keyIntensityAtEntrance * 0.2);
+      expect(app.gatewayAct.hemiLight.intensity).toBeLessThan(hemiIntensityAtEntrance * 0.2);
+      expect(app.ambientLight.intensity).toBeLessThan(ambIntensityAtEntrance * 0.2);
+      expect(app.scene.background.getHex()).toBe(app.gatewayAct.act2FogColor);
+
+      // Camera lookAt pitches downward (y < -0.85) to place armchairs and lower half of CRT TV in upper third
+      expect(app.gatewayAct.currentLookAt.y).toBeLessThan(-0.85);
+
+      // Pill capsules use sleek palm-proportioned geometry with localized non-overlapping point lights and aura groups
+      expect(app.pillChoiceAct.bluePill.mesh.geometry.parameters.radius).toBeLessThan(0.035);
+      expect(app.pillChoiceAct.redPill.mesh.geometry.parameters.radius).toBeLessThan(0.035);
+      expect(app.pillChoiceAct.bluePill.light.distance).toBeLessThan(1.0);
+      expect(app.pillChoiceAct.redPill.light.distance).toBeLessThan(1.0);
+      expect(app.pillChoiceAct.blueWispsGroup).toBeDefined();
+      expect(app.pillChoiceAct.redGlitchGroup).toBeDefined();
+
+      // Verify hover and resetSelection preserve exact calibrated base light intensities
+      const baseBlueLight = app.pillChoiceAct.bluePill.baseLightIntensity;
+      const baseRedLight = app.pillChoiceAct.redPill.baseLightIntensity;
+      app.pillChoiceAct.selectBranch('blue');
+      expect(app.pillChoiceAct.bluePill.haloMesh.scale.x).toBeCloseTo(1.3, 2);
+      app.pillChoiceAct.resetSelection();
+      expect(app.pillChoiceAct.bluePill.haloMesh.scale.x).toBeCloseTo(1.0, 2);
+      expect(app.pillChoiceAct.bluePill.light.intensity).toBeCloseTo(baseBlueLight, 2);
+      expect(app.pillChoiceAct.redPill.light.intensity).toBeCloseTo(baseRedLight, 2);
+
+      // Ascending back to progress 0.20 restores full studio lighting
+      app.gatewayAct.update({ progress: 0.20, pointer: { x: 0, y: 0 }, delta: 0.016, speedFactor: 1.0 });
+      expect(app.gatewayAct.keyLight.intensity).toBeCloseTo(0.85, 2);
+      expect(app.gatewayAct.hemiLight.intensity).toBeCloseTo(0.60, 2);
+      expect(app.ambientLight.intensity).toBeCloseTo(0.90, 2);
+      expect(app.scene.background.getHex()).toBe(0xeaecef);
+    });
+
+    it('scales horizontal hand offsets and localized light distance on narrow mobile portrait viewports', () => {
+      app = new PortfolioApp({ container, canvas, enableLoader: true });
+      if (app.loaderController) app.loaderController.complete();
+
+      app.camera.aspect = 375 / 667;
+      app.camera.updateProjectionMatrix();
+
+      for (let i = 0; i < 60; i++) {
+        app.gatewayAct.update({ progress: 0.38, pointer: { x: 0, y: 0 }, delta: 0.05, speedFactor: 1.0 });
+        app.pillChoiceAct.update({ progress: 0.38, pointer: { x: 0, y: 0 }, delta: 0.05, speedFactor: 1.0 });
+      }
+      app.scene.updateMatrixWorld(true);
+      app.camera.updateMatrixWorld(true);
+
+      const blueWorld = new THREE.Vector3();
+      const redWorld = new THREE.Vector3();
+      app.pillChoiceAct.bluePill.mesh.getWorldPosition(blueWorld);
+      app.pillChoiceAct.redPill.mesh.getWorldPosition(redWorld);
+
+      const blueNdc = blueWorld.clone().project(app.camera);
+      const redNdc = redWorld.clone().project(app.camera);
+
+      // Both pills must project cleanly inside the horizontal mobile viewport frustum [-1, 1]
+      expect(blueNdc.x).toBeGreaterThan(-0.92);
+      expect(blueNdc.x).toBeLessThan(0);
+      expect(redNdc.x).toBeGreaterThan(0);
+      expect(redNdc.x).toBeLessThan(0.92);
+
+      // Localized light distance shrinks proportionally on narrow screens to prevent cross-hand light bleed
+      expect(app.pillChoiceAct.bluePill.light.distance).toBeLessThan(0.6);
+      expect(app.pillChoiceAct.redPill.light.distance).toBeLessThan(0.6);
+
+      // Navigating to another station hides PillChoiceAct and restores ambient light
+      app.navigateTo(1);
+      expect(app.pillChoiceAct.rootGroup.visible).toBe(false);
+      expect(app.ambientLight.intensity).toBeCloseTo(0.9, 2);
     });
   });
 });
