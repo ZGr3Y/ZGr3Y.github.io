@@ -20,8 +20,58 @@
 
     <nav id="hud-nav" class="hud-nav" aria-label="Station Navigation"></nav>
 
+
+    <svg class="hologram-beam-svg" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="beamGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+          <stop offset="0%" stop-color="rgba(56, 189, 248, 0.35)" />
+          <stop offset="35%" stop-color="rgba(56, 189, 248, 0.16)" />
+          <stop offset="70%" stop-color="rgba(56, 189, 248, 0.05)" />
+          <stop offset="100%" stop-color="rgba(56, 189, 248, 0.01)" />
+        </linearGradient>
+        <linearGradient id="beamSideGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="rgba(56, 189, 248, 0.18)" />
+          <stop offset="100%" stop-color="rgba(56, 189, 248, 0.03)" />
+        </linearGradient>
+        <radialGradient id="emitterGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(125, 211, 252, 0.95)" />
+          <stop offset="45%" stop-color="rgba(56, 189, 248, 0.65)" />
+          <stop offset="100%" stop-color="rgba(56, 189, 248, 0)" />
+        </radialGradient>
+        <filter id="beamGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <!-- Base glowing emitter disc on TV screen -->
+      <circle class="beam-emitter" r="22" fill="url(#emitterGrad)" filter="url(#beamGlow)" />
+      <!-- Volumetric Frustum Polygons -->
+      <polygon class="beam-poly-top" fill="url(#beamGrad)" />
+      <polygon class="beam-poly-bottom" fill="url(#beamGrad)" />
+      <polygon class="beam-poly-left" fill="url(#beamSideGrad)" />
+      <polygon class="beam-poly-right" fill="url(#beamSideGrad)" />
+      <!-- 4 Primary Frustum Corner Laser Rays -->
+      <line class="beam-ray-top-left" stroke="rgba(56, 189, 248, 0.9)" stroke-width="2" stroke-dasharray="6,4" filter="url(#beamGlow)" />
+      <line class="beam-ray-top-right" stroke="rgba(56, 189, 248, 0.9)" stroke-width="2" stroke-dasharray="6,4" filter="url(#beamGlow)" />
+      <line class="beam-ray-bottom-left" stroke="rgba(56, 189, 248, 0.9)" stroke-width="2" stroke-dasharray="6,4" filter="url(#beamGlow)" />
+      <line class="beam-ray-bottom-right" stroke="rgba(56, 189, 248, 0.9)" stroke-width="2" stroke-dasharray="6,4" filter="url(#beamGlow)" />
+      <!-- Center & Intermediate Guide Rays -->
+      <line class="beam-ray-top-mid" stroke="rgba(125, 211, 252, 0.65)" stroke-width="1.3" stroke-dasharray="8,6" />
+      <line class="beam-ray-bottom-mid" stroke="rgba(125, 211, 252, 0.65)" stroke-width="1.3" stroke-dasharray="8,6" />
+      <line class="beam-ray-center" stroke="rgba(56, 189, 248, 0.75)" stroke-width="1.5" stroke-dasharray="4,4" filter="url(#beamGlow)" />
+    </svg>
+
     <main id="station-container" class="station-container">
-      <section class="station-card gateway-card active" data-station="gateway" aria-label="Station 01: Gateway">
+      <section class="station-card gateway-card" data-station="gateway" role="dialog" aria-modal="true" aria-label="Station 01: Gateway Bio Hologram" inert aria-hidden="true">
+        <button type="button" class="card-close-btn" aria-label="Close Bio Hologram" title="Close Bio Hologram">✕</button>
+        <div class="holo-scan-line" aria-hidden="true"></div>
+        <div class="holo-corner holo-corner-tl" aria-hidden="true"></div>
+        <div class="holo-corner holo-corner-tr" aria-hidden="true"></div>
+        <div class="holo-corner holo-corner-bl" aria-hidden="true"></div>
+        <div class="holo-corner holo-corner-br" aria-hidden="true"></div>
         <div class="station-badge">
           <span class="badge-dot" aria-hidden="true"></span>
           <span>SYSTEM ONLINE // CLOUD MESH PROTOCOL</span>

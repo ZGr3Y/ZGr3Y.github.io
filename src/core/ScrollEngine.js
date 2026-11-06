@@ -99,6 +99,16 @@ export class ScrollEngine {
   }
 
   /**
+   * Freezes any in-flight progress interpolation by snapping target to current progress
+   */
+  freeze() {
+    this.targetProgress = this.currentProgress;
+    if (this.journeyState) {
+      this.journeyState.setProgress(this.currentProgress);
+    }
+  }
+
+  /**
    * Smoothly scrolls to a designated progress target
    * @param {number} value Target progress [0.0 - 1.0]
    */
@@ -119,6 +129,11 @@ export class ScrollEngine {
     // Smooth lerp interpolation
     const factor = Math.min(1.0, this.lerpSpeed * (delta / 0.016));
     this.currentProgress += (this.targetProgress - this.currentProgress) * factor;
+
+    // Snap to target when within epsilon to eliminate asymptotic floating-point drag
+    if (Math.abs(this.targetProgress - this.currentProgress) < 0.0015) {
+      this.currentProgress = this.targetProgress;
+    }
 
     this.journeyState.setProgress(this.currentProgress);
   }

@@ -268,7 +268,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -347,7 +347,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -386,7 +386,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       expect(app.gatewayAct).toBeDefined();
 
-      // Navigate to Station 1 (Lab)
+      // Navigate to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       expect(app.isCameraTransitioning()).toBe(true);
 
@@ -412,11 +413,12 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
-      // Select Station 1 (Lab)
+      // Select Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
       const labCard = container.querySelector('.station-card[data-station="lab"]');
@@ -461,7 +463,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(app.camera.position.x).toBeGreaterThan(15);
       expect(app.gatewayAct.currentCamPos.x).toBeGreaterThan(15);
 
-      // Navigate to Lab station
+      // Navigate to Lab station once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       for (let frame = 0; frame < 100; frame++) {
         app._renderFrame(2000 + frame * 16);
@@ -508,7 +511,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       expect(app.scrollEngine.snapMode).toBe(true);
 
-      // Navigate to Station 1 (Lab)
+      // Navigate to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
 
       // Finish waypoint camera transition
@@ -597,7 +601,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         container,
         canvas,
         srAnnouncer,
-        enableLoader: false,
+        enableLoader: true,
         enableJourney: true
       });
 
@@ -609,7 +613,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(gatewayCard.classList.contains('active')).toBe(false);
       expect(gatewayCard.hasAttribute('hidden')).toBe(true);
 
-      // Navigate away to Station 1 (Lab)
+      // Navigate away to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       expect(labCard.classList.contains('active')).toBe(true);
       expect(gatewayCard.classList.contains('active')).toBe(false);
@@ -663,13 +668,523 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(app.loaderController.isCompleted()).toBe(true);
       expect(app.scrollEngine.isLocked()).toBe(false);
 
-      // Once completed, HUD button navigation functions normally
+      // Once completed and branch is chosen, HUD button navigation functions normally
+      app.journeyState.selectBranch('blue');
       if (hudBtn) {
         hudBtn.click();
         expect(app.getActiveStationIndex()).toBe(1);
       }
 
       app.destroy();
+    });
+  });
+
+  describe('GatewayAct: 3D TV Screen Square Reticle & Bio Hologram Interaction', () => {
+    it('creates 3D TV screen reticle mesh in scene and defaults to hidden (visible = false)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      expect(act.tvReticle).toBeDefined();
+      expect(act.tvReticle.name).toBe('TvScreenReticle');
+      expect(scene.children).toContain(act.tvReticle);
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Verify reticle elements: fill, outer border, corner brackets, and center
+      const names = act.tvReticle.children.map((c) => c.name);
+      expect(names).toContain('TvReticleFill');
+      expect(names).toContain('TvReticleBorder');
+      expect(names).toContain('TvReticleCorners');
+      expect(names).toContain('TvReticleCenter');
+
+      act.dispose();
+      expect(scene.children).not.toContain(act.tvReticle);
+    });
+
+    it('keeps TV screen reticle hidden during loader (ACT 00: progress 0.0 - 0.20)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Progress at 0.0 (initial loader dwell)
+      act.update({ progress: 0.0, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Progress at 0.10 (Hitchhiker scene)
+      act.update({ progress: 0.10, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Progress at 0.19 (end of ACT 00 Hitchhiker camera zoom-through)
+      act.update({ progress: 0.19, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.dispose();
+    });
+
+    it('shows TV screen reticle when framing CRT TV in ACT 01 (progress 0.20 - 0.25)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // In Act 01 White Room at TV view (e.g. progress 0.20)
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Up to progress 0.25
+      act.update({ progress: 0.25, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      act.dispose();
+    });
+
+    it('hides TV screen reticle when descending into Pill Choice (progress > 0.25)', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Descending to Pill Choice (e.g. progress 0.35)
+      act.update({ progress: 0.35, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.dispose();
+    });
+
+    it('hides TV screen reticle when Bio Hologram is open, and restores when closed', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      // Open hologram
+      act.setBioHologramOpen(true);
+      expect(act.tvReticle.visible).toBe(false);
+
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(false);
+
+      // Close hologram
+      act.setBioHologramOpen(false);
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      expect(act.tvReticle.visible).toBe(true);
+
+      act.dispose();
+    });
+
+    it('raycasts TV reticle correctly and blocks interaction when hidden', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Frame camera towards TV reticle
+      act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      for (let i = 0; i < 60; i++) {
+        act.update({ progress: 0.20, delta: 0.016, speedFactor: 1.0 });
+      }
+
+      // Pointer pointing directly at reticle in screen center
+      const tvPos = act.getTvScreenWorldPosition();
+      const projected = tvPos.clone().project(camera);
+      const pointer = { x: projected.x, y: projected.y };
+
+      expect(act.isTvIntersected(pointer, camera)).toBe(true);
+
+      // During loader (progress 0.0), reticle is hidden so interaction is blocked
+      act.update({ progress: 0.0, delta: 0.016, speedFactor: 1.0 });
+      expect(act.isTvIntersected(pointer, camera)).toBe(false);
+
+      act.dispose();
+    });
+
+    it('cleans up 3D TV reticle geometries and materials upon dispose', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      const fillMesh = act.tvReticle.children.find((c) => c.name === 'TvReticleFill');
+      const geoSpy = vi.spyOn(fillMesh.geometry, 'dispose');
+      const matSpy = vi.spyOn(fillMesh.material, 'dispose');
+
+      act.dispose();
+
+      expect(geoSpy).toHaveBeenCalled();
+      expect(matSpy).toHaveBeenCalled();
+      expect(act.tvReticle).toBeNull();
+      expect(scene.children.length).toBe(0);
+    });
+
+    it('does not render .tv-interactive-hint DOM element in PortfolioApp', () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(container.querySelector('.tv-interactive-hint')).toBeNull();
+      expect(document.querySelector('.tv-interactive-hint')).toBeNull();
+
+      app.destroy();
+    });
+
+    it('prioritizes Object_527 (Screen_LowB) over earlier animated frame meshes when anchoring reticle', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      // Create model hierarchy mimicking the GLTF with internal frame mesh and front glass screen
+      const model = new THREE.Group();
+
+      const internalFrameParent = new THREE.Group();
+      internalFrameParent.name = 'TV Screen.001_0';
+      const internalFrameMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.01));
+      internalFrameMesh.name = 'Object_4';
+      internalFrameMesh.position.set(0, 0, -2.01);
+      internalFrameParent.add(internalFrameMesh);
+      model.add(internalFrameParent);
+
+      const screenGlassParent = new THREE.Group();
+      screenGlassParent.name = 'Screen_LowB_282';
+      const screenGlassMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.04));
+      screenGlassMesh.name = 'Object_527';
+      screenGlassMesh.position.set(0, 0, -1.97);
+      screenGlassParent.add(screenGlassMesh);
+      model.add(screenGlassParent);
+
+      act.setWhiteRoomModel(model);
+
+      expect(act.tvScreenMesh).toBe(screenGlassMesh);
+      // Reticle must be positioned at front of screenGlassMesh
+      const screenBox = new THREE.Box3().setFromObject(screenGlassMesh);
+      expect(act.tvReticle.position.z).toBeCloseTo(screenBox.max.z + 0.02, 3);
+      expect(act.tvReticle.renderOrder).toBe(10);
+
+      // getTvScreenExtents computes proportional extents from screen mesh
+      const extents = act.getTvScreenExtents();
+      expect(extents.halfWidth).toBeGreaterThan(0.2);
+      expect(extents.halfHeight).toBeGreaterThan(0.15);
+
+      act.dispose();
+    });
+
+    it('correctly maps 4-corner frustum beam projection: TV top to Card top, and TV bottom to Card bottom', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Position gateway card mock
+      const card = container.querySelector('.station-card.gateway-card');
+      expect(card).not.toBeNull();
+      card.getBoundingClientRect = () => ({
+        left: 500,
+        right: 900,
+        top: 150,
+        bottom: 450,
+        width: 400,
+        height: 300
+      });
+
+      // Open hologram
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+
+      const rayTL = container.querySelector('.beam-ray-top-left');
+      const rayBL = container.querySelector('.beam-ray-bottom-left');
+      const rayTR = container.querySelector('.beam-ray-top-right');
+      const rayBR = container.querySelector('.beam-ray-bottom-right');
+
+      // Top rays must terminate at cardTop (150)
+      expect(Number(rayTL.getAttribute('y2'))).toBe(150);
+      expect(Number(rayTR.getAttribute('y2'))).toBe(150);
+
+      // Bottom rays must terminate at cardBottom (450)
+      expect(Number(rayBL.getAttribute('y2'))).toBe(450);
+      expect(Number(rayBR.getAttribute('y2'))).toBe(450);
+
+      // Top ray origin y1 must be above bottom ray origin y1
+      expect(Number(rayTL.getAttribute('y1'))).toBeLessThan(Number(rayBL.getAttribute('y1')));
+
+      app.destroy();
+    });
+
+    it('removes the closed TV bio hologram from the tab order using inert and aria-hidden', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      const card = container.querySelector('.station-card.gateway-card');
+      expect(card).not.toBeNull();
+
+      // Initially closed: card must be inert and aria-hidden to keep interactive children out of the tab order
+      expect(card.hasAttribute('inert')).toBe(true);
+      expect(card.getAttribute('aria-hidden')).toBe('true');
+      expect(card.classList.contains('is-open')).toBe(false);
+
+      // Open hologram: must expose card and remove inert/aria-hidden, declare dialog semantics
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+      expect(card.hasAttribute('inert')).toBe(false);
+      expect(card.hasAttribute('aria-hidden')).toBe(false);
+      expect(card.getAttribute('role')).toBe('dialog');
+      expect(card.getAttribute('aria-modal')).toBe('true');
+      expect(card.classList.contains('is-open')).toBe(true);
+
+      // Close hologram: must re-apply inert and aria-hidden
+      app.closeBioHologram();
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(card.hasAttribute('inert')).toBe(true);
+      expect(card.getAttribute('aria-hidden')).toBe('true');
+      expect(card.classList.contains('is-open')).toBe(false);
+
+      app.destroy();
+    });
+
+    it('contains focus while the hologram is open and restores focus on dismissal', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <button id="trigger-btn" type="button">Open Hologram Trigger</button>
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+      const triggerBtn = container.querySelector('#trigger-btn');
+      triggerBtn.focus();
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      const card = container.querySelector('.station-card.gateway-card');
+      const closeBtn = card.querySelector('.card-close-btn');
+      const focusable = card.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      const firstFocusable = focusable[0];
+      const lastFocusable = focusable[focusable.length - 1];
+
+      // Open hologram via trigger
+      app.openBioHologram(triggerBtn);
+      expect(app.isBioHologramOpen).toBe(true);
+
+      // Focus should immediately land inside the dialog on the close button
+      expect(document.activeElement).toBe(closeBtn);
+
+      // Simulate Tab key on last focusable element -> must wrap to first
+      lastFocusable.focus();
+      expect(document.activeElement).toBe(lastFocusable);
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      window.dispatchEvent(tabEvent);
+      expect(document.activeElement).toBe(firstFocusable);
+
+      // Simulate Shift+Tab on first focusable element -> must wrap to last
+      const shiftTabEvent = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+      window.dispatchEvent(shiftTabEvent);
+      expect(document.activeElement).toBe(lastFocusable);
+
+      // Escape key must dismiss the hologram and restore focus back to the trigger element
+      const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      window.dispatchEvent(escEvent);
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(document.activeElement).toBe(triggerBtn);
+
+      app.destroy();
+      container.remove();
+    });
+
+    it('locks navigation and scrollEngine while the bio hologram is open and unlocks on close', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Complete loader to reach Gateway White Room (progress 0.20)
+      if (app.loaderController) {
+        app.loaderController.complete();
+      }
+      app.scrollEngine.scrollTo(0.20);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      // Open bio hologram
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+      expect(app.scrollEngine.isLocked()).toBe(true);
+
+      // Simulate wheel and keydown events while hologram is open -> must not advance scroll
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+
+      // Close bio hologram -> unlocks scrollEngine
+      app.closeBioHologram();
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      app.destroy();
+      container.remove();
+    });
+
+    it('freezes in-flight descent and resets target progress to 0.20 when opening bio hologram', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      if (app.loaderController) {
+        app.loaderController.complete();
+      }
+
+      // Simulate in-flight downward scroll toward Pill Choice (0.38)
+      app.scrollEngine.scrollTo(0.38);
+      app.scrollEngine.currentProgress = 0.22;
+      app.journeyState.setProgress(0.22);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
+
+      // Open Bio Hologram while descent is in-flight
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+
+      // Pending target must be frozen and reset back to 0.20 so popup is not closed by progress > 0.25
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+      expect(app.scrollEngine.getCurrentProgress()).toBe(0.20);
+      expect(app.journeyState.getProgress()).toBe(0.20);
+
+      // Advancing scroll engine tick must not advance progress past 0.20 or close hologram
+      app.scrollEngine.update(0.016);
+      expect(app.scrollEngine.getCurrentProgress()).toBe(0.20);
+      expect(app.isBioHologramOpen).toBe(true);
+
+      app.destroy();
+      container.remove();
     });
   });
 });
