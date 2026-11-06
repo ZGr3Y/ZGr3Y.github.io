@@ -81,6 +81,7 @@ export class JourneyState {
     if (branch === 'experiences') normalized = 'blue';
     if (branch === 'harness') normalized = 'red';
     if (normalized !== 'blue' && normalized !== 'red') return;
+    if (this.branchState === normalized) return;
     this.branchState = normalized;
     this.maxReachable = 1.0;
     this.branchListeners.forEach((fn) => fn(this.branchState));

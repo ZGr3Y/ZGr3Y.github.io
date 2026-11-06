@@ -433,5 +433,31 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.pillChoiceAct.rootGroup.visible).toBe(false);
       expect(app.ambientLight.intensity).toBeCloseTo(0.9, 2);
     });
+
+    it('exposes keyboard-accessible branch choice buttons at the 0.38 scroll gate and syncs 3D pill selection', () => {
+      app = new PortfolioApp({ container, canvas, enableLoader: true });
+      if (app.loaderController) app.loaderController.complete();
+
+      // At White Room view (progress 0.20), branch prompt is hidden
+      app.journeyState.setProgress(0.20);
+      app.journeyHud.update();
+      const branchActions = container.querySelector('.journey-branch-actions');
+      expect(branchActions.hasAttribute('hidden')).toBe(true);
+
+      // At Pill Choice gate (progress 0.38), accessible branch choices are revealed for keyboard-only users
+      app.journeyState.setProgress(0.38);
+      app.journeyHud.update();
+      expect(branchActions.hasAttribute('hidden')).toBe(false);
+
+      // Activating accessible Blue Pill choice unlocks journeyState and triggers 3D selection
+      const blueBtn = branchActions.querySelector('.branch-blue');
+      blueBtn.click();
+
+      expect(app.journeyState.getBranch()).toBe('blue');
+      expect(app.journeyState.getMaxReachable()).toBe(1.0);
+      expect(branchActions.hasAttribute('hidden')).toBe(true);
+      expect(app.pillChoiceAct.selectedBranch).toBe('blue');
+      expect(app.pillChoiceAct.bluePill.mesh.scale.x).toBeCloseTo(1.3, 2);
+    });
   });
 });

@@ -1069,6 +1069,18 @@ export class PortfolioApp {
       this.journeyState.onProgress((progress) => {
         this._updateJourneyCardVisibility(progress);
       });
+      this.journeyState.onBranch((branch) => {
+        if (this.pillChoiceAct && this.pillChoiceAct.selectedBranch !== branch) {
+          this.pillChoiceAct.selectBranch(branch);
+        }
+        if (this.journeyHud) {
+          this.journeyHud.update();
+        }
+        if (this.idleManager) {
+          this.idleManager.recordActivity();
+        }
+        this._resumeLoop();
+      });
       this.scrollEngine = new ScrollEngine({
         journeyState: this.journeyState,
         snapPoints: [0.20, 0.45, 0.70, 0.95],

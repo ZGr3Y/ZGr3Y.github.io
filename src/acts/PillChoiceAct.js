@@ -1052,6 +1052,7 @@ export class PillChoiceAct {
    */
   selectBranch(branch) {
     if (this.isDisposed || (branch !== 'blue' && branch !== 'red')) return;
+    if (this.selectedBranch === branch) return;
 
     this.selectedBranch = branch;
 

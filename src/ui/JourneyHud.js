@@ -111,7 +111,9 @@ export class JourneyHud {
     }
 
     if (this.branchActions) {
-      const shouldPrompt = this.journeyState.getBranch() === 'unselected' && progress >= 0.55;
+      const isUnselected = this.journeyState.getBranch() === 'unselected';
+      const isAtGate = progress >= 0.35;
+      const shouldPrompt = isUnselected && isAtGate;
       if (shouldPrompt) {
         this.branchActions.removeAttribute('hidden');
       } else {
