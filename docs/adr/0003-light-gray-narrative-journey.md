@@ -18,10 +18,10 @@ User feedback and design alignment demonstrated the need for a continuous narrat
    - A single, continuous Three.js `<canvas>` orchestrated across a 6-act narrative arc:
      - **Act 0 (Loader)**: Hitchhiker's Guide 3D book (`the_hitchhikers_guide_to_the_galaxy.glb`) with a circular "DON'T PANIC" SVG progress indicator and a glitch counter repeatedly resetting to 42.
      - **Act 1 (Gateway)**: Camera zoom-through from book into the Matrix White Room (`the_matrix_white_room.glb`), bio card, CV download, and GitHub uplinks.
-     - **Act 2 (Pill Choice)**: Human hand (`hand.glb`) with Blue Pill vs Robotic hand (`robotic_hand.glb`) with Red Pill. Downward progression is gated until a pill is chosen; upward scroll allows re-selection.
+     - **Act 2 (Pill Choice)**: Human hand (`hand.glb`) with Blue Pill (Portal / Harness) vs Robotic hand (`robotic_hand.glb`) with Red Pill (Blade Runner / Experiences). Downward progression is gated until a pill is chosen; upward scroll allows re-selection.
      - **Act 3 (Branching)**:
-       - *Blue Branch (Experiences)*: 3 Origami Unicorns (`origami_unicorn_from_blade_runner.glb`) representing key engineering projects with deep-dive modal support.
-       - *Red Branch (Harness)*: Wheatley core (`portal_2_wheatly_rig.glb`) with eye-tracking and pupil animation surrounded by 4 orbital rings of 23 tech stack logos.
+       - *Blue Branch (Harness / Portal)*: Wheatley core (`portal_2_wheatly_rig.glb`) with eye-tracking and pupil animation surrounded by 4 orbital rings of 23 tech stack logos.
+       - *Red Branch (Experiences / Blade Runner)*: 3 Origami Unicorns (`origami_unicorn_from_blade_runner.glb`) representing key engineering projects with deep-dive modal support.
      - **Act 4 (Ship & Shatter)**: Rick's ship (`ricks_ship_from_rick_and_morty.glb`) fly-through and procedural viewport shatter effect.
      - **Act 5 (Transmission)**: Peaceful drift of Rick's ship in deep space, terminal interface, and direct contact uplinks.
 

@@ -17,11 +17,11 @@ A 3D coordinate waypoint and visual focal point representing a logical stage of 
 _Avoid_: Page, screen, slide, view
 
 **Pill Choice**:
-The interactive branching mechanic in Act 2 presenting a human hand with procedural Blue Pill (Experiences) and a robotic hand with procedural Red Pill (Harness). Downward scroll is gated until a pill is chosen.
+The interactive branching mechanic in Act 2 presenting a human hand with procedural Blue Pill (Portal / Harness) and a robotic hand with procedural Red Pill (Blade Runner / Experiences). Downward scroll is gated until a pill is chosen.
 _Avoid_: Toggle, radio button, switcher
 
 **Branch**:
-One of the two divergent thematic paths selected during Pill Choice: the Blue Branch focusing on engineering projects (Experiences) or the Red Branch focusing on technical skills and tooling (Harness).
+One of the two divergent thematic paths selected during Pill Choice: the Blue Branch focusing on technical skills and tooling (Portal / Harness) or the Red Branch focusing on engineering projects (Blade Runner / Experiences).
 _Avoid_: Tab, route, alternative page
 
 **Shatter**:
