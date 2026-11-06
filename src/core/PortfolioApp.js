@@ -98,6 +98,13 @@ export class PortfolioApp {
       if (typeof document !== 'undefined') {
         this.hologramBeamSvg = (this.container && this.container.querySelector('.hologram-beam-svg')) ||
           document.querySelector('.hologram-beam-svg');
+        const gatewayCard = (this.container && this.container.querySelector('.station-card.gateway-card')) ||
+          (this.stationContainer && this.stationContainer.querySelector('.station-card.gateway-card')) ||
+          document.querySelector('.station-card.gateway-card');
+        if (gatewayCard && !this.isBioHologramOpen) {
+          gatewayCard.setAttribute('inert', '');
+          gatewayCard.setAttribute('aria-hidden', 'true');
+        }
         const gatewayCloseBtn = this.container.querySelector('.station-card.gateway-card .card-close-btn');
         if (gatewayCloseBtn) {
           gatewayCloseBtn.addEventListener('click', (e) => {
@@ -271,6 +278,10 @@ export class PortfolioApp {
     card.className = 'station-card gateway-card';
     card.setAttribute('data-station', 'gateway');
     card.setAttribute('aria-label', 'Station 01: Gateway');
+    if (!this.isBioHologramOpen) {
+      card.setAttribute('inert', '');
+      card.setAttribute('aria-hidden', 'true');
+    }
     card.innerHTML = `
       <button type="button" class="card-close-btn" aria-label="Close Bio Hologram" title="Close Bio Hologram">✕</button>
       <div class="holo-scan-line" aria-hidden="true"></div>
@@ -644,6 +655,12 @@ export class PortfolioApp {
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
       gatewayCard.classList.add('is-open');
+      gatewayCard.removeAttribute('inert');
+      gatewayCard.removeAttribute('aria-hidden');
+      const closeBtn = gatewayCard.querySelector('.card-close-btn');
+      if (closeBtn && typeof closeBtn.focus === 'function') {
+        closeBtn.focus();
+      }
     }
     if (this.hologramBeamSvg) {
       this.hologramBeamSvg.classList.add('is-open');
@@ -667,6 +684,11 @@ export class PortfolioApp {
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
       gatewayCard.classList.remove('is-open');
+      gatewayCard.setAttribute('inert', '');
+      gatewayCard.setAttribute('aria-hidden', 'true');
+      if (typeof document !== 'undefined' && document.activeElement && gatewayCard.contains(document.activeElement)) {
+        document.activeElement.blur();
+      }
     }
     if (this.hologramBeamSvg) {
       this.hologramBeamSvg.classList.remove('is-open');

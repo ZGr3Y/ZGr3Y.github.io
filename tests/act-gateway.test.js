@@ -935,5 +935,60 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       app.destroy();
     });
+
+    it('removes the closed TV bio hologram from the tab order using inert and aria-hidden', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      const card = container.querySelector('.station-card.gateway-card');
+      expect(card).not.toBeNull();
+
+      // Initially closed: card must be inert and aria-hidden to keep interactive children out of the tab order
+      expect(card.hasAttribute('inert')).toBe(true);
+      expect(card.getAttribute('aria-hidden')).toBe('true');
+      expect(card.classList.contains('is-open')).toBe(false);
+
+      // Open hologram: must expose card and remove inert/aria-hidden
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+      expect(card.hasAttribute('inert')).toBe(false);
+      expect(card.hasAttribute('aria-hidden')).toBe(false);
+      expect(card.classList.contains('is-open')).toBe(true);
+
+      // Close hologram: must re-apply inert and aria-hidden
+      app.closeBioHologram();
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(card.hasAttribute('inert')).toBe(true);
+      expect(card.getAttribute('aria-hidden')).toBe('true');
+      expect(card.classList.contains('is-open')).toBe(false);
+
+      app.destroy();
+    });
   });
 });
