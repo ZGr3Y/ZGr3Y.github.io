@@ -1127,5 +1127,64 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       app.destroy();
       container.remove();
     });
+
+    it('freezes in-flight descent and resets target progress to 0.20 when opening bio hologram', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      if (app.loaderController) {
+        app.loaderController.complete();
+      }
+
+      // Simulate in-flight downward scroll toward Pill Choice (0.38)
+      app.scrollEngine.scrollTo(0.38);
+      app.scrollEngine.currentProgress = 0.22;
+      app.journeyState.setProgress(0.22);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
+
+      // Open Bio Hologram while descent is in-flight
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+
+      // Pending target must be frozen and reset back to 0.20 so popup is not closed by progress > 0.25
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+      expect(app.scrollEngine.getCurrentProgress()).toBe(0.20);
+      expect(app.journeyState.getProgress()).toBe(0.20);
+
+      // Advancing scroll engine tick must not advance progress past 0.20 or close hologram
+      app.scrollEngine.update(0.016);
+      expect(app.scrollEngine.getCurrentProgress()).toBe(0.20);
+      expect(app.isBioHologramOpen).toBe(true);
+
+      app.destroy();
+      container.remove();
+    });
   });
 });

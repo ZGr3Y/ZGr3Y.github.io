@@ -177,6 +177,12 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       window.dispatchEvent(normalWheel);
       expect(engine.getTargetProgress()).toBeGreaterThan(0);
 
+      // Freeze collapses targetProgress to currentProgress
+      engine.currentProgress = 0.35;
+      engine.targetProgress = 0.70;
+      engine.freeze();
+      expect(engine.getTargetProgress()).toBe(0.35);
+
       engine.dispose();
     });
 

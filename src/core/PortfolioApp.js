@@ -684,6 +684,16 @@ export class PortfolioApp {
     this.isBioHologramOpen = true;
     if (this.scrollEngine) {
       this.scrollEngine.setLocked(true);
+      // Freeze or reset any in-flight descent target so hologram overlay remains open and usable
+      if (this.getActiveStation().id === 'gateway') {
+        this.scrollEngine.targetProgress = 0.20;
+        this.scrollEngine.currentProgress = 0.20;
+        if (this.journeyState) {
+          this.journeyState.setProgress(0.20);
+        }
+      } else {
+        this.scrollEngine.freeze();
+      }
     }
     this._hologramTriggerElement = triggerElement || (typeof document !== 'undefined' ? document.activeElement : null);
     if (!this._hologramTriggerElement || (typeof document !== 'undefined' && this._hologramTriggerElement === document.body)) {

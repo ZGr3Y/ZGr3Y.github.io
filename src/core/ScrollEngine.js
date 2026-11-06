@@ -99,6 +99,16 @@ export class ScrollEngine {
   }
 
   /**
+   * Freezes any in-flight progress interpolation by snapping target to current progress
+   */
+  freeze() {
+    this.targetProgress = this.currentProgress;
+    if (this.journeyState) {
+      this.journeyState.setProgress(this.currentProgress);
+    }
+  }
+
+  /**
    * Smoothly scrolls to a designated progress target
    * @param {number} value Target progress [0.0 - 1.0]
    */
