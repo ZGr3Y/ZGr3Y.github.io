@@ -1061,5 +1061,65 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       app.destroy();
       container.remove();
     });
+
+    it('locks navigation and scrollEngine while the bio hologram is open and unlocks on close', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      // Complete loader to reach Gateway White Room (progress 0.20)
+      if (app.loaderController) {
+        app.loaderController.complete();
+      }
+      app.scrollEngine.scrollTo(0.20);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      // Open bio hologram
+      app.openBioHologram();
+      expect(app.isBioHologramOpen).toBe(true);
+      expect(app.scrollEngine.isLocked()).toBe(true);
+
+      // Simulate wheel and keydown events while hologram is open -> must not advance scroll
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.20);
+
+      // Close bio hologram -> unlocks scrollEngine
+      app.closeBioHologram();
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(app.scrollEngine.isLocked()).toBe(false);
+
+      app.destroy();
+      container.remove();
+    });
   });
 });

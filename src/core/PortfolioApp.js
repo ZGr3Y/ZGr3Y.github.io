@@ -653,6 +653,9 @@ export class PortfolioApp {
    */
   openBioHologram(triggerElement = null) {
     this.isBioHologramOpen = true;
+    if (this.scrollEngine) {
+      this.scrollEngine.setLocked(true);
+    }
     this._hologramTriggerElement = triggerElement || (typeof document !== 'undefined' ? document.activeElement : null);
     if (!this._hologramTriggerElement || (typeof document !== 'undefined' && this._hologramTriggerElement === document.body)) {
       this._hologramTriggerElement = this.canvas;
@@ -688,6 +691,9 @@ export class PortfolioApp {
   closeBioHologram() {
     if (!this.isBioHologramOpen) return;
     this.isBioHologramOpen = false;
+    if (this.scrollEngine) {
+      this.scrollEngine.setLocked(false);
+    }
     if (this.gatewayAct) {
       this.gatewayAct.setBioHologramOpen(false);
     }
@@ -1247,7 +1253,7 @@ export class PortfolioApp {
     };
 
     this._onWheel = (e) => {
-      if (!e || typeof e.deltaY !== 'number' || this.activeModal) return;
+      if (!e || typeof e.deltaY !== 'number' || this.activeModal || this.isBioHologramOpen) return;
       if (e.ctrlKey || e.metaKey) return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
@@ -1263,7 +1269,7 @@ export class PortfolioApp {
     };
 
     this._onTouchStart = (e) => {
-      if (this.activeModal) return;
+      if (this.activeModal || this.isBioHologramOpen) return;
       // Multi-touch gestures (e.g. pinch-to-zoom) must not trigger station swipe navigation
       if (e.touches && e.touches.length === 1) {
         const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
@@ -1288,7 +1294,7 @@ export class PortfolioApp {
     };
 
     this._onTouchMove = (e) => {
-      if (this.activeModal) return;
+      if (this.activeModal || this.isBioHologramOpen) return;
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
         this._updatePointerFromClient(touch.clientX, touch.clientY);
@@ -1296,7 +1302,7 @@ export class PortfolioApp {
     };
 
     this._onTouchEnd = (e) => {
-      if (this.activeModal) return;
+      if (this.activeModal || this.isBioHologramOpen) return;
       // If there are still active touches (e.g. multi-touch lift), cancel gesture navigation
       if (e.touches && e.touches.length > 0) {
         this._touchStartX = null;
@@ -1790,6 +1796,9 @@ export class PortfolioApp {
    */
   destroy() {
     this._closeArchitectureModal();
+    if (this.isBioHologramOpen) {
+      this.closeBioHologram();
+    }
     this.isDestroyed = true;
     this._isLoopRunning = false;
     this._isCameraTransitioning = false;
