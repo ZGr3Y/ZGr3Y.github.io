@@ -65,6 +65,7 @@ export class PortfolioApp {
     // Holographic Bio Pop-up state projected from CRT TV
     this.isBioHologramOpen = false;
     this.hologramBeamSvg = null;
+    this._hologramTriggerElement = null;
 
     // Spatial Camera Waypoint Controller state
     this._targetCamPos = new THREE.Vector3(0, 0, 16);
@@ -277,7 +278,9 @@ export class PortfolioApp {
     const card = document.createElement('section');
     card.className = 'station-card gateway-card';
     card.setAttribute('data-station', 'gateway');
-    card.setAttribute('aria-label', 'Station 01: Gateway');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-label', 'Station 01: Gateway Bio Hologram');
     if (!this.isBioHologramOpen) {
       card.setAttribute('inert', '');
       card.setAttribute('aria-hidden', 'true');
@@ -646,9 +649,14 @@ export class PortfolioApp {
 
   /**
    * Opens the holographic Bio pop-up projected from the CRT TV
+   * @param {HTMLElement|null} triggerElement Element that triggered the opening (for focus restoration)
    */
-  openBioHologram() {
+  openBioHologram(triggerElement = null) {
     this.isBioHologramOpen = true;
+    this._hologramTriggerElement = triggerElement || (typeof document !== 'undefined' ? document.activeElement : null);
+    if (!this._hologramTriggerElement || (typeof document !== 'undefined' && this._hologramTriggerElement === document.body)) {
+      this._hologramTriggerElement = this.canvas;
+    }
     if (this.gatewayAct) {
       this.gatewayAct.setBioHologramOpen(true);
     }
@@ -657,6 +665,8 @@ export class PortfolioApp {
       gatewayCard.classList.add('is-open');
       gatewayCard.removeAttribute('inert');
       gatewayCard.removeAttribute('aria-hidden');
+      gatewayCard.setAttribute('role', 'dialog');
+      gatewayCard.setAttribute('aria-modal', 'true');
       const closeBtn = gatewayCard.querySelector('.card-close-btn');
       if (closeBtn && typeof closeBtn.focus === 'function') {
         closeBtn.focus();
@@ -686,9 +696,12 @@ export class PortfolioApp {
       gatewayCard.classList.remove('is-open');
       gatewayCard.setAttribute('inert', '');
       gatewayCard.setAttribute('aria-hidden', 'true');
-      if (typeof document !== 'undefined' && document.activeElement && gatewayCard.contains(document.activeElement)) {
-        document.activeElement.blur();
-      }
+    }
+    if (this._hologramTriggerElement && typeof this._hologramTriggerElement.focus === 'function') {
+      this._hologramTriggerElement.focus();
+      this._hologramTriggerElement = null;
+    } else if (typeof document !== 'undefined' && document.activeElement && gatewayCard?.contains(document.activeElement)) {
+      document.activeElement.blur();
     }
     if (this.hologramBeamSvg) {
       this.hologramBeamSvg.classList.remove('is-open');
@@ -1210,8 +1223,15 @@ export class PortfolioApp {
 
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat || this.activeModal) return;
-      if (e.key === 'Escape' && this.isBioHologramOpen) {
-        this.closeBioHologram();
+      if (this.isBioHologramOpen) {
+        if (e.key === 'Escape') {
+          this.closeBioHologram();
+        } else if (e.key === 'Tab') {
+          const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
+          if (gatewayCard) {
+            trapFocus(gatewayCard, e);
+          }
+        }
         return;
       }
       let direction = 0;

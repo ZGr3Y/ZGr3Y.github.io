@@ -974,11 +974,13 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(card.getAttribute('aria-hidden')).toBe('true');
       expect(card.classList.contains('is-open')).toBe(false);
 
-      // Open hologram: must expose card and remove inert/aria-hidden
+      // Open hologram: must expose card and remove inert/aria-hidden, declare dialog semantics
       app.openBioHologram();
       expect(app.isBioHologramOpen).toBe(true);
       expect(card.hasAttribute('inert')).toBe(false);
       expect(card.hasAttribute('aria-hidden')).toBe(false);
+      expect(card.getAttribute('role')).toBe('dialog');
+      expect(card.getAttribute('aria-modal')).toBe('true');
       expect(card.classList.contains('is-open')).toBe(true);
 
       // Close hologram: must re-apply inert and aria-hidden
@@ -989,6 +991,75 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(card.classList.contains('is-open')).toBe(false);
 
       app.destroy();
+    });
+
+    it('contains focus while the hologram is open and restores focus on dismissal', () => {
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <button id="trigger-btn" type="button">Open Hologram Trigger</button>
+        <div id="station-container" class="station-container"></div>
+        <svg class="hologram-beam-svg">
+          <circle class="beam-emitter" />
+          <polygon class="beam-poly-top" />
+          <polygon class="beam-poly-bottom" />
+          <polygon class="beam-poly-left" />
+          <polygon class="beam-poly-right" />
+          <line class="beam-ray-top-left" />
+          <line class="beam-ray-top-right" />
+          <line class="beam-ray-bottom-left" />
+          <line class="beam-ray-bottom-right" />
+          <line class="beam-ray-top-mid" />
+          <line class="beam-ray-bottom-mid" />
+          <line class="beam-ray-center" />
+        </svg>
+      `;
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const srAnnouncer = document.createElement('div');
+      const triggerBtn = container.querySelector('#trigger-btn');
+      triggerBtn.focus();
+
+      const app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      const card = container.querySelector('.station-card.gateway-card');
+      const closeBtn = card.querySelector('.card-close-btn');
+      const focusable = card.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      const firstFocusable = focusable[0];
+      const lastFocusable = focusable[focusable.length - 1];
+
+      // Open hologram via trigger
+      app.openBioHologram(triggerBtn);
+      expect(app.isBioHologramOpen).toBe(true);
+
+      // Focus should immediately land inside the dialog on the close button
+      expect(document.activeElement).toBe(closeBtn);
+
+      // Simulate Tab key on last focusable element -> must wrap to first
+      lastFocusable.focus();
+      expect(document.activeElement).toBe(lastFocusable);
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      window.dispatchEvent(tabEvent);
+      expect(document.activeElement).toBe(firstFocusable);
+
+      // Simulate Shift+Tab on first focusable element -> must wrap to last
+      const shiftTabEvent = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+      window.dispatchEvent(shiftTabEvent);
+      expect(document.activeElement).toBe(lastFocusable);
+
+      // Escape key must dismiss the hologram and restore focus back to the trigger element
+      const escEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      window.dispatchEvent(escEvent);
+      expect(app.isBioHologramOpen).toBe(false);
+      expect(document.activeElement).toBe(triggerBtn);
+
+      app.destroy();
+      container.remove();
     });
   });
 });
