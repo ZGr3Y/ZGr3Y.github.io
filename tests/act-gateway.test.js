@@ -386,7 +386,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       expect(app.gatewayAct).toBeDefined();
 
-      // Navigate to Station 1 (Lab)
+      // Navigate to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       expect(app.isCameraTransitioning()).toBe(true);
 
@@ -416,7 +417,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         enableJourney: true
       });
 
-      // Select Station 1 (Lab)
+      // Select Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
       const labCard = container.querySelector('.station-card[data-station="lab"]');
@@ -461,7 +463,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(app.camera.position.x).toBeGreaterThan(15);
       expect(app.gatewayAct.currentCamPos.x).toBeGreaterThan(15);
 
-      // Navigate to Lab station
+      // Navigate to Lab station once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       for (let frame = 0; frame < 100; frame++) {
         app._renderFrame(2000 + frame * 16);
@@ -508,7 +511,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       expect(app.scrollEngine.snapMode).toBe(true);
 
-      // Navigate to Station 1 (Lab)
+      // Navigate to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
 
       // Finish waypoint camera transition
@@ -609,7 +613,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(gatewayCard.classList.contains('active')).toBe(false);
       expect(gatewayCard.hasAttribute('hidden')).toBe(true);
 
-      // Navigate away to Station 1 (Lab)
+      // Navigate away to Station 1 (Lab) once a branch is chosen
+      app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
       expect(labCard.classList.contains('active')).toBe(true);
       expect(gatewayCard.classList.contains('active')).toBe(false);
@@ -663,7 +668,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(app.loaderController.isCompleted()).toBe(true);
       expect(app.scrollEngine.isLocked()).toBe(false);
 
-      // Once completed, HUD button navigation functions normally
+      // Once completed and branch is chosen, HUD button navigation functions normally
+      app.journeyState.selectBranch('blue');
       if (hudBtn) {
         hudBtn.click();
         expect(app.getActiveStationIndex()).toBe(1);

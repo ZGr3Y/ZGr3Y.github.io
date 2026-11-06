@@ -180,11 +180,40 @@ export class PortfolioApp {
 
       btn.addEventListener('click', () => {
         if (this.loaderController && !this.loaderController.isCompleted()) return;
+        if (this.isStationGated(idx)) {
+          if (this.scrollEngine) {
+            this.scrollEngine.scrollTo(0.38);
+          }
+          if (this.pillChoiceAct) {
+            this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
+          }
+          return;
+        }
         this.navigateTo(idx);
       });
 
       this.hudNav.appendChild(btn);
       this._hudButtons.push(btn);
+    });
+
+    this._updateHudStationState();
+  }
+
+  /**
+   * Synchronizes HUD station button accessibility and disabled states with journey branch gate
+   * @private
+   */
+  _updateHudStationState() {
+    if (!this._hudButtons || this._hudButtons.length === 0) return;
+    this._hudButtons.forEach((btn, idx) => {
+      const isGated = this.isStationGated(idx);
+      if (isGated) {
+        btn.setAttribute('aria-disabled', 'true');
+        btn.classList.add('is-gated');
+      } else {
+        btn.removeAttribute('aria-disabled');
+        btn.classList.remove('is-gated');
+      }
     });
   }
 
@@ -1117,11 +1146,13 @@ export class PortfolioApp {
         if (this.journeyHud) {
           this.journeyHud.update();
         }
+        this._updateHudStationState();
         if (this.idleManager) {
           this.idleManager.recordActivity();
         }
         this._resumeLoop();
       });
+      this._updateHudStationState();
       this.scrollEngine = new ScrollEngine({
         journeyState: this.journeyState,
         snapPoints: [0.20, 0.45, 0.70, 0.95],
@@ -1725,10 +1756,35 @@ export class PortfolioApp {
     return this.stations[this.currentStationIndex] || this.stations[0];
   }
 
+  /**
+   * Returns whether direct navigation to the specified station is currently gated
+   * by an unselected branch choice in the narrative loader journey.
+   * @param {number} stationIndex
+   * @returns {boolean}
+   */
+  isStationGated(stationIndex) {
+    return Boolean(
+      this.enableLoader &&
+      this.journeyState &&
+      this.journeyState.getBranch() === 'unselected' &&
+      stationIndex > 0
+    );
+  }
+
   async navigateTo(stationIndex) {
     if (this.isDestroyed) return;
     if (stationIndex < 0 || stationIndex >= this.stations.length) return;
     if (this.currentStationIndex === stationIndex) return;
+
+    if (this.isStationGated(stationIndex)) {
+      if (this.scrollEngine) {
+        this.scrollEngine.scrollTo(0.38);
+      }
+      if (this.pillChoiceAct) {
+        this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
+      }
+      return;
+    }
 
     this.currentStationIndex = stationIndex;
     const activeStation = this.getActiveStation();

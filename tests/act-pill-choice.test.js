@@ -472,10 +472,47 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.pillChoiceAct.bluePill.light.distance).toBeLessThan(0.6);
       expect(app.pillChoiceAct.redPill.light.distance).toBeLessThan(0.6);
 
-      // Navigating to another station hides PillChoiceAct and restores ambient light
+      // Navigating to another station once a branch is chosen hides PillChoiceAct and restores ambient light
+      app.journeyState.selectBranch('blue');
       app.navigateTo(1);
       expect(app.pillChoiceAct.rootGroup.visible).toBe(false);
       expect(app.ambientLight.intensity).toBeCloseTo(0.9, 2);
+    });
+
+    it('gates direct station jumps and marks HUD buttons until a branch is chosen', async () => {
+      app = new PortfolioApp({ container, canvas, enableLoader: true });
+      if (app.loaderController) app.loaderController.complete();
+
+      // Before branch selection, direct jump to Station 1 (Lab) must be gated
+      expect(app.isStationGated(1)).toBe(true);
+      expect(app.isStationGated(2)).toBe(true);
+      expect(app.isStationGated(3)).toBe(true);
+
+      const labHudBtn = container.querySelector('.hud-btn[data-station-index="1"]');
+      expect(labHudBtn).not.toBeNull();
+      expect(labHudBtn.getAttribute('aria-disabled')).toBe('true');
+      expect(labHudBtn.classList.contains('is-gated')).toBe(true);
+
+      // Calling navigateTo(1) while unselected keeps user at Gateway (Station 0) and scrolls to pill choice (0.38)
+      await app.navigateTo(1);
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
+
+      // Clicking HUD button while unselected also keeps user at Gateway
+      labHudBtn.click();
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
+
+      // Selecting a branch unlocks the gate and removes aria-disabled from HUD buttons
+      app.journeyState.selectBranch('red');
+      expect(app.isStationGated(1)).toBe(false);
+      expect(labHudBtn.hasAttribute('aria-disabled')).toBe(false);
+      expect(labHudBtn.classList.contains('is-gated')).toBe(false);
+
+      // Now direct navigation succeeds
+      await app.navigateTo(1);
+      expect(app.getActiveStationIndex()).toBe(1);
+      expect(app.getActiveStation().id).toBe('lab');
     });
 
     it('exposes keyboard-accessible branch choice buttons at the 0.38 scroll gate and syncs 3D pill selection', () => {

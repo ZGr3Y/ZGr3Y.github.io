@@ -89,6 +89,18 @@ html, body {
   background: var(--bg-surface-subtle);
 }
 
+.hud-btn.is-gated,
+.hud-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hud-btn.is-gated:hover,
+.hud-btn[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 .hud-btn.active,
 .hud-btn[aria-current="step"] {
   color: var(--cloud-blue);
