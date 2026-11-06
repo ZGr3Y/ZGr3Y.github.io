@@ -1397,7 +1397,7 @@ export class PortfolioApp {
       }
 
       // Check Pill Choice raycast click when in Gateway station
-      if (this.pillChoiceAct && this.pointer && this.getActiveStation().id === 'gateway') {
+      if (this.pillChoiceAct && this.pointer && this.getActiveStation().id === 'gateway' && !this.isBioHologramOpen) {
         const clickedPill = this.pillChoiceAct.handlePointerClick(this.pointer);
         if (clickedPill) {
           if (this.journeyState) {

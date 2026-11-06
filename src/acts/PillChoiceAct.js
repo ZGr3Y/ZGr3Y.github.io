@@ -880,7 +880,13 @@ export class PillChoiceAct {
     // Visibility window: Hands emerge as progress advances past Matrix White Room entrance (0.22)
     const isVisibleWindow = progress >= 0.22 && progress <= 0.65;
     this.rootGroup.visible = isVisibleWindow;
-    if (!isVisibleWindow) return;
+    if (!isVisibleWindow) {
+      if (this.hoveredPill) {
+        this.hoveredPill = null;
+        this._applyHoverStates();
+      }
+      return;
+    }
 
     // Smooth emergence rise: from 0.22 to 0.35, hands rise up into cinematic view
     let entranceT = Math.max(0, Math.min((progress - 0.22) / 0.13, 1.0));
@@ -957,7 +963,7 @@ export class PillChoiceAct {
    * @param {{ x: number, y: number }} pointer - Normalized pointer coords [-1, 1]
    */
   handlePointerMove(pointer) {
-    if (this.isDisposed || !this.camera || !pointer) return;
+    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return;
 
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);
@@ -1029,7 +1035,7 @@ export class PillChoiceAct {
    * @returns {'blue' | 'red' | null} Selected branch, or null if no hit
    */
   handlePointerClick(pointer) {
-    if (this.isDisposed || !this.camera || !pointer) return null;
+    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return null;
 
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);

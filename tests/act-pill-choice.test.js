@@ -118,6 +118,9 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       camera.lookAt(blueWorldPos);
       camera.updateMatrixWorld();
 
+      // Make visible at choice progress
+      act.update({ progress: 0.38 });
+
       // Pointer at dead center (0, 0)
       act.handlePointerMove({ x: 0, y: 0 });
       expect(act.hoveredPill).toBe('blue');
@@ -144,10 +147,50 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       camera.lookAt(redWorldPos);
       camera.updateMatrixWorld();
 
+      // Make visible at choice progress
+      act.update({ progress: 0.38 });
+
       const result = act.handlePointerClick({ x: 0, y: 0 });
       expect(result).toBe('red');
       expect(act.selectedBranch).toBe('red');
       expect(onSelect).toHaveBeenCalledWith('red');
+
+      act.dispose();
+    });
+
+    it('ignores pill hover and click hits while the choice scene is hidden', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const onSelect = vi.fn();
+      const act = new PillChoiceAct({ scene, camera, onSelect });
+
+      // Frame camera directly at Red Pill
+      const redWorldPos = new THREE.Vector3();
+      act.redPill.mesh.getWorldPosition(redWorldPos);
+      camera.position.set(redWorldPos.x, redWorldPos.y, redWorldPos.z + 1.0);
+      camera.lookAt(redWorldPos);
+      camera.updateMatrixWorld();
+
+      // At loader progress 0.10, rootGroup is hidden
+      act.update({ progress: 0.10 });
+      expect(act.rootGroup.visible).toBe(false);
+
+      // Pointer hover should be ignored
+      act.handlePointerMove({ x: 0, y: 0 });
+      expect(act.hoveredPill).toBeNull();
+
+      // Pointer click should be ignored and not select branch
+      const result = act.handlePointerClick({ x: 0, y: 0 });
+      expect(result).toBeNull();
+      expect(act.selectedBranch).toBeNull();
+      expect(onSelect).not.toHaveBeenCalled();
+
+      // Fast-forward to White Room entrance (progress 0.20, still < 0.22)
+      act.update({ progress: 0.20 });
+      expect(act.rootGroup.visible).toBe(false);
+      expect(act.handlePointerClick({ x: 0, y: 0 })).toBeNull();
+      expect(act.selectedBranch).toBeNull();
+      expect(onSelect).not.toHaveBeenCalled();
 
       act.dispose();
     });
