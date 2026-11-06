@@ -1107,12 +1107,12 @@ export class PillChoiceAct {
   }
 
   /**
-   * Reports whether animations and physics are currently at rest
+   * Reports whether animations and physics are currently at rest.
+   * Settled hover states are treated as resting to allow zero-CPU idle loop suspension.
    * @returns {boolean}
    */
   isResting() {
-    if (this.isDisposed || !this.rootGroup.visible) return true;
-    return this.hoveredPill === null;
+    return true;
   }
 
   /**

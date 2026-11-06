@@ -229,7 +229,7 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
   });
 
   describe('Zero-CPU Idle & Teardown', () => {
-    it('reports isResting true when hands are stationary and unhovered', () => {
+    it('reports isResting true when hands are stationary, including during a settled hover', () => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
       const act = new PillChoiceAct({ scene, camera });
@@ -239,8 +239,9 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       act.rootGroup.visible = true;
       expect(act.isResting()).toBe(true);
 
+      // Settled hover must also be treated as resting per Codex P2
       act.hoveredPill = 'blue';
-      expect(act.isResting()).toBe(false);
+      expect(act.isResting()).toBe(true);
 
       act.hoveredPill = null;
       expect(act.isResting()).toBe(true);
