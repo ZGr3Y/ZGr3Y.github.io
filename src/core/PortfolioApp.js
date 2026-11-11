@@ -9,6 +9,7 @@ import { JourneyState } from './JourneyState.js';
 import { ScrollEngine } from './ScrollEngine.js';
 import { JourneyHud } from '../ui/JourneyHud.js';
 import { CreditsDialog } from '../ui/CreditsDialog.js';
+import { BioHologram } from '../ui/BioHologram.js';
 import { GatewayAct } from '../acts/GatewayAct.js';
 import { PillChoiceAct } from '../acts/PillChoiceAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
@@ -66,6 +67,7 @@ export class PortfolioApp {
     // Holographic Bio Pop-up state projected from CRT TV
     this.isBioHologramOpen = false;
     this.hologramBeamSvg = null;
+    this.bioHologram = null;
     this._hologramTriggerElement = null;
 
     // Spatial Camera Waypoint Controller state
@@ -103,6 +105,7 @@ export class PortfolioApp {
         const gatewayCard = (this.container && this.container.querySelector('.station-card.gateway-card')) ||
           (this.stationContainer && this.stationContainer.querySelector('.station-card.gateway-card')) ||
           document.querySelector('.station-card.gateway-card');
+        this.bioHologram = new BioHologram({ card: gatewayCard, beam: this.hologramBeamSvg });
         if (gatewayCard && !this.isBioHologramOpen) {
           gatewayCard.setAttribute('inert', '');
           gatewayCard.setAttribute('aria-hidden', 'true');
@@ -705,7 +708,7 @@ export class PortfolioApp {
     }
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
-      gatewayCard.classList.add('is-open');
+      this.bioHologram?.open();
       gatewayCard.removeAttribute('inert');
       gatewayCard.removeAttribute('aria-hidden');
       gatewayCard.setAttribute('role', 'dialog');
@@ -714,9 +717,6 @@ export class PortfolioApp {
       if (closeBtn && typeof closeBtn.focus === 'function') {
         closeBtn.focus();
       }
-    }
-    if (this.hologramBeamSvg) {
-      this.hologramBeamSvg.classList.add('is-open');
     }
     this._updateHologramBeam();
     if (this.idleManager) {
@@ -739,7 +739,7 @@ export class PortfolioApp {
     }
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
-      gatewayCard.classList.remove('is-open');
+      this.bioHologram?.close();
       gatewayCard.setAttribute('inert', '');
       gatewayCard.setAttribute('aria-hidden', 'true');
     }
@@ -748,9 +748,6 @@ export class PortfolioApp {
       this._hologramTriggerElement = null;
     } else if (typeof document !== 'undefined' && document.activeElement && gatewayCard?.contains(document.activeElement)) {
       document.activeElement.blur();
-    }
-    if (this.hologramBeamSvg) {
-      this.hologramBeamSvg.classList.remove('is-open');
     }
     if (this.idleManager) {
       this.idleManager.recordActivity();
@@ -769,133 +766,16 @@ export class PortfolioApp {
     }
   }
 
-  /**
-   * Synchronizes SVG holographic projection beam between 3D TV screen and DOM card.
-   * Maps 4-corner frustum: TV top connects to Card top, TV bottom connects to Card bottom.
-   * @private
-   */
-  _updateHologramBeam() {
-    if (!this.isBioHologramOpen || !this.hologramBeamSvg || !this.camera || !this.gatewayAct || typeof window === 'undefined') {
-      return;
-    }
-    const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
-    if (!gatewayCard) return;
-
-    const tvWorldPos = this.gatewayAct.getTvScreenWorldPosition();
-    const projected = tvWorldPos.clone().project(this.camera);
-
-    const tvScreenX = (projected.x * 0.5 + 0.5) * window.innerWidth;
-    const tvScreenY = (-projected.y * 0.5 + 0.5) * window.innerHeight;
-
-    // Project TV screen bounds using actual CRT screen extents
-    const extents = typeof this.gatewayAct.getTvScreenExtents === 'function'
-      ? this.gatewayAct.getTvScreenExtents()
-      : { halfWidth: 0.42, halfHeight: 0.30 };
-
-    const pTL = new THREE.Vector3(tvWorldPos.x - extents.halfWidth, tvWorldPos.y + extents.halfHeight, tvWorldPos.z).project(this.camera);
-    const pBR = new THREE.Vector3(tvWorldPos.x + extents.halfWidth, tvWorldPos.y - extents.halfHeight, tvWorldPos.z).project(this.camera);
-
-    const tvLeft = (pTL.x * 0.5 + 0.5) * window.innerWidth;
-    const tvRight = (pBR.x * 0.5 + 0.5) * window.innerWidth;
-    const tvTop = (-pTL.y * 0.5 + 0.5) * window.innerHeight;
-    const tvBottom = (-pBR.y * 0.5 + 0.5) * window.innerHeight;
-    const tvMidX = (tvLeft + tvRight) * 0.5;
-    const tvMidY = (tvTop + tvBottom) * 0.5;
-
-    const cardRect = gatewayCard.getBoundingClientRect();
-    const cardLeft = cardRect.left;
-    const cardRight = cardRect.right;
-    const cardTop = cardRect.top;
-    const cardBottom = cardRect.bottom;
-    const cardMidX = (cardLeft + cardRight) * 0.5;
-    const cardMidY = (cardTop + cardBottom) * 0.5;
-
-    // 1. Center pulsing emitter on CRT TV screen
-    const emitter = this.hologramBeamSvg.querySelector('.beam-emitter');
-    if (emitter) {
-      emitter.setAttribute('cx', tvMidX);
-      emitter.setAttribute('cy', tvMidY);
-    }
-
-    // 2. Primary 4-Corner Laser Rays
-    // User requirement: Top of TV -> Top of Hologram, Bottom of TV -> Bottom of Hologram
-    const rayTL = this.hologramBeamSvg.querySelector('.beam-ray-top-left');
-    if (rayTL) {
-      rayTL.setAttribute('x1', tvLeft);
-      rayTL.setAttribute('y1', tvTop);
-      rayTL.setAttribute('x2', cardLeft);
-      rayTL.setAttribute('y2', cardTop);
-    }
-
-    const rayTR = this.hologramBeamSvg.querySelector('.beam-ray-top-right');
-    if (rayTR) {
-      rayTR.setAttribute('x1', tvRight);
-      rayTR.setAttribute('y1', tvTop);
-      rayTR.setAttribute('x2', cardRight);
-      rayTR.setAttribute('y2', cardTop);
-    }
-
-    const rayBL = this.hologramBeamSvg.querySelector('.beam-ray-bottom-left');
-    if (rayBL) {
-      rayBL.setAttribute('x1', tvLeft);
-      rayBL.setAttribute('y1', tvBottom);
-      rayBL.setAttribute('x2', cardLeft);
-      rayBL.setAttribute('y2', cardBottom);
-    }
-
-    const rayBR = this.hologramBeamSvg.querySelector('.beam-ray-bottom-right');
-    if (rayBR) {
-      rayBR.setAttribute('x1', tvRight);
-      rayBR.setAttribute('y1', tvBottom);
-      rayBR.setAttribute('x2', cardRight);
-      rayBR.setAttribute('y2', cardBottom);
-    }
-
-    // 3. Center and Intermediate Guide Rays
-    const rayTM = this.hologramBeamSvg.querySelector('.beam-ray-top-mid');
-    if (rayTM) {
-      rayTM.setAttribute('x1', tvMidX);
-      rayTM.setAttribute('y1', tvTop);
-      rayTM.setAttribute('x2', cardMidX);
-      rayTM.setAttribute('y2', cardTop);
-    }
-
-    const rayBM = this.hologramBeamSvg.querySelector('.beam-ray-bottom-mid');
-    if (rayBM) {
-      rayBM.setAttribute('x1', tvMidX);
-      rayBM.setAttribute('y1', tvBottom);
-      rayBM.setAttribute('x2', cardMidX);
-      rayBM.setAttribute('y2', cardBottom);
-    }
-
-    const rayC = this.hologramBeamSvg.querySelector('.beam-ray-center');
-    if (rayC) {
-      rayC.setAttribute('x1', tvMidX);
-      rayC.setAttribute('y1', tvMidY);
-      rayC.setAttribute('x2', cardMidX);
-      rayC.setAttribute('y2', cardMidY);
-    }
-
-    // 4. Volumetric Frustum Light Polygons (4 projection facets)
-    const polyTop = this.hologramBeamSvg.querySelector('.beam-poly-top');
-    if (polyTop) {
-      polyTop.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardRight},${cardTop} ${tvRight},${tvTop}`);
-    }
-
-    const polyBottom = this.hologramBeamSvg.querySelector('.beam-poly-bottom');
-    if (polyBottom) {
-      polyBottom.setAttribute('points', `${tvLeft},${tvBottom} ${cardLeft},${cardBottom} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
-    }
-
-    const polyLeft = this.hologramBeamSvg.querySelector('.beam-poly-left');
-    if (polyLeft) {
-      polyLeft.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardLeft},${cardBottom} ${tvLeft},${tvBottom}`);
-    }
-
-    const polyRight = this.hologramBeamSvg.querySelector('.beam-poly-right');
-    if (polyRight) {
-      polyRight.setAttribute('points', `${tvRight},${tvTop} ${cardRight},${cardTop} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
-    }
+  /** Advances the projected plane and light cone without measuring animated DOM. */
+  _updateHologramBeam(delta = 0.016) {
+    if (!this.bioHologram?.isVisible() || !this.camera || !this.gatewayAct) return;
+    this.bioHologram.update({
+      delta,
+      pointer: this.pointer,
+      camera: this.camera,
+      source: this.gatewayAct.getTvScreenWorldPosition(),
+      idle: this.idleManager?.getSpeedFactor() === 0
+    });
   }
 
   /**
@@ -938,7 +818,7 @@ export class PortfolioApp {
     if (isGatewayActiveStation && progress <= 0.25) {
       gatewayCard.classList.add('active');
       gatewayCard.classList.remove('faded');
-      gatewayCard.removeAttribute('hidden');
+      gatewayCard.hidden = Boolean(this.bioHologram && !this.bioHologram.isVisible());
     } else if (isGatewayActiveStation && progress > 0.25 && progress <= 0.42) {
       if (this.isBioHologramOpen) {
         this.closeBioHologram();
@@ -1025,6 +905,9 @@ export class PortfolioApp {
 
     // Initialize AssetLibrary, JourneyScene, GatewayAct, and "DON'T PANIC" Loader when enabled
     if (this.enableLoader) {
+      this.canvas.tabIndex = 0;
+      this.canvas.setAttribute('role', 'group');
+      this.canvas.setAttribute('aria-label', 'Interactive 3D scene. Enter opens the TV. At the pill choice, use Left or Right then Enter.');
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
       this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
@@ -1236,6 +1119,7 @@ export class PortfolioApp {
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       }
+      this.bioHologram?.resize();
       if (this.topology && typeof this.topology.onResize === 'function') {
         this.topology.onResize();
       }
@@ -1282,6 +1166,20 @@ export class PortfolioApp {
           }
         }
         return;
+      }
+      if (e.target === this.canvas && !e.ctrlKey && !e.metaKey) {
+        const progress = this.journeyState?.getProgress() || 0;
+        if (e.key === 'Enter' && progress >= 0.19 && progress <= 0.26 &&
+            (!this.loaderController || this.loaderController.isCompleted())) {
+          e.preventDefault();
+          this.openBioHologram(this.canvas);
+          return;
+        }
+        if (this.pillChoiceAct?.handleKeyDown(e)) {
+          this.idleManager?.recordActivity();
+          this._resumeLoop();
+          return;
+        }
       }
       let direction = 0;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
@@ -1576,11 +1474,11 @@ export class PortfolioApp {
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
       const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
-      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting;
+      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting && (!this.bioHologram || this.bioHologram.isResting());
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
-      if (this.isBioHologramOpen) {
-        this._updateHologramBeam();
+      if (this.bioHologram?.isVisible()) {
+        this._updateHologramBeam(delta);
       }
 
       if (!shouldSuspend && !this._isPreparingScene && this.renderer && this.scene && this.camera) {
@@ -1877,6 +1775,8 @@ export class PortfolioApp {
       this.closeBioHologram();
     }
     this.isDestroyed = true;
+    this.bioHologram?.dispose();
+    this.bioHologram = null;
     this._isLoopRunning = false;
     this._isCameraTransitioning = false;
 

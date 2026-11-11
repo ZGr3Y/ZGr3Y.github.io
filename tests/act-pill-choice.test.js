@@ -643,31 +643,24 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.getActiveStation().id).toBe('lab');
     });
 
-    it('exposes keyboard-accessible branch choice buttons at the 0.38 scroll gate and syncs 3D pill selection', () => {
+    it('selects the pills from the focused canvas without overlay buttons', () => {
       app = new PortfolioApp({ container, canvas, enableLoader: true });
-      if (app.loaderController) app.loaderController.complete();
-
-      // At White Room view (progress 0.20), branch prompt is hidden
-      app.journeyState.setProgress(0.20);
-      app.journeyHud.update();
-      const branchActions = container.querySelector('.journey-branch-actions');
-      expect(branchActions.hasAttribute('hidden')).toBe(true);
-
-      // At Pill Choice gate (progress 0.38), accessible branch choices are revealed for keyboard-only users
+      app.loaderController.complete();
       app.journeyState.setProgress(0.38);
+      app.pillChoiceAct.update({ progress: 0.38 });
       app.journeyHud.update();
-      expect(branchActions.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelector('.journey-branch-actions')).toBeNull();
+      expect(container.querySelector('.btn-branch-choice')).toBeNull();
 
-      // Activating accessible Blue Pill choice unlocks journeyState and triggers 3D selection
-      const blueBtn = branchActions.querySelector('.branch-blue');
-      expect(blueBtn.getAttribute('aria-label')).toContain('Portal / Harness');
-      blueBtn.click();
+      canvas.focus();
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      // Normal rendering between key presses must keep the keyboard highlight.
+      app.pillChoiceAct.update({ progress: 0.38, pointer: { x: 0, y: 0 } });
+      expect(app.pillChoiceAct.hoveredPill).toBe('blue');
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
       expect(app.journeyState.getBranch()).toBe('blue');
-      expect(app.journeyState.getMaxReachable()).toBe(1.0);
-      expect(branchActions.hasAttribute('hidden')).toBe(true);
       expect(app.pillChoiceAct.selectedBranch).toBe('blue');
-      expect(app.pillChoiceAct.getSelectionProgress()).toBe(0);
       expect(app.scrollEngine.getTargetProgress()).toBe(0.60);
     });
   });

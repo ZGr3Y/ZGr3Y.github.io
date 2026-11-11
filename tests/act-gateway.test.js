@@ -353,7 +353,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       const gatewayCard = container.querySelector('.station-card[data-station="gateway"]');
       expect(gatewayCard.classList.contains('active')).toBe(true);
-      expect(gatewayCard.hasAttribute('hidden')).toBe(false);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
 
       // Advance progress to Act 2 (progress >= 0.4)
       app.journeyState.setProgress(0.45);
@@ -363,6 +363,8 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       // Rewind progress back to Act 1
       app.journeyState.setProgress(0.2);
       expect(gatewayCard.classList.contains('active')).toBe(true);
+      expect(gatewayCard.hasAttribute('hidden')).toBe(true);
+      app.openBioHologram();
       expect(gatewayCard.hasAttribute('hidden')).toBe(false);
 
       app.destroy();
@@ -877,68 +879,67 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       act.dispose();
     });
 
-    it('correctly maps 4-corner frustum beam projection: TV top to Card top, and TV bottom to Card bottom', () => {
+    it('finishes closing and stays hidden on subsequent animation frames', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const app = new PortfolioApp({ container, canvas, enableLoader: true });
+      const card = container.querySelector('.gateway-card');
+
+      app.openBioHologram();
+      const frame = () => app.bioHologram.update({ delta: 0.016, camera: app.camera, source: app.gatewayAct.getTvScreenWorldPosition() });
+      for (let i = 0; i < 120; i++) frame();
+      app.closeBioHologram();
+      for (let i = 0; i < 120; i++) frame();
+      expect(card.hidden).toBe(true);
+      for (let i = 0; i < 60; i++) frame();
+      expect(card.hidden).toBe(true);
+      app.destroy();
+    });
+
+    it('does not remeasure the animated card on steady rendering frames', async () => {
+      const container = document.createElement('div');
+      container.innerHTML = '<div class="station-container"></div>';
+      document.body.appendChild(container);
+      const canvas = document.createElement('canvas');
+      const app = new PortfolioApp({ container, canvas, enableLoader: true });
+      const card = container.querySelector('.gateway-card');
+      app.openBioHologram();
+      const measurement = vi.spyOn(card, 'getBoundingClientRect');
+      for (let i = 0; i < 60; i++) {
+        app.bioHologram.update({ delta: 0.016, pointer: { x: i / 60, y: 0 }, camera: app.camera, source: app.gatewayAct.getTvScreenWorldPosition() });
+      }
+      expect(measurement).not.toHaveBeenCalled();
+      app.destroy();
+    });
+
+    it('moves the projected plane smoothly and keeps its light cone finite', () => {
       const container = document.createElement('div');
       container.innerHTML = `
-        <div id="station-container" class="station-container"></div>
+        <div class="station-container"></div>
         <svg class="hologram-beam-svg">
-          <circle class="beam-emitter" />
-          <polygon class="beam-poly-top" />
-          <polygon class="beam-poly-bottom" />
-          <polygon class="beam-poly-left" />
-          <polygon class="beam-poly-right" />
-          <line class="beam-ray-top-left" />
-          <line class="beam-ray-top-right" />
-          <line class="beam-ray-bottom-left" />
-          <line class="beam-ray-bottom-right" />
-          <line class="beam-ray-top-mid" />
-          <line class="beam-ray-bottom-mid" />
-          <line class="beam-ray-center" />
-        </svg>
-      `;
-      const canvas = document.createElement('canvas');
-      const srAnnouncer = document.createElement('div');
-
-      const app = new PortfolioApp({
-        container,
-        canvas,
-        srAnnouncer,
-        enableLoader: true,
-        enableJourney: true
-      });
-
-      // Position gateway card mock
-      const card = container.querySelector('.station-card.gateway-card');
-      expect(card).not.toBeNull();
-      card.getBoundingClientRect = () => ({
-        left: 500,
-        right: 900,
-        top: 150,
-        bottom: 450,
-        width: 400,
-        height: 300
-      });
-
-      // Open hologram
+          <path class="beam-volume" />
+          <path class="beam-core" />
+          <ellipse class="beam-emitter" />
+        </svg>`;
+      const app = new PortfolioApp({ container, canvas: document.createElement('canvas'), enableLoader: true });
+      const card = container.querySelector('.gateway-card');
       app.openBioHologram();
-      expect(app.isBioHologramOpen).toBe(true);
-
-      const rayTL = container.querySelector('.beam-ray-top-left');
-      const rayBL = container.querySelector('.beam-ray-bottom-left');
-      const rayTR = container.querySelector('.beam-ray-top-right');
-      const rayBR = container.querySelector('.beam-ray-bottom-right');
-
-      // Top rays must terminate at cardTop (150)
-      expect(Number(rayTL.getAttribute('y2'))).toBe(150);
-      expect(Number(rayTR.getAttribute('y2'))).toBe(150);
-
-      // Bottom rays must terminate at cardBottom (450)
-      expect(Number(rayBL.getAttribute('y2'))).toBe(450);
-      expect(Number(rayBR.getAttribute('y2'))).toBe(450);
-
-      // Top ray origin y1 must be above bottom ray origin y1
-      expect(Number(rayTL.getAttribute('y1'))).toBeLessThan(Number(rayBL.getAttribute('y1')));
-
+      const initialTransform = card.style.transform;
+      expect(container.querySelector('.hologram-beam-svg').hasAttribute('hidden')).toBe(false);
+      const frame = () => app.bioHologram.update({
+        delta: 0.016, pointer: { x: 1, y: -0.5 },
+        camera: app.camera, source: app.gatewayAct.getTvScreenWorldPosition()
+      });
+      frame();
+      const firstTransform = card.style.transform;
+      expect(firstTransform).not.toBe(initialTransform);
+      for (let i = 0; i < 120; i++) frame();
+      expect(card.style.transform).not.toBe(firstTransform);
+      const cone = container.querySelector('.beam-volume').getAttribute('d');
+      expect(cone).toContain('M ');
+      expect(cone).not.toMatch(/NaN|Infinity/);
       app.destroy();
     });
 
@@ -947,18 +948,9 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       container.innerHTML = `
         <div id="station-container" class="station-container"></div>
         <svg class="hologram-beam-svg">
-          <circle class="beam-emitter" />
-          <polygon class="beam-poly-top" />
-          <polygon class="beam-poly-bottom" />
-          <polygon class="beam-poly-left" />
-          <polygon class="beam-poly-right" />
-          <line class="beam-ray-top-left" />
-          <line class="beam-ray-top-right" />
-          <line class="beam-ray-bottom-left" />
-          <line class="beam-ray-bottom-right" />
-          <line class="beam-ray-top-mid" />
-          <line class="beam-ray-bottom-mid" />
-          <line class="beam-ray-center" />
+          <path class="beam-volume" />
+          <path class="beam-core" />
+          <ellipse class="beam-emitter" />
         </svg>
       `;
       const canvas = document.createElement('canvas');
@@ -1005,18 +997,9 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
         <button id="trigger-btn" type="button">Open Hologram Trigger</button>
         <div id="station-container" class="station-container"></div>
         <svg class="hologram-beam-svg">
-          <circle class="beam-emitter" />
-          <polygon class="beam-poly-top" />
-          <polygon class="beam-poly-bottom" />
-          <polygon class="beam-poly-left" />
-          <polygon class="beam-poly-right" />
-          <line class="beam-ray-top-left" />
-          <line class="beam-ray-top-right" />
-          <line class="beam-ray-bottom-left" />
-          <line class="beam-ray-bottom-right" />
-          <line class="beam-ray-top-mid" />
-          <line class="beam-ray-bottom-mid" />
-          <line class="beam-ray-center" />
+          <path class="beam-volume" />
+          <path class="beam-core" />
+          <ellipse class="beam-emitter" />
         </svg>
       `;
       document.body.appendChild(container);
@@ -1073,18 +1056,9 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       container.innerHTML = `
         <div id="station-container" class="station-container"></div>
         <svg class="hologram-beam-svg">
-          <circle class="beam-emitter" />
-          <polygon class="beam-poly-top" />
-          <polygon class="beam-poly-bottom" />
-          <polygon class="beam-poly-left" />
-          <polygon class="beam-poly-right" />
-          <line class="beam-ray-top-left" />
-          <line class="beam-ray-top-right" />
-          <line class="beam-ray-bottom-left" />
-          <line class="beam-ray-bottom-right" />
-          <line class="beam-ray-top-mid" />
-          <line class="beam-ray-bottom-mid" />
-          <line class="beam-ray-center" />
+          <path class="beam-volume" />
+          <path class="beam-core" />
+          <ellipse class="beam-emitter" />
         </svg>
       `;
       document.body.appendChild(container);
@@ -1133,18 +1107,9 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       container.innerHTML = `
         <div id="station-container" class="station-container"></div>
         <svg class="hologram-beam-svg">
-          <circle class="beam-emitter" />
-          <polygon class="beam-poly-top" />
-          <polygon class="beam-poly-bottom" />
-          <polygon class="beam-poly-left" />
-          <polygon class="beam-poly-right" />
-          <line class="beam-ray-top-left" />
-          <line class="beam-ray-top-right" />
-          <line class="beam-ray-bottom-left" />
-          <line class="beam-ray-bottom-right" />
-          <line class="beam-ray-top-mid" />
-          <line class="beam-ray-bottom-mid" />
-          <line class="beam-ray-center" />
+          <path class="beam-volume" />
+          <path class="beam-core" />
+          <ellipse class="beam-emitter" />
         </svg>
       `;
       document.body.appendChild(container);

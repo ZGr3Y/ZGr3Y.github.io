@@ -339,18 +339,12 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       expect(bar.style.width).toBe('50%');
       expect(chapterLabel.textContent).toContain('Pill Choice');
 
-      // Approaching Act 2 gate threshold shows branch selection prompt
+      // The HUD never duplicates the pills with overlay navigation buttons.
       state.setProgress(0.6);
       hud.update();
-      const branchActions = container.querySelector('.journey-branch-actions');
-      expect(branchActions.hasAttribute('hidden')).toBe(false);
-
-      // Clicking blue branch choice unlocks state
-      const blueBtn = branchActions.querySelector('.branch-blue');
-      blueBtn.click();
-      expect(state.getBranch()).toBe('blue');
-      expect(state.getMaxReachable()).toBe(1.0);
-      expect(branchActions.hasAttribute('hidden')).toBe(true);
+      expect(container.querySelector('.journey-branch-actions')).toBeNull();
+      expect(container.querySelector('.btn-branch-choice')).toBeNull();
+      expect(state.getBranch()).toBe('unselected');
 
       hud.dispose();
       expect(container.querySelector('.journey-hud-root')).toBeNull();

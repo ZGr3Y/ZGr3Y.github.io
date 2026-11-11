@@ -348,7 +348,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(srAnnouncements.textContent).toContain('LAB');
   });
 
-  it('maintains active, visible station content across all stations when navigating', async () => {
+  it('maintains active station content and keeps the TV projection closed until activated', async () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
     stationContainer.className = 'station-container';
@@ -362,7 +362,8 @@ describe('PortfolioApp (Application Root Seam)', () => {
       const activeCard = stationContainer.querySelector(`.station-card[data-station="${activeStation.id}"]`);
       expect(activeCard).not.toBeNull();
       expect(activeCard.classList.contains('active')).toBe(true);
-      expect(activeCard.hasAttribute('hidden')).toBe(false);
+      // The Gateway projection remains closed until the TV is activated.
+      expect(activeCard.hasAttribute('hidden')).toBe(app.getActiveStation().id === 'gateway');
     }
   });
 

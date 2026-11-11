@@ -19,7 +19,6 @@ export class JourneyHud {
     this.progressBar = null;
     this.chapterLabel = null;
     this.creditsBtn = null;
-    this.branchActions = null;
   }
 
   /**
@@ -41,15 +40,6 @@ export class JourneyHud {
           <span class="journey-telemetry-dot" aria-hidden="true"></span>
           <span class="journey-chapter-label">ACT 00 // DON'T PANIC</span>
         </div>
-        <div class="journey-branch-actions" hidden>
-          <span class="branch-prompt-text">CHOOSE PATH:</span>
-          <button type="button" class="btn-branch-choice branch-blue" aria-label="Choose Blue Pill: Portal / Harness">
-            <span>HARNESS (BLUE)</span>
-          </button>
-          <button type="button" class="btn-branch-choice branch-red" aria-label="Choose Red Pill: Blade Runner / Experiences">
-            <span>EXPERIENCES (RED)</span>
-          </button>
-        </div>
         <div class="journey-hud-actions">
           <button type="button" class="btn-credits-trigger" aria-label="Open 3D Model Credits and Attributions">
             <span>CREDITS</span>
@@ -61,24 +51,6 @@ export class JourneyHud {
     this.progressBar = this.root.querySelector('.journey-progress-bar');
     this.chapterLabel = this.root.querySelector('.journey-chapter-label');
     this.creditsBtn = this.root.querySelector('.btn-credits-trigger');
-    this.branchActions = this.root.querySelector('.journey-branch-actions');
-
-    const blueBtn = this.root.querySelector('.branch-blue');
-    const redBtn = this.root.querySelector('.branch-red');
-
-    if (blueBtn && this.journeyState) {
-      blueBtn.addEventListener('click', () => {
-        this.journeyState.selectBranch('blue');
-        this.update();
-      });
-    }
-
-    if (redBtn && this.journeyState) {
-      redBtn.addEventListener('click', () => {
-        this.journeyState.selectBranch('red');
-        this.update();
-      });
-    }
 
     if (this.creditsBtn && typeof this.onOpenCredits === 'function') {
       this.creditsBtn.addEventListener('click', () => this.onOpenCredits());
@@ -98,28 +70,19 @@ export class JourneyHud {
     const percent = Math.round(progress * 100);
 
     if (this.progressBar) {
-      this.progressBar.style.width = `${percent}%`;
+      if (this.progressBar.style.width !== `${percent}%`) this.progressBar.style.width = `${percent}%`;
       const track = this.root.querySelector('.journey-progress-track');
-      if (track) {
+      if (track && track.getAttribute('aria-valuenow') !== String(percent)) {
         track.setAttribute('aria-valuenow', String(percent));
       }
     }
 
     if (this.chapterLabel) {
       const segment = this.journeyState.getCurrentSegment();
-      this.chapterLabel.textContent = `${segment.tag} // ${segment.title}`;
+      const label = `${segment.tag} // ${segment.title}`;
+      if (this.chapterLabel.textContent !== label) this.chapterLabel.textContent = label;
     }
 
-    if (this.branchActions) {
-      const isUnselected = this.journeyState.getBranch() === 'unselected';
-      const isAtGate = progress >= 0.35;
-      const shouldPrompt = isUnselected && isAtGate;
-      if (shouldPrompt) {
-        this.branchActions.removeAttribute('hidden');
-      } else {
-        this.branchActions.setAttribute('hidden', '');
-      }
-    }
   }
 
   /**

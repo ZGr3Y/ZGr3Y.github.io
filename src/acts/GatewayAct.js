@@ -462,6 +462,12 @@ export class GatewayAct {
       baseLookAt = new THREE.Vector3().lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
     }
 
+    // Leave room above the CRT for its projection, retaining the visible light source.
+    if (this.isHologramOpen) {
+      baseCamPos.z += 0.25;
+      baseLookAt.y += 0.55;
+    }
+
     // Let the pill lead, then carry the camera towards the chosen branch entrance.
     if (branch === 'blue' || branch === 'red') {
       const travel = Math.max(0, Math.min((selectionProgress - 0.25) / 0.75, 1));

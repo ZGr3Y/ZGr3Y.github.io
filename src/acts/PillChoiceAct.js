@@ -35,6 +35,7 @@ export class PillChoiceAct {
     this.elapsedTime = 0;
     this.hoveredPill = null;
     this.selectedBranch = null;
+    this._keyboardFocus = false;
     this._selectionProgress = 0;
     this._selectionTarget = 0;
     this._flyingPill = null;
@@ -1030,7 +1031,7 @@ export class PillChoiceAct {
     }
 
     // Interactive pointer raycasting
-    if (pointer && this.camera && progress >= 0.30 && !this.selectedBranch) {
+    if (pointer && this.camera && progress >= 0.30 && !this.selectedBranch && !this._keyboardFocus) {
       this.handlePointerMove(pointer);
     }
 
@@ -1104,6 +1105,7 @@ export class PillChoiceAct {
   handlePointerMove(pointer) {
     if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible || this.selectedBranch) return;
 
+    this._keyboardFocus = false;
     this.rootGroup.updateWorldMatrix(true, true);
     this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(pointer, this.camera);
@@ -1161,6 +1163,24 @@ export class PillChoiceAct {
     return null;
   }
 
+  /** Keyboard selection acts on the pills themselves, without a second set of buttons. */
+  handleKeyDown(event) {
+    if (this.isDisposed || !this.rootGroup.visible || this.selectedBranch || event.ctrlKey || event.metaKey) return false;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      this._keyboardFocus = true;
+      this.hoveredPill = event.key === 'ArrowLeft' ? 'blue' : 'red';
+      this._applyHoverStates();
+      return true;
+    }
+    if ((event.key === 'Enter' || event.key === ' ') && this.hoveredPill) {
+      event.preventDefault();
+      this.selectBranch(this.hoveredPill);
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Selects a narrative branch ('blue' or 'red') with selection animation
    * @param {'blue' | 'red'} branch
@@ -1196,6 +1216,7 @@ export class PillChoiceAct {
    */
   resetSelection() {
     this.selectedBranch = null;
+    this._keyboardFocus = false;
     this._selectionTarget = 0;
     this.hoveredPill = null;
     this._applyHoverStates();
