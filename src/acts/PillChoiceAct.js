@@ -35,6 +35,12 @@ export class PillChoiceAct {
     this.elapsedTime = 0;
     this.hoveredPill = null;
     this.selectedBranch = null;
+    this._selectionProgress = 0;
+    this._selectionTarget = 0;
+    this._flyingPill = null;
+    this._flightHome = null;
+    this._flightStart = new THREE.Vector3();
+    this._flightTarget = new THREE.Vector3();
 
     this.raycaster = new THREE.Raycaster();
     this.raycastTargets = [];
@@ -89,6 +95,22 @@ export class PillChoiceAct {
 
     this._setupLighting();
     this._createFloorGlowPools();
+
+    // Reuse the existing effect meshes and buffers throughout the animation.
+    this._effectObjects = [];
+    for (const group of [this.blueWispsGroup, this.redGlitchGroup]) {
+      group.children.forEach((object, index) => {
+        this._effectObjects.push({
+          object,
+          blue: group === this.blueWispsGroup,
+          phase: index * 0.73,
+          position: object.position.clone(),
+          rotation: object.rotation.z,
+          opacity: object.material.opacity,
+          particles: object.isPoints ? object.geometry.attributes.position.array.slice() : null
+        });
+      });
+    }
 
     if (this.scene) {
       this.scene.add(this.rootGroup);
@@ -355,7 +377,9 @@ export class PillChoiceAct {
       baseScale: new THREE.Vector3(1, 1, 1),
       baseRotZ,
       baseLightIntensity,
-      baseEmissiveIntensity
+      baseEmissiveIntensity,
+      hoverAmount: 0,
+      targetHover: 0
     };
   }
 
@@ -920,8 +944,10 @@ export class PillChoiceAct {
   update({ progress = 0, pointer = null, delta = 0.016, speedFactor = 1.0 } = {}) {
     if (this.isDisposed) return;
 
+    const safeDelta = Math.max(0, Math.min(delta, 0.1));
+
     if (speedFactor > 0.0001) {
-      this.elapsedTime += delta * speedFactor;
+      this.elapsedTime += safeDelta * speedFactor;
     }
 
     // Visibility window: Hands emerge as progress advances past Matrix White Room entrance (0.22)
@@ -931,6 +957,10 @@ export class PillChoiceAct {
       if (this.hoveredPill) {
         this.hoveredPill = null;
         this._applyHoverStates();
+      }
+      if (this._selectionTarget === 0 && this._flyingPill) {
+        this._selectionProgress = 0;
+        this._restoreFlyingPill();
       }
       return;
     }
@@ -1000,8 +1030,70 @@ export class PillChoiceAct {
     }
 
     // Interactive pointer raycasting
-    if (pointer && this.camera && progress >= 0.30) {
+    if (pointer && this.camera && progress >= 0.30 && !this.selectedBranch) {
       this.handlePointerMove(pointer);
+    }
+
+    const step = safeDelta / 1.4;
+    if (this._selectionProgress < this._selectionTarget) {
+      this._selectionProgress = Math.min(this._selectionTarget, this._selectionProgress + step);
+    } else if (this._selectionProgress > this._selectionTarget) {
+      this._selectionProgress = Math.max(this._selectionTarget, this._selectionProgress - step * 1.5);
+    }
+
+    const damping = 1 - Math.exp(-12 * safeDelta);
+    for (const pill of [this.bluePill, this.redPill]) {
+      pill.hoverAmount += (pill.targetHover - pill.hoverAmount) * damping;
+      if (Math.abs(pill.targetHover - pill.hoverAmount) < 0.001) pill.hoverAmount = pill.targetHover;
+      const chosen = pill === this._flyingPill;
+      const selection = this._selectionProgress;
+      const scale = 1 + pill.hoverAmount * 0.14 + selection * (chosen ? 0.22 : -0.18);
+      pill.mesh.scale.setScalar(scale);
+      pill.haloMesh.scale.setScalar(scale);
+      pill.mesh.material.emissiveIntensity = pill.baseEmissiveIntensity *
+        (1 + pill.hoverAmount * 0.55 + selection * (chosen ? 0.9 : -0.65));
+      pill.light.intensity = pill.baseLightIntensity *
+        (1 + pill.hoverAmount * 0.4 + selection * (chosen ? 0.6 : -0.7));
+      pill.haloMesh.material.opacity = 0.06 + pill.hoverAmount * 0.035 + (chosen ? selection * 0.05 : 0);
+    }
+
+    if (this._flyingPill && this.camera) {
+      const t = this._selectionProgress;
+      const eased = t * t * (3 - 2 * t);
+      const side = this._flyingPill === this.bluePill ? -1 : 1;
+      this.camera.updateMatrixWorld();
+      this._flightTarget.set(side * 0.035, -0.025, -0.72).applyMatrix4(this.camera.matrixWorld);
+      this.rootGroup.worldToLocal(this._flightTarget);
+      this._flyingPill.group.position.lerpVectors(this._flightStart, this._flightTarget, eased);
+      this._flyingPill.group.position.y += Math.sin(t * Math.PI) * 0.12;
+      if (t === 0 && this._selectionTarget === 0) this._restoreFlyingPill();
+    }
+
+    if (speedFactor > 0.0001) this._updateAtmosphere();
+  }
+
+  /** Animates the existing mist, dust and embers without allocating new GPU resources. */
+  _updateAtmosphere() {
+    const time = this.elapsedTime;
+    for (const effect of this._effectObjects) {
+      const { object, phase, position, rotation, opacity, particles, blue } = effect;
+      const wave = Math.sin(time * (blue ? 0.9 : 2.2) + phase);
+      object.material.opacity = opacity * (blue ? 0.82 + wave * 0.18 : 0.65 + wave * 0.35);
+      if (particles) {
+        const attribute = object.geometry.attributes.position;
+        const values = attribute.array;
+        for (let i = 0; i < values.length; i += 3) {
+          const drift = time * (blue ? 0.8 : 1.6) + i * 0.37 + phase;
+          values[i] = particles[i] + Math.sin(drift) * (blue ? 0.009 : 0.012);
+          values[i + 1] = particles[i + 1] + Math.sin(drift * 0.7) * (blue ? 0.024 : 0.012);
+          values[i + 2] = particles[i + 2] + Math.cos(drift) * 0.005;
+        }
+        attribute.needsUpdate = true;
+      } else {
+        object.position.x = position.x + wave * (blue ? 0.006 : 0.004);
+        object.position.y = position.y + Math.cos(time * 0.7 + phase) * (blue ? 0.008 : 0.002);
+        object.rotation.z = rotation + wave * (blue ? 0.035 : 0.025);
+      }
     }
   }
 
@@ -1010,8 +1102,10 @@ export class PillChoiceAct {
    * @param {{ x: number, y: number }} pointer - Normalized pointer coords [-1, 1]
    */
   handlePointerMove(pointer) {
-    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return;
+    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible || this.selectedBranch) return;
 
+    this.rootGroup.updateWorldMatrix(true, true);
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);
 
@@ -1028,51 +1122,17 @@ export class PillChoiceAct {
   }
 
   /**
-   * Updates pill scale and emissive intensity based on hover state
+   * Sets hover targets; update() interpolates their visible scale and light.
    * @private
    */
   _applyHoverStates() {
     if (this.isDisposed) return;
 
-    const isBlueHover = this.hoveredPill === 'blue';
-    const isRedHover = this.hoveredPill === 'red';
-
-    if (this.bluePill) {
-      const targetScale = isBlueHover ? 1.18 : 1.0;
-      this.bluePill.mesh.scale.set(targetScale, targetScale, targetScale);
-      if (this.bluePill.haloMesh) {
-        this.bluePill.haloMesh.scale.set(targetScale, targetScale, targetScale);
-      }
-      if (this.bluePill.mesh.material) {
-        this.bluePill.mesh.material.emissiveIntensity = isBlueHover
-          ? 3.5
-          : (this.bluePill.baseEmissiveIntensity || 2.4);
-      }
-      if (this.bluePill.light) {
-        const baseLight = this.bluePill.baseLightIntensity || 2.15;
-        this.bluePill.light.intensity = isBlueHover ? baseLight * 1.45 : baseLight;
-      }
-    }
-
-    if (this.redPill) {
-      const targetScale = isRedHover ? 1.18 : 1.0;
-      this.redPill.mesh.scale.set(targetScale, targetScale, targetScale);
-      if (this.redPill.haloMesh) {
-        this.redPill.haloMesh.scale.set(targetScale, targetScale, targetScale);
-      }
-      if (this.redPill.mesh.material) {
-        this.redPill.mesh.material.emissiveIntensity = isRedHover
-          ? 3.5
-          : (this.redPill.baseEmissiveIntensity || 2.4);
-      }
-      if (this.redPill.light) {
-        const baseLight = this.redPill.baseLightIntensity || 4.2;
-        this.redPill.light.intensity = isRedHover ? baseLight * 1.45 : baseLight;
-      }
-    }
+    if (this.bluePill) this.bluePill.targetHover = !this.selectedBranch && this.hoveredPill === 'blue' ? 1 : 0;
+    if (this.redPill) this.redPill.targetHover = !this.selectedBranch && this.hoveredPill === 'red' ? 1 : 0;
 
     if (this.canvas) {
-      this.canvas.style.cursor = this.hoveredPill ? 'pointer' : 'default';
+      this.canvas.style.cursor = this.hoveredPill && !this.selectedBranch ? 'pointer' : 'default';
     }
   }
 
@@ -1084,6 +1144,8 @@ export class PillChoiceAct {
   handlePointerClick(pointer) {
     if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return null;
 
+    this.rootGroup.updateWorldMatrix(true, true);
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);
 
@@ -1107,37 +1169,22 @@ export class PillChoiceAct {
     if (this.isDisposed || (branch !== 'blue' && branch !== 'red')) return;
     if (this.selectedBranch === branch) return;
 
+    if (this._flyingPill) this._restoreFlyingPill();
     this.selectedBranch = branch;
-
-    // Trigger visual selection pulse
     const selectedPill = branch === 'blue' ? this.bluePill : this.redPill;
-    const otherPill = branch === 'blue' ? this.redPill : this.bluePill;
-
-    if (selectedPill && selectedPill.mesh) {
-      selectedPill.mesh.scale.set(1.3, 1.3, 1.3);
-      if (selectedPill.haloMesh) {
-        selectedPill.haloMesh.scale.set(1.3, 1.3, 1.3);
-      }
-      if (selectedPill.mesh.material) {
-        selectedPill.mesh.material.emissiveIntensity = 5.0;
-      }
-      if (selectedPill.light) {
-        selectedPill.light.intensity = (selectedPill.baseLightIntensity || 3.0) * 1.8;
-      }
-    }
-
-    if (otherPill && otherPill.mesh) {
-      otherPill.mesh.scale.set(0.8, 0.8, 0.8);
-      if (otherPill.haloMesh) {
-        otherPill.haloMesh.scale.set(0.8, 0.8, 0.8);
-      }
-      if (otherPill.mesh.material) {
-        otherPill.mesh.material.emissiveIntensity = 1.0;
-      }
-      if (otherPill.light) {
-        otherPill.light.intensity = (otherPill.baseLightIntensity || 2.0) * 0.5;
-      }
-    }
+    this._flightHome = {
+      parent: selectedPill.group.parent,
+      position: selectedPill.group.position.clone(),
+      quaternion: selectedPill.group.quaternion.clone(),
+      scale: selectedPill.group.scale.clone()
+    };
+    this.rootGroup.attach(selectedPill.group);
+    this._flightStart.copy(selectedPill.group.position);
+    this._flyingPill = selectedPill;
+    this._selectionProgress = 0;
+    this._selectionTarget = 1;
+    this.hoveredPill = null;
+    this._applyHoverStates();
 
     if (typeof this.onSelect === 'function') {
       this.onSelect(branch);
@@ -1149,8 +1196,27 @@ export class PillChoiceAct {
    */
   resetSelection() {
     this.selectedBranch = null;
+    this._selectionTarget = 0;
     this.hoveredPill = null;
     this._applyHoverStates();
+  }
+
+  /** Restores the original hand attachment after returning from a selected path. */
+  _restoreFlyingPill() {
+    if (!this._flyingPill || !this._flightHome) return;
+    const group = this._flyingPill.group;
+    const home = this._flightHome;
+    home.parent.add(group);
+    group.position.copy(home.position);
+    group.quaternion.copy(home.quaternion);
+    group.scale.copy(home.scale);
+    this._flyingPill = null;
+    this._flightHome = null;
+  }
+
+  /** @returns {number} Pill flight progress [0, 1], shared with the camera choreography. */
+  getSelectionProgress() {
+    return this._selectionProgress;
   }
 
   /**
@@ -1159,7 +1225,11 @@ export class PillChoiceAct {
    * @returns {boolean}
    */
   isResting() {
-    return true;
+    return this.isDisposed || !this.rootGroup.visible || (
+      this._selectionProgress === this._selectionTarget &&
+      this.bluePill.hoverAmount === this.bluePill.targetHover &&
+      this.redPill.hoverAmount === this.redPill.targetHover
+    );
   }
 
   /**
@@ -1167,6 +1237,9 @@ export class PillChoiceAct {
    */
   dispose() {
     this.isDisposed = true;
+    this._effectObjects = [];
+    this._flyingPill = null;
+    this._flightHome = null;
 
     if (this.canvas) {
       this.canvas.style.cursor = 'default';

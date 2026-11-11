@@ -1054,15 +1054,22 @@ export class PortfolioApp {
         './models/hand.glb',
         './models/robotic_hand.glb'
       ];
-      const assetPromise = this.assetLibrary.preloadCritical(criticalModels)
-        .then(async ([book, room, humanHand, roboticHand]) => {
-          if (this.isDestroyed) return;
-          if (book && this.journeyScene) {
-            this.journeyScene.setHitchhikerModel(book);
-            if (this.placeholderMesh && this.scene) {
-              this.scene.remove(this.placeholderMesh);
-            }
+      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels);
+      // Show the book as soon as it arrives, independently of the larger hand models.
+      const bookReady = this.assetLibrary.load(criticalModels[0]).then(book => {
+        if (book && !this.isDestroyed && this.journeyScene) {
+          this.journeyScene.setHitchhikerModel(book);
+          if (this.placeholderMesh && this.scene) {
+            this.scene.remove(this.placeholderMesh);
           }
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+        }
+      });
+      const assetPromise = Promise.all([criticalAssets, bookReady])
+        .then(async ([models]) => {
+          if (this.isDestroyed) return;
+          const [, room, humanHand, roboticHand] = models;
           if (room && this.gatewayAct) this.gatewayAct.setWhiteRoomModel(room);
           if (humanHand && this.pillChoiceAct) this.pillChoiceAct.setHumanHandModel(humanHand);
           if (roboticHand && this.pillChoiceAct) this.pillChoiceAct.setRoboticHandModel(roboticHand);
@@ -1139,8 +1146,14 @@ export class PortfolioApp {
         this._updateJourneyCardVisibility(progress);
       });
       this.journeyState.onBranch((branch) => {
-        if (this.pillChoiceAct && this.pillChoiceAct.selectedBranch !== branch) {
+        if (branch === 'unselected' && this.pillChoiceAct) {
+          this.pillChoiceAct.resetSelection();
+        } else if (this.pillChoiceAct && this.pillChoiceAct.selectedBranch !== branch) {
           this.pillChoiceAct.selectBranch(branch);
+        }
+        if (branch !== 'unselected' && this.enableLoader && this.getActiveStation().id === 'gateway' &&
+            this.journeyState.getProgress() >= 0.30 && this.scrollEngine) {
+          this.scrollEngine.scrollTo(0.60);
         }
         if (this.journeyHud) {
           this.journeyHud.update();
@@ -1523,7 +1536,9 @@ export class PortfolioApp {
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
           delta,
-          speedFactor
+          speedFactor,
+          branch: this.pillChoiceAct?.selectedBranch,
+          selectionProgress: this.pillChoiceAct?.getSelectionProgress() || 0
         });
       }
 
@@ -1715,10 +1730,10 @@ export class PortfolioApp {
           }
           this._resumeLoop();
           return;
-        } else if (this.journeyState && this.journeyState.getBranch() === 'unselected') {
-          // Gated: strictly block navigation past pill choice until user selects a pill
+        } else if (this.journeyState) {
+          // End this visual slice at the branch entrance; Act 3 is not built yet.
           if (this.scrollEngine) {
-            this.scrollEngine.scrollTo(0.38);
+            this.scrollEngine.scrollTo(this.journeyState.getBranch() === 'unselected' ? 0.38 : 0.60);
           }
           if (this.pillChoiceAct) {
             this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
@@ -1726,6 +1741,13 @@ export class PortfolioApp {
           return;
         }
       } else if (direction < 0) {
+        if (currentProg > 0.42 && this.journeyState && this.journeyState.getBranch() !== 'unselected') {
+          this.journeyState.resetBranch();
+          this.scrollEngine.scrollTo(0.38);
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+          return;
+        }
         if (currentProg > 0.28) {
           // Ascend within Gateway: tilts up to armchairs view above TV
           if (this.scrollEngine) {

@@ -73,12 +73,12 @@ describe('Ticket 04: ScrollEngine, JourneyState, Minimal HUD & Credits Dialog', 
       state.selectBranch('blue');
       state.setProgress(0.7);
       expect(state.getCurrentSegment().id).toBe('act3_blue');
-      expect(state.getCurrentSegment().title).toContain('Origami Unicorns');
+      expect(state.getCurrentSegment().title).toContain('Wheatley Core');
 
       // If branch were red
       state.selectBranch('red');
       expect(state.getCurrentSegment().id).toBe('act3_red');
-      expect(state.getCurrentSegment().title).toContain('Wheatley Core');
+      expect(state.getCurrentSegment().title).toContain('Origami Unicorns');
 
       // Progress 0.9 -> Act 4/5 (Rick's Ship / Shatter & Transmission)
       state.setProgress(0.9);

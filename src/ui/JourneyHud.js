@@ -43,11 +43,11 @@ export class JourneyHud {
         </div>
         <div class="journey-branch-actions" hidden>
           <span class="branch-prompt-text">CHOOSE PATH:</span>
-          <button type="button" class="btn-branch-choice branch-blue" aria-label="Choose Blue Pill: Experiences">
-            <span>EXPERIENCES (BLUE)</span>
+          <button type="button" class="btn-branch-choice branch-blue" aria-label="Choose Blue Pill: Portal / Harness">
+            <span>HARNESS (BLUE)</span>
           </button>
-          <button type="button" class="btn-branch-choice branch-red" aria-label="Choose Red Pill: Harness">
-            <span>HARNESS (RED)</span>
+          <button type="button" class="btn-branch-choice branch-red" aria-label="Choose Red Pill: Blade Runner / Experiences">
+            <span>EXPERIENCES (RED)</span>
           </button>
         </div>
         <div class="journey-hud-actions">

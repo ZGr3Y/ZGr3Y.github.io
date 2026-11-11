@@ -369,8 +369,10 @@ export class GatewayAct {
    * @param {Object} [state.pointer] - Normalized pointer coordinates { x, y } [-1.0 - 1.0]
    * @param {number} [state.delta=0.016] - Time delta in seconds
    * @param {number} [state.speedFactor=1.0] - Idle speed dampening factor
+   * @param {'blue'|'red'|null} [state.branch=null] - Selected path
+   * @param {number} [state.selectionProgress=0] - Pill flight progress [0, 1]
    */
-  update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0 } = {}) {
+  update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0, branch = null, selectionProgress = 0 } = {}) {
     if (this.isDisposed || !this.camera) return;
 
     const safeDelta = Math.max(0, Math.min(delta, 0.1));
@@ -458,6 +460,16 @@ export class GatewayAct {
       const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       baseCamPos = new THREE.Vector3().lerpVectors(this.act1EntranceCamPos, this.act1InteriorCamPos, easedT);
       baseLookAt = new THREE.Vector3().lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
+    }
+
+    // Let the pill lead, then carry the camera towards the chosen branch entrance.
+    if (branch === 'blue' || branch === 'red') {
+      const travel = Math.max(0, Math.min((selectionProgress - 0.25) / 0.75, 1));
+      const eased = travel * travel * (3 - 2 * travel);
+      const side = branch === 'blue' ? -1 : 1;
+      baseCamPos.x += side * eased * 0.24;
+      baseCamPos.z -= eased * 0.32;
+      baseLookAt.x += side * eased * 0.28;
     }
 
     // Compute pointer parallax target

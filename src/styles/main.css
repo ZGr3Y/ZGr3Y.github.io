@@ -1578,6 +1578,8 @@ body.has-loader-active .station-card {
 }
 
 .btn-branch-choice {
+  min-height: 44px;
+  min-width: 44px;
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.25rem 0.55rem;
@@ -1617,6 +1619,8 @@ body.has-loader-active .station-card {
 }
 
 .btn-credits-trigger {
+  min-height: 44px;
+  min-width: 44px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
@@ -1673,6 +1677,14 @@ body.has-loader-active .station-card {
 @media (min-width: 769px) {
   [data-journey-active] .hud-nav {
     top: 3.5rem;
+  }
+
+  .journey-branch-actions {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 2rem);
   }
 }
 
@@ -1744,5 +1756,37 @@ body.has-loader-active .station-card {
   border-top: 1px solid var(--border-subtle);
   display: flex;
   justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .journey-hud-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .journey-chapter-info {
+    min-width: 0;
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
+  }
+
+  .journey-chapter-label {
+    overflow-wrap: anywhere;
+  }
+
+  .journey-hud-actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .journey-branch-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
 }
 
