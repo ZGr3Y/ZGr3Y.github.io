@@ -96,6 +96,53 @@ export class PillChoiceAct {
   }
 
   /**
+   * Prepares the first visible frame while the loader is still on screen.
+   * Downloaded models still need shader compilation and GPU buffer/texture uploads.
+   * A one-pixel scissored render uses the same framebuffer/color space as the journey.
+   */
+  async prepare(renderer) {
+    if (!renderer || this.isDisposed || !this.scene || !this.camera) return;
+
+    const root = this.rootGroup;
+    const scene = this.scene;
+    const wasVisible = root.visible;
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const scissor = renderer.getScissor(new THREE.Vector4());
+    const scissorTest = renderer.getScissorTest();
+    const culling = [];
+    scene.traverse(object => {
+      if (object.isMesh || object.isPoints || object.isLine || object.isSprite) {
+        culling.push([object, object.frustumCulled]);
+        object.frustumCulled = false;
+      }
+    });
+
+    try {
+      // The hidden hands also hide their lights, producing a second shader variant.
+      for (const visible of [true, false]) {
+        if (this.isDisposed) return;
+        root.visible = visible;
+        await renderer.compileAsync(scene, this.camera);
+        if (this.isDisposed) return;
+        // Animation updates may hide the hands while compilation yields to the loader.
+        root.visible = visible;
+        renderer.setViewport(0, 0, 1, 1);
+        renderer.setScissor(0, 0, 1, 1);
+        renderer.setScissorTest(true);
+        renderer.render(scene, this.camera);
+      }
+    } finally {
+      root.visible = wasVisible;
+      for (const [object, wasCulled] of culling) object.frustumCulled = wasCulled;
+      if (!this.isDisposed) {
+        renderer.setViewport(viewport);
+        renderer.setScissor(scissor);
+        renderer.setScissorTest(scissorTest);
+      }
+    }
+  }
+
+  /**
    * Creates a soft radial glow texture for particles and atmospheric floor light pools
    * @private
    * @param {string} innerColor

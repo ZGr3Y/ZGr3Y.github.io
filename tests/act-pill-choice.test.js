@@ -229,6 +229,74 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
   });
 
   describe('Zero-CPU Idle & Teardown', () => {
+    function createRenderer() {
+      const renderStates = [];
+      return {
+        renderStates,
+        getViewport: (v) => v.set(0, 0, 800, 600),
+        getScissor: (v) => v.set(0, 0, 800, 600),
+        getScissorTest: () => false,
+        setViewport: vi.fn(),
+        setScissor: vi.fn(),
+        setScissorTest: vi.fn(),
+        compileAsync: vi.fn().mockResolvedValue(undefined),
+        render: (scene) => renderStates.push(scene.getObjectByName('PillChoiceActGroup').visible)
+      };
+    }
+
+    it('prepares both lighting configurations before first entry and restores rendering state', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      const mesh = act.bluePill.mesh;
+      const wasCulled = mesh.frustumCulled;
+      // A loader animation frame can hide the hands while compileAsync is pending.
+      renderer.compileAsync.mockImplementation(async () => {
+        act.update({ progress: 0 });
+      });
+
+      await act.prepare(renderer);
+
+      expect(renderer.renderStates).toEqual([true, false]);
+      expect(act.rootGroup.visible).toBe(false);
+      expect(mesh.frustumCulled).toBe(wasCulled);
+      expect(renderer.setViewport).toHaveBeenLastCalledWith(new THREE.Vector4(0, 0, 800, 600));
+      expect(renderer.setScissorTest).toHaveBeenLastCalledWith(false);
+      act.dispose();
+    });
+
+    it('restores visibility and culling if GPU preparation fails', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      renderer.compileAsync.mockRejectedValue(new Error('Context lost'));
+
+      await expect(act.prepare(renderer)).rejects.toThrow('Context lost');
+
+      expect(act.rootGroup.visible).toBe(false);
+      expect(act.bluePill.mesh.frustumCulled).toBe(true);
+      expect(renderer.renderStates).toEqual([]);
+      act.dispose();
+    });
+
+    it('does not render after disposal while shader preparation is pending', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      let finishCompilation;
+      renderer.compileAsync.mockImplementation(() => new Promise(resolve => { finishCompilation = resolve; }));
+
+      const pending = act.prepare(renderer);
+      act.dispose();
+      finishCompilation();
+      await pending;
+
+      expect(renderer.renderStates).toEqual([]);
+    });
+
     it('reports isResting true when hands are stationary, including during a settled hover', () => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);

@@ -56,6 +56,7 @@ export class PortfolioApp {
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
+    this._isPreparingScene = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
     // Floating Minimalist HUD Navigation state
@@ -1053,49 +1054,37 @@ export class PortfolioApp {
         './models/hand.glb',
         './models/robotic_hand.glb'
       ];
-      const assetPromise = this.assetLibrary.preloadCritical(criticalModels);
-
-      this.assetLibrary.load('./models/the_hitchhikers_guide_to_the_galaxy.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.journeyScene) {
-            this.journeyScene.setHitchhikerModel(model);
+      const assetPromise = this.assetLibrary.preloadCritical(criticalModels)
+        .then(async ([book, room, humanHand, roboticHand]) => {
+          if (this.isDestroyed) return;
+          if (book && this.journeyScene) {
+            this.journeyScene.setHitchhikerModel(book);
             if (this.placeholderMesh && this.scene) {
               this.scene.remove(this.placeholderMesh);
             }
-            if (this.idleManager) {
-              this.idleManager.recordActivity();
+          }
+          if (room && this.gatewayAct) this.gatewayAct.setWhiteRoomModel(room);
+          if (humanHand && this.pillChoiceAct) this.pillChoiceAct.setHumanHandModel(humanHand);
+          if (roboticHand && this.pillChoiceAct) this.pillChoiceAct.setRoboticHandModel(roboticHand);
+
+          if (this.renderer && this.pillChoiceAct) {
+            // Keep the loader's book frame intact while hidden scene variants prepare.
+            this._isPreparingScene = true;
+            try {
+              await this.pillChoiceAct.prepare(this.renderer);
+            } finally {
+              this._isPreparingScene = false;
             }
+          }
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+        })
+        .catch(error => {
+          if (!this.isDestroyed) {
+            console.warn('[PortfolioApp] Scene preparation unavailable:', error);
             this._resumeLoop();
           }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/the_matrix_white_room.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.gatewayAct) {
-            this.gatewayAct.setWhiteRoomModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/hand.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.pillChoiceAct) {
-            this.pillChoiceAct.setHumanHandModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/robotic_hand.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.pillChoiceAct) {
-            this.pillChoiceAct.setRoboticHandModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
+        });
 
       // Initialize Loader UI and Controller if container exists
       if (this.container && typeof document !== 'undefined') {
@@ -1579,7 +1568,7 @@ export class PortfolioApp {
         this._updateHologramBeam();
       }
 
-      if (!shouldSuspend && this.renderer && this.scene && this.camera) {
+      if (!shouldSuspend && !this._isPreparingScene && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
       }
 
