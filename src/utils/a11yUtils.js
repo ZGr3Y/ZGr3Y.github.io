@@ -13,7 +13,9 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 export function trapFocus(container, event) {
   if (!container || event.key !== 'Tab') return;
 
-  const focusable = container.querySelectorAll(FOCUSABLE_SELECTOR);
+  const focusable = [...container.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+    el => !el.closest('[hidden], [inert]') && getComputedStyle(el).visibility !== 'hidden'
+  );
   if (focusable.length === 0) return;
 
   const first = focusable[0];

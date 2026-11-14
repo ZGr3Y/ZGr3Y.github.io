@@ -1,0 +1,67 @@
+.experiences-scene { position: fixed; inset: 0; z-index: 20; pointer-events: none; color: #202a28; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.experiences-scene[hidden], .experiences-scene [hidden] { display: none !important; }
+.experiences-scene header { position: absolute; top: 9%; left: 6%; transition: opacity .4s; }
+.experiences-scene header p { font: 10px var(--font-mono, monospace); letter-spacing: .24em; color: #35453f; }
+.experiences-scene h2 { margin: 18px 0; font: italic 42px Georgia, serif; font-weight: 400; }
+.experiences-status { position: absolute; bottom: 12%; width: 100%; text-align: center; font: 11px monospace; letter-spacing: .1em; }
+.experiences-picks { position: absolute; inset: 0; }
+.experiences-picks button, .experiences-close { pointer-events: auto; background: transparent; border: 0; color: #283a34; padding: 14px 8px; min-width: 44px; min-height: 44px; font: 11px monospace; cursor: pointer; }
+.experiences-picks button { position: absolute; transform: translate(-50%, 0); width: max-content; max-width: 36vw; text-align: center; }
+.experiences-picks button:hover, .experiences-picks button:focus-visible, .experiences-close:focus-visible { color: #0e1915; outline: 1px solid #708d85; }
+.experiences-close { position: absolute; top: 12%; right: 6%; border: 1px solid #465b55; }
+.experiences-scene.has-selection header { opacity: 0; }
+#app[data-experiences-active="true"] .lab-card { display: none !important; }
+@media (max-width: 649px) {
+  .experiences-scene header { top: 12%; }
+  .experiences-scene h2 { font-size: 27px; margin: 10px 0; }
+  .experiences-picks button { font-size: 10px; padding: 10px 0; max-width: 43vw; }
+  .experiences-close { top: 13%; }
+  .experiences-status { bottom: 10%; }
+}
+
+#app[data-experiences-active="true"] #cloud-canvas { opacity: 1; pointer-events: auto; }
+#app[data-experiences-active="true"] .station-container { pointer-events: none; }
+
+/* Text follows the projected metal surface; the inner page can scroll on small screens. */
+.project-sheet {
+  position: fixed; z-index: 21; box-sizing: border-box; color: #07111b;
+  pointer-events: auto; user-select: text; -webkit-user-select: text;
+  transform-origin: center; overflow: hidden; cursor: text;
+}
+.project-sheet[hidden] { display: none !important; }
+.project-sheet__paper {
+  box-sizing: border-box; width: 100%; height: 100%; padding: 6% 7%;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+  scrollbar-width: thin; scrollbar-color: #77858e transparent;
+  background: linear-gradient(90deg, transparent, rgba(222, 231, 238, .52) 7%, rgba(222, 231, 238, .52) 93%, transparent);
+  text-shadow: 0 1px 1px rgba(244, 249, 252, .8);
+}
+.project-sheet__eyebrow, .project-sheet__stack-label {
+  margin: 0; color: #172c3a; font: 10px/1.4 var(--font-mono, monospace); letter-spacing: .1em;
+}
+.project-sheet__title { margin: 16px 0; color: #101b24; font: 30px/1.08 Georgia, serif; font-weight: 400; }
+.project-sheet__summary, .project-sheet__detail { margin: 0 0 18px; font: 500 14px/1.55 var(--font-sans, sans-serif); }
+.project-sheet__highlights { display: grid; gap: 12px; margin: 20px 0; padding: 0; list-style: none; font: 500 13px/1.5 var(--font-sans, sans-serif); }
+.project-sheet__highlights li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+.project-sheet__number { color: #344e60; font: 10px/1.8 var(--font-mono, monospace); }
+.project-sheet__detail { padding-top: 16px; border-top: 1px solid #63758266; }
+.project-sheet__stack { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 22px; padding: 0; list-style: none; }
+.project-sheet__stack li { border: 1px solid #52687477; padding: 4px 6px; font: 10px/1.2 var(--font-mono, monospace); white-space: nowrap; }
+.project-sheet__source { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 0; border-bottom: 1px solid #344d60; color: #172f40; font: 11px/1.4 var(--font-mono, monospace); letter-spacing: .08em; pointer-events: auto; cursor: pointer; text-decoration: none; }
+.project-sheet__source:hover, .project-sheet__source:focus-visible { color: #000; outline: 1px solid #344d60; outline-offset: 4px; }
+@media (max-width: 649px) {
+  .project-sheet__title { font-size: 25px; }
+  .project-sheet__summary, .project-sheet__detail { font-size: 14px; }
+  .project-sheet__highlights { font-size: 13px; }
+}
+
+#app:has(.experiences-scene.has-selection:not([hidden])) .hud-nav { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.project-sheet__stamp {
+  display: block; margin: 10px 0 32px; padding: 12px 6px 8px;
+  border: 5px double #85252b; color: #85252b;
+  font: 900 58px/.95 var(--font-mono, monospace); text-align: center;
+  letter-spacing: -.055em; transform: rotate(-5deg); text-shadow: none;
+  opacity: .88;
+}
+@media (max-width: 649px) { .project-sheet__stamp { font-size: 46px; } }

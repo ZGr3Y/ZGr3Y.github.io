@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { STATIONS } from '../stations/stationsData.js';
 import { IdleManager } from './IdleManager.js';
 import { AssetLibrary } from './AssetLibrary.js';
@@ -12,6 +14,7 @@ import { CreditsDialog } from '../ui/CreditsDialog.js';
 import { BioHologram } from '../ui/BioHologram.js';
 import { GatewayAct } from '../acts/GatewayAct.js';
 import { PillChoiceAct } from '../acts/PillChoiceAct.js';
+import { ExperiencesAct } from '../acts/ExperiencesAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
@@ -42,6 +45,7 @@ export class PortfolioApp {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
+    this._studioEnvironment = null;
     this.topology = null;
     this.assetLibrary = null;
     this.journeyScene = null;
@@ -53,6 +57,7 @@ export class PortfolioApp {
     this.creditsDialog = null;
     this.gatewayAct = null;
     this.pillChoiceAct = null;
+    this.experiencesAct = null;
     this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
@@ -320,7 +325,7 @@ export class PortfolioApp {
     }
     card.innerHTML = `
       <button type="button" class="card-close-btn" aria-label="Close Bio Hologram" title="Close Bio Hologram">✕</button>
-      <div class="holo-scan-line" aria-hidden="true"></div>
+      <div class="holo-scan-window" aria-hidden="true"><div class="holo-scan-line"></div></div>
       <div class="holo-corner holo-corner-tl" aria-hidden="true"></div>
       <div class="holo-corner holo-corner-tr" aria-hidden="true"></div>
       <div class="holo-corner holo-corner-bl" aria-hidden="true"></div>
@@ -878,6 +883,18 @@ export class PortfolioApp {
           powerPreference: 'high-performance'
         });
         this.renderer.setSize(width, height);
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        RectAreaLightUniformsLib.init();
+        this.renderer.toneMappingExposure = 1.05;
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.VSMShadowMap;
+        const studio = new RoomEnvironment();
+        const pmrem = new THREE.PMREMGenerator(this.renderer);
+        this._studioEnvironment = pmrem.fromScene(studio, 0.04);
+        this.scene.environment = this._studioEnvironment.texture;
+        this.scene.environmentIntensity = 0.45;
+        studio.dispose();
+        pmrem.dispose();
         this.renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 1.75));
       } else {
         this.renderer = null;
@@ -926,6 +943,12 @@ export class PortfolioApp {
           this._resumeLoop();
         }
       });
+      this.experiencesAct = new ExperiencesAct({
+        container: this.container, scene: this.scene, camera: this.camera, renderer: this.renderer, canvas: this.canvas,
+        projects: this.stations.find(station => station.id === 'lab').projects,
+        wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
+      });
+      this.experiencesAct.prepare();
       this.camera.position.copy(this.gatewayAct.act0CamPos);
       this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
       this.camera.lookAt(this._currentCamLookAt);
@@ -961,7 +984,11 @@ export class PortfolioApp {
             // Keep the loader's book frame intact while hidden scene variants prepare.
             this._isPreparingScene = true;
             try {
-              await this.pillChoiceAct.prepare(this.renderer);
+              const preparationCamera = this.camera.clone();
+              preparationCamera.position.copy(this.gatewayAct.act1InteriorCamPos);
+              preparationCamera.lookAt(this.gatewayAct.act1InteriorLookAt);
+              await this.pillChoiceAct.prepare(this.renderer, preparationCamera);
+              if (!this.isDestroyed) this.renderer.render(this.scene, this.camera);
             } finally {
               this._isPreparingScene = false;
             }
@@ -1156,6 +1183,14 @@ export class PortfolioApp {
 
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat || this.activeModal) return;
+      if (this.experiencesAct?.hasOpenSelection()) {
+        if (e.key === 'Escape') {
+          this.experiencesAct.close();
+        } else if (e.key === 'Tab') {
+          trapFocus(this.experiencesAct.host, e);
+        }
+        return;
+      }
       if (this.isBioHologramOpen) {
         if (e.key === 'Escape') {
           this.closeBioHologram();
@@ -1194,7 +1229,7 @@ export class PortfolioApp {
     };
 
     this._onWheel = (e) => {
-      if (!e || typeof e.deltaY !== 'number' || this.activeModal || this.isBioHologramOpen) return;
+      if (!e || typeof e.deltaY !== 'number' || this._isNavigationBlocked()) return;
       if (e.ctrlKey || e.metaKey) return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
@@ -1210,7 +1245,7 @@ export class PortfolioApp {
     };
 
     this._onTouchStart = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       // Multi-touch gestures (e.g. pinch-to-zoom) must not trigger station swipe navigation
       if (e.touches && e.touches.length === 1) {
         const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
@@ -1235,7 +1270,7 @@ export class PortfolioApp {
     };
 
     this._onTouchMove = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
         this._updatePointerFromClient(touch.clientX, touch.clientY);
@@ -1243,7 +1278,7 @@ export class PortfolioApp {
     };
 
     this._onTouchEnd = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       // If there are still active touches (e.g. multi-touch lift), cancel gesture navigation
       if (e.touches && e.touches.length > 0) {
         this._touchStartX = null;
@@ -1389,13 +1424,33 @@ export class PortfolioApp {
         return;
       }
 
-      const delta = Math.max(0, Math.min((currentTime - this._lastFrameTime) / 1000, 0.1));
+      const frameDelta = Math.max(0, (currentTime - this._lastFrameTime) / 1000);
+      const delta = Math.min(frameDelta, .1);
       this._lastFrameTime = currentTime;
 
-      // 1. Advance spatial camera waypoint transition
       const isGatewayStation = this.getActiveStation().id === 'gateway';
-      const shouldAdvanceWaypoint = this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001);
-      if (this.camera && shouldAdvanceWaypoint) {
+      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
+      const projectsDesired = Boolean(this.experiencesAct && (this.getActiveStation().id === 'lab' ||
+        (isGatewayStation && this.journeyState?.getBranch() === 'red' && currentProgress >= .6 && currentProgress < .8)));
+      if (projectsDesired !== Boolean(this._projectsCameraOwned)) {
+        this._projectsCameraOwned = projectsDesired;
+        if (projectsDesired) {
+          const pose = this.experiencesAct.getCameraPose();
+          this._startCameraFlight(pose.position, pose.target, true);
+        } else if (isGatewayStation && this.gatewayAct) {
+          this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, false);
+        }
+      }
+      if (projectsDesired && !this._cameraFlight) {
+        const pose = this.experiencesAct.getCameraPose();
+        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
+        this._currentCamLookAt.copy(pose.target); this.camera.lookAt(pose.target);
+      }
+      // All stations share a camera; the flight owns it until the dolly finishes.
+      if (this._cameraFlight) this._advanceCameraFlight(Math.min(frameDelta, .5));
+
+      const shouldAdvanceWaypoint = !projectsDesired && (this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001));
+      if (this.camera && shouldAdvanceWaypoint && !this._cameraFlight && !projectsDesired) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
@@ -1427,9 +1482,7 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
-      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
-
-      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning) {
+      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
         this.gatewayAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
@@ -1440,13 +1493,19 @@ export class PortfolioApp {
         });
       }
 
-      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning) {
+      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
         this.pillChoiceAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
           delta,
           speedFactor
         });
+      }
+
+      if (this.experiencesAct) {
+        this.experiencesAct.setActive(projectsDesired && !this._cameraFlight);
+        this.container?.setAttribute('data-experiences-active', String(projectsDesired));
+        this.experiencesAct.update(delta, speedFactor);
       }
 
       if (this.journeyScene) {
@@ -1474,7 +1533,7 @@ export class PortfolioApp {
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
       const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
-      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting && (!this.bioHologram || this.bioHologram.isResting());
+      const isResting = (!this.experiencesAct || this.experiencesAct.isResting()) && !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting && (!this.bioHologram || this.bioHologram.isResting());
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (this.bioHologram?.isVisible()) {
@@ -1499,6 +1558,43 @@ export class PortfolioApp {
 
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       this._animFrameId = window.requestAnimationFrame(this._renderFrame);
+    }
+  }
+
+  /** A continuous curved dolly from the actual camera pose, without scene swaps. */
+  _startCameraFlight(position, target, projects = false) {
+    if (!this.camera) return;
+    if (!projects && this.getActiveStation().id === 'gateway' && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = true;
+    const start = this.camera.position.clone();
+    const direction = this.camera.getWorldDirection(new THREE.Vector3());
+    const startLook = start.clone().addScaledVector(direction, 8);
+    const end = position.clone();
+    this._targetCamPos.copy(end); this._targetCamLookAt.copy(target);
+    this._cameraFlight = {
+      elapsed: 0, duration: 1.4, startLook, target: target.clone(), projects,
+      curve: new THREE.CubicBezierCurve3(start, start.clone().lerp(end, .25).add(new THREE.Vector3(0, 1.2, 0)), start.clone().lerp(end, .7).add(new THREE.Vector3(0, 1.4, 0)), end),
+      background: this.scene.background?.isColor ? this.scene.background.clone() : new THREE.Color('#060b10'),
+      backgroundTarget: projects ? new THREE.Color('#979d9b') : (this.getActiveStation().id === 'gateway' && this.gatewayAct ? ((this.journeyState?.getProgress() ?? .4) <= .25 ? this.gatewayAct._lightRoomColor.clone() : this.gatewayAct._darkRoomColor.clone()) : new THREE.Color('#060b10'))
+    };
+    this._isCameraTransitioning = true;
+  }
+
+  _advanceCameraFlight(delta) {
+    const flight = this._cameraFlight;
+    flight.elapsed += delta;
+    const t = THREE.MathUtils.clamp(flight.elapsed / flight.duration, 0, 1);
+    const eased = t * t * t * (t * (t * 6 - 15) + 10);
+    this.camera.position.copy(flight.curve.getPoint(eased));
+    this._currentCamLookAt.lerpVectors(flight.startLook, flight.target, eased);
+    this.camera.lookAt(this._currentCamLookAt);
+    if (this.scene.background?.isColor) {
+      this.scene.background.copy(flight.background).lerp(flight.backgroundTarget, eased);
+      this.scene.fog?.color?.copy(this.scene.background);
+    }
+    if (t === 1) {
+      this._cameraFlight = null; this._isCameraTransitioning = false;
+      if (flight.projects && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = false;
+      if (!flight.projects && this.getActiveStation().id === 'gateway') this.gatewayAct?.rebaseCamera(this.camera.position, this._currentCamLookAt);
     }
   }
 
@@ -1592,6 +1688,10 @@ export class PortfolioApp {
    * @returns {boolean}
    * @private
    */
+  _isNavigationBlocked() {
+    return Boolean(this.activeModal || this.isBioHologramOpen || this.experiencesAct?.hasOpenSelection());
+  }
+
   _canScrollInDirection(direction) {
     const sc = this.stationContainer || (this.container?.querySelector ? this.container.querySelector('.station-container') : null);
     if (!sc) return false;
@@ -1719,7 +1819,15 @@ export class PortfolioApp {
       const targetLookAt = activeStation.camera.target || { x: 0, y: 0, z: 0 };
       this._targetCamPos.set(targetPos.x, targetPos.y, targetPos.z);
       this._targetCamLookAt.set(targetLookAt.x, targetLookAt.y, targetLookAt.z);
-      this._isCameraTransitioning = true;
+      const wasProjects = Boolean(this._projectsCameraOwned);
+      const projectsLab = activeStation.id === 'lab' && Boolean(this.experiencesAct);
+      this._projectsCameraOwned = projectsLab;
+      const pose = projectsLab
+        ? this.experiencesAct.getCameraPose()
+        : (activeStation.id === 'gateway' && wasProjects && this.gatewayAct)
+          ? { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt }
+          : { position: this._targetCamPos, target: this._targetCamLookAt };
+      this._startCameraFlight(pose.position, pose.target, projectsLab);
     }
 
     if (this.container) {
@@ -1734,7 +1842,7 @@ export class PortfolioApp {
         this.gatewayAct.setTvReticleVisible(false);
       }
       if (this.pillChoiceAct) {
-        if (this.pillChoiceAct.rootGroup) {
+        if (this.pillChoiceAct.rootGroup && !this._cameraFlight) {
           this.pillChoiceAct.rootGroup.visible = false;
         }
         this.pillChoiceAct.hoveredPill = null;
@@ -1844,6 +1952,9 @@ export class PortfolioApp {
       this.journeyScene = null;
     }
 
+    this.experiencesAct?.dispose();
+    this.experiencesAct = null;
+
     if (this.gatewayAct) {
       this.gatewayAct.dispose();
       this.gatewayAct = null;
@@ -1870,6 +1981,11 @@ export class PortfolioApp {
     }
 
     if (this.renderer) {
+      if (this._studioEnvironment) {
+        if (this.scene) this.scene.environment = null;
+        this._studioEnvironment.dispose();
+        this._studioEnvironment = null;
+      }
       this.renderer.dispose();
       this.renderer = null;
     }
