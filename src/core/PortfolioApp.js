@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import { STATIONS } from '../stations/stationsData.js';
 import { IdleManager } from './IdleManager.js';
 import { AssetLibrary } from './AssetLibrary.js';
@@ -9,8 +11,10 @@ import { JourneyState } from './JourneyState.js';
 import { ScrollEngine } from './ScrollEngine.js';
 import { JourneyHud } from '../ui/JourneyHud.js';
 import { CreditsDialog } from '../ui/CreditsDialog.js';
+import { BioHologram } from '../ui/BioHologram.js';
 import { GatewayAct } from '../acts/GatewayAct.js';
 import { PillChoiceAct } from '../acts/PillChoiceAct.js';
+import { ExperiencesAct } from '../acts/ExperiencesAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
 
 /**
@@ -41,6 +45,7 @@ export class PortfolioApp {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
+    this._studioEnvironment = null;
     this.topology = null;
     this.assetLibrary = null;
     this.journeyScene = null;
@@ -52,10 +57,12 @@ export class PortfolioApp {
     this.creditsDialog = null;
     this.gatewayAct = null;
     this.pillChoiceAct = null;
+    this.experiencesAct = null;
     this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
+    this._isPreparingScene = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
     // Floating Minimalist HUD Navigation state
@@ -65,6 +72,7 @@ export class PortfolioApp {
     // Holographic Bio Pop-up state projected from CRT TV
     this.isBioHologramOpen = false;
     this.hologramBeamSvg = null;
+    this.bioHologram = null;
     this._hologramTriggerElement = null;
 
     // Spatial Camera Waypoint Controller state
@@ -102,6 +110,7 @@ export class PortfolioApp {
         const gatewayCard = (this.container && this.container.querySelector('.station-card.gateway-card')) ||
           (this.stationContainer && this.stationContainer.querySelector('.station-card.gateway-card')) ||
           document.querySelector('.station-card.gateway-card');
+        this.bioHologram = new BioHologram({ card: gatewayCard, beam: this.hologramBeamSvg });
         if (gatewayCard && !this.isBioHologramOpen) {
           gatewayCard.setAttribute('inert', '');
           gatewayCard.setAttribute('aria-hidden', 'true');
@@ -316,7 +325,7 @@ export class PortfolioApp {
     }
     card.innerHTML = `
       <button type="button" class="card-close-btn" aria-label="Close Bio Hologram" title="Close Bio Hologram">✕</button>
-      <div class="holo-scan-line" aria-hidden="true"></div>
+      <div class="holo-scan-window" aria-hidden="true"><div class="holo-scan-line"></div></div>
       <div class="holo-corner holo-corner-tl" aria-hidden="true"></div>
       <div class="holo-corner holo-corner-tr" aria-hidden="true"></div>
       <div class="holo-corner holo-corner-bl" aria-hidden="true"></div>
@@ -704,7 +713,7 @@ export class PortfolioApp {
     }
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
-      gatewayCard.classList.add('is-open');
+      this.bioHologram?.open();
       gatewayCard.removeAttribute('inert');
       gatewayCard.removeAttribute('aria-hidden');
       gatewayCard.setAttribute('role', 'dialog');
@@ -713,9 +722,6 @@ export class PortfolioApp {
       if (closeBtn && typeof closeBtn.focus === 'function') {
         closeBtn.focus();
       }
-    }
-    if (this.hologramBeamSvg) {
-      this.hologramBeamSvg.classList.add('is-open');
     }
     this._updateHologramBeam();
     if (this.idleManager) {
@@ -738,7 +744,7 @@ export class PortfolioApp {
     }
     const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
     if (gatewayCard) {
-      gatewayCard.classList.remove('is-open');
+      this.bioHologram?.close();
       gatewayCard.setAttribute('inert', '');
       gatewayCard.setAttribute('aria-hidden', 'true');
     }
@@ -747,9 +753,6 @@ export class PortfolioApp {
       this._hologramTriggerElement = null;
     } else if (typeof document !== 'undefined' && document.activeElement && gatewayCard?.contains(document.activeElement)) {
       document.activeElement.blur();
-    }
-    if (this.hologramBeamSvg) {
-      this.hologramBeamSvg.classList.remove('is-open');
     }
     if (this.idleManager) {
       this.idleManager.recordActivity();
@@ -768,133 +771,16 @@ export class PortfolioApp {
     }
   }
 
-  /**
-   * Synchronizes SVG holographic projection beam between 3D TV screen and DOM card.
-   * Maps 4-corner frustum: TV top connects to Card top, TV bottom connects to Card bottom.
-   * @private
-   */
-  _updateHologramBeam() {
-    if (!this.isBioHologramOpen || !this.hologramBeamSvg || !this.camera || !this.gatewayAct || typeof window === 'undefined') {
-      return;
-    }
-    const gatewayCard = this.stationContainer?.querySelector('.station-card.gateway-card');
-    if (!gatewayCard) return;
-
-    const tvWorldPos = this.gatewayAct.getTvScreenWorldPosition();
-    const projected = tvWorldPos.clone().project(this.camera);
-
-    const tvScreenX = (projected.x * 0.5 + 0.5) * window.innerWidth;
-    const tvScreenY = (-projected.y * 0.5 + 0.5) * window.innerHeight;
-
-    // Project TV screen bounds using actual CRT screen extents
-    const extents = typeof this.gatewayAct.getTvScreenExtents === 'function'
-      ? this.gatewayAct.getTvScreenExtents()
-      : { halfWidth: 0.42, halfHeight: 0.30 };
-
-    const pTL = new THREE.Vector3(tvWorldPos.x - extents.halfWidth, tvWorldPos.y + extents.halfHeight, tvWorldPos.z).project(this.camera);
-    const pBR = new THREE.Vector3(tvWorldPos.x + extents.halfWidth, tvWorldPos.y - extents.halfHeight, tvWorldPos.z).project(this.camera);
-
-    const tvLeft = (pTL.x * 0.5 + 0.5) * window.innerWidth;
-    const tvRight = (pBR.x * 0.5 + 0.5) * window.innerWidth;
-    const tvTop = (-pTL.y * 0.5 + 0.5) * window.innerHeight;
-    const tvBottom = (-pBR.y * 0.5 + 0.5) * window.innerHeight;
-    const tvMidX = (tvLeft + tvRight) * 0.5;
-    const tvMidY = (tvTop + tvBottom) * 0.5;
-
-    const cardRect = gatewayCard.getBoundingClientRect();
-    const cardLeft = cardRect.left;
-    const cardRight = cardRect.right;
-    const cardTop = cardRect.top;
-    const cardBottom = cardRect.bottom;
-    const cardMidX = (cardLeft + cardRight) * 0.5;
-    const cardMidY = (cardTop + cardBottom) * 0.5;
-
-    // 1. Center pulsing emitter on CRT TV screen
-    const emitter = this.hologramBeamSvg.querySelector('.beam-emitter');
-    if (emitter) {
-      emitter.setAttribute('cx', tvMidX);
-      emitter.setAttribute('cy', tvMidY);
-    }
-
-    // 2. Primary 4-Corner Laser Rays
-    // User requirement: Top of TV -> Top of Hologram, Bottom of TV -> Bottom of Hologram
-    const rayTL = this.hologramBeamSvg.querySelector('.beam-ray-top-left');
-    if (rayTL) {
-      rayTL.setAttribute('x1', tvLeft);
-      rayTL.setAttribute('y1', tvTop);
-      rayTL.setAttribute('x2', cardLeft);
-      rayTL.setAttribute('y2', cardTop);
-    }
-
-    const rayTR = this.hologramBeamSvg.querySelector('.beam-ray-top-right');
-    if (rayTR) {
-      rayTR.setAttribute('x1', tvRight);
-      rayTR.setAttribute('y1', tvTop);
-      rayTR.setAttribute('x2', cardRight);
-      rayTR.setAttribute('y2', cardTop);
-    }
-
-    const rayBL = this.hologramBeamSvg.querySelector('.beam-ray-bottom-left');
-    if (rayBL) {
-      rayBL.setAttribute('x1', tvLeft);
-      rayBL.setAttribute('y1', tvBottom);
-      rayBL.setAttribute('x2', cardLeft);
-      rayBL.setAttribute('y2', cardBottom);
-    }
-
-    const rayBR = this.hologramBeamSvg.querySelector('.beam-ray-bottom-right');
-    if (rayBR) {
-      rayBR.setAttribute('x1', tvRight);
-      rayBR.setAttribute('y1', tvBottom);
-      rayBR.setAttribute('x2', cardRight);
-      rayBR.setAttribute('y2', cardBottom);
-    }
-
-    // 3. Center and Intermediate Guide Rays
-    const rayTM = this.hologramBeamSvg.querySelector('.beam-ray-top-mid');
-    if (rayTM) {
-      rayTM.setAttribute('x1', tvMidX);
-      rayTM.setAttribute('y1', tvTop);
-      rayTM.setAttribute('x2', cardMidX);
-      rayTM.setAttribute('y2', cardTop);
-    }
-
-    const rayBM = this.hologramBeamSvg.querySelector('.beam-ray-bottom-mid');
-    if (rayBM) {
-      rayBM.setAttribute('x1', tvMidX);
-      rayBM.setAttribute('y1', tvBottom);
-      rayBM.setAttribute('x2', cardMidX);
-      rayBM.setAttribute('y2', cardBottom);
-    }
-
-    const rayC = this.hologramBeamSvg.querySelector('.beam-ray-center');
-    if (rayC) {
-      rayC.setAttribute('x1', tvMidX);
-      rayC.setAttribute('y1', tvMidY);
-      rayC.setAttribute('x2', cardMidX);
-      rayC.setAttribute('y2', cardMidY);
-    }
-
-    // 4. Volumetric Frustum Light Polygons (4 projection facets)
-    const polyTop = this.hologramBeamSvg.querySelector('.beam-poly-top');
-    if (polyTop) {
-      polyTop.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardRight},${cardTop} ${tvRight},${tvTop}`);
-    }
-
-    const polyBottom = this.hologramBeamSvg.querySelector('.beam-poly-bottom');
-    if (polyBottom) {
-      polyBottom.setAttribute('points', `${tvLeft},${tvBottom} ${cardLeft},${cardBottom} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
-    }
-
-    const polyLeft = this.hologramBeamSvg.querySelector('.beam-poly-left');
-    if (polyLeft) {
-      polyLeft.setAttribute('points', `${tvLeft},${tvTop} ${cardLeft},${cardTop} ${cardLeft},${cardBottom} ${tvLeft},${tvBottom}`);
-    }
-
-    const polyRight = this.hologramBeamSvg.querySelector('.beam-poly-right');
-    if (polyRight) {
-      polyRight.setAttribute('points', `${tvRight},${tvTop} ${cardRight},${cardTop} ${cardRight},${cardBottom} ${tvRight},${tvBottom}`);
-    }
+  /** Advances the projected plane and light cone without measuring animated DOM. */
+  _updateHologramBeam(delta = 0.016) {
+    if (!this.bioHologram?.isVisible() || !this.camera || !this.gatewayAct) return;
+    this.bioHologram.update({
+      delta,
+      pointer: this.pointer,
+      camera: this.camera,
+      source: this.gatewayAct.getTvScreenWorldPosition(),
+      idle: this.idleManager?.getSpeedFactor() === 0
+    });
   }
 
   /**
@@ -937,7 +823,7 @@ export class PortfolioApp {
     if (isGatewayActiveStation && progress <= 0.25) {
       gatewayCard.classList.add('active');
       gatewayCard.classList.remove('faded');
-      gatewayCard.removeAttribute('hidden');
+      gatewayCard.hidden = Boolean(this.bioHologram && !this.bioHologram.isVisible());
     } else if (isGatewayActiveStation && progress > 0.25 && progress <= 0.42) {
       if (this.isBioHologramOpen) {
         this.closeBioHologram();
@@ -997,6 +883,18 @@ export class PortfolioApp {
           powerPreference: 'high-performance'
         });
         this.renderer.setSize(width, height);
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        RectAreaLightUniformsLib.init();
+        this.renderer.toneMappingExposure = 1.05;
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.VSMShadowMap;
+        const studio = new RoomEnvironment();
+        const pmrem = new THREE.PMREMGenerator(this.renderer);
+        this._studioEnvironment = pmrem.fromScene(studio, 0.04);
+        this.scene.environment = this._studioEnvironment.texture;
+        this.scene.environmentIntensity = 0.45;
+        studio.dispose();
+        pmrem.dispose();
         this.renderer.setPixelRatio(Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 1.75));
       } else {
         this.renderer = null;
@@ -1024,6 +922,9 @@ export class PortfolioApp {
 
     // Initialize AssetLibrary, JourneyScene, GatewayAct, and "DON'T PANIC" Loader when enabled
     if (this.enableLoader) {
+      this.canvas.tabIndex = 0;
+      this.canvas.setAttribute('role', 'group');
+      this.canvas.setAttribute('aria-label', 'Interactive 3D scene. Enter opens the TV. At the pill choice, use Left or Right then Enter.');
       this.assetLibrary = new AssetLibrary();
       this.journeyScene = new JourneyScene({ scene: this.scene });
       this.gatewayAct = new GatewayAct({ scene: this.scene, camera: this.camera });
@@ -1042,6 +943,12 @@ export class PortfolioApp {
           this._resumeLoop();
         }
       });
+      this.experiencesAct = new ExperiencesAct({
+        container: this.container, scene: this.scene, camera: this.camera, renderer: this.renderer, canvas: this.canvas,
+        projects: this.stations.find(station => station.id === 'lab').projects,
+        wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
+      });
+      this.experiencesAct.prepare();
       this.camera.position.copy(this.gatewayAct.act0CamPos);
       this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
       this.camera.lookAt(this._currentCamLookAt);
@@ -1053,49 +960,48 @@ export class PortfolioApp {
         './models/hand.glb',
         './models/robotic_hand.glb'
       ];
-      const assetPromise = this.assetLibrary.preloadCritical(criticalModels);
+      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels);
+      // Show the book as soon as it arrives, independently of the larger hand models.
+      const bookReady = this.assetLibrary.load(criticalModels[0]).then(book => {
+        if (book && !this.isDestroyed && this.journeyScene) {
+          this.journeyScene.setHitchhikerModel(book);
+          if (this.placeholderMesh && this.scene) {
+            this.scene.remove(this.placeholderMesh);
+          }
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+        }
+      });
+      const assetPromise = Promise.all([criticalAssets, bookReady])
+        .then(async ([models]) => {
+          if (this.isDestroyed) return;
+          const [, room, humanHand, roboticHand] = models;
+          if (room && this.gatewayAct) this.gatewayAct.setWhiteRoomModel(room);
+          if (humanHand && this.pillChoiceAct) this.pillChoiceAct.setHumanHandModel(humanHand);
+          if (roboticHand && this.pillChoiceAct) this.pillChoiceAct.setRoboticHandModel(roboticHand);
 
-      this.assetLibrary.load('./models/the_hitchhikers_guide_to_the_galaxy.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.journeyScene) {
-            this.journeyScene.setHitchhikerModel(model);
-            if (this.placeholderMesh && this.scene) {
-              this.scene.remove(this.placeholderMesh);
+          if (this.renderer && this.pillChoiceAct) {
+            // Keep the loader's book frame intact while hidden scene variants prepare.
+            this._isPreparingScene = true;
+            try {
+              const preparationCamera = this.camera.clone();
+              preparationCamera.position.copy(this.gatewayAct.act1InteriorCamPos);
+              preparationCamera.lookAt(this.gatewayAct.act1InteriorLookAt);
+              await this.pillChoiceAct.prepare(this.renderer, preparationCamera);
+              if (!this.isDestroyed) this.renderer.render(this.scene, this.camera);
+            } finally {
+              this._isPreparingScene = false;
             }
-            if (this.idleManager) {
-              this.idleManager.recordActivity();
-            }
+          }
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+        })
+        .catch(error => {
+          if (!this.isDestroyed) {
+            console.warn('[PortfolioApp] Scene preparation unavailable:', error);
             this._resumeLoop();
           }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/the_matrix_white_room.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.gatewayAct) {
-            this.gatewayAct.setWhiteRoomModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/hand.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.pillChoiceAct) {
-            this.pillChoiceAct.setHumanHandModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
-
-      this.assetLibrary.load('./models/robotic_hand.glb')
-        .then((model) => {
-          if (model && !this.isDestroyed && this.pillChoiceAct) {
-            this.pillChoiceAct.setRoboticHandModel(model);
-            this._resumeLoop();
-          }
-        })
-        .catch(() => {});
+        });
 
       // Initialize Loader UI and Controller if container exists
       if (this.container && typeof document !== 'undefined') {
@@ -1150,8 +1056,14 @@ export class PortfolioApp {
         this._updateJourneyCardVisibility(progress);
       });
       this.journeyState.onBranch((branch) => {
-        if (this.pillChoiceAct && this.pillChoiceAct.selectedBranch !== branch) {
+        if (branch === 'unselected' && this.pillChoiceAct) {
+          this.pillChoiceAct.resetSelection();
+        } else if (this.pillChoiceAct && this.pillChoiceAct.selectedBranch !== branch) {
           this.pillChoiceAct.selectBranch(branch);
+        }
+        if (branch !== 'unselected' && this.enableLoader && this.getActiveStation().id === 'gateway' &&
+            this.journeyState.getProgress() >= 0.30 && this.scrollEngine) {
+          this.scrollEngine.scrollTo(0.60);
         }
         if (this.journeyHud) {
           this.journeyHud.update();
@@ -1234,6 +1146,7 @@ export class PortfolioApp {
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       }
+      this.bioHologram?.resize();
       if (this.topology && typeof this.topology.onResize === 'function') {
         this.topology.onResize();
       }
@@ -1270,6 +1183,14 @@ export class PortfolioApp {
 
     this._onKeyDown = (e) => {
       if (!e || !e.key || e.repeat || this.activeModal) return;
+      if (this.experiencesAct?.hasOpenSelection()) {
+        if (e.key === 'Escape') {
+          this.experiencesAct.close();
+        } else if (e.key === 'Tab') {
+          trapFocus(this.experiencesAct.host, e);
+        }
+        return;
+      }
       if (this.isBioHologramOpen) {
         if (e.key === 'Escape') {
           this.closeBioHologram();
@@ -1280,6 +1201,20 @@ export class PortfolioApp {
           }
         }
         return;
+      }
+      if (e.target === this.canvas && !e.ctrlKey && !e.metaKey) {
+        const progress = this.journeyState?.getProgress() || 0;
+        if (e.key === 'Enter' && progress >= 0.19 && progress <= 0.26 &&
+            (!this.loaderController || this.loaderController.isCompleted())) {
+          e.preventDefault();
+          this.openBioHologram(this.canvas);
+          return;
+        }
+        if (this.pillChoiceAct?.handleKeyDown(e)) {
+          this.idleManager?.recordActivity();
+          this._resumeLoop();
+          return;
+        }
       }
       let direction = 0;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
@@ -1294,7 +1229,7 @@ export class PortfolioApp {
     };
 
     this._onWheel = (e) => {
-      if (!e || typeof e.deltaY !== 'number' || this.activeModal || this.isBioHologramOpen) return;
+      if (!e || typeof e.deltaY !== 'number' || this._isNavigationBlocked()) return;
       if (e.ctrlKey || e.metaKey) return;
       if (Math.abs(e.deltaY) < 15) return;
       const direction = e.deltaY > 0 ? 1 : -1;
@@ -1310,7 +1245,7 @@ export class PortfolioApp {
     };
 
     this._onTouchStart = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       // Multi-touch gestures (e.g. pinch-to-zoom) must not trigger station swipe navigation
       if (e.touches && e.touches.length === 1) {
         const isFromHUD = e.target && typeof e.target.closest === 'function' && e.target.closest('.hud-nav');
@@ -1335,7 +1270,7 @@ export class PortfolioApp {
     };
 
     this._onTouchMove = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
         this._updatePointerFromClient(touch.clientX, touch.clientY);
@@ -1343,7 +1278,7 @@ export class PortfolioApp {
     };
 
     this._onTouchEnd = (e) => {
-      if (this.activeModal || this.isBioHologramOpen) return;
+      if (this._isNavigationBlocked()) return;
       // If there are still active touches (e.g. multi-touch lift), cancel gesture navigation
       if (e.touches && e.touches.length > 0) {
         this._touchStartX = null;
@@ -1489,13 +1424,33 @@ export class PortfolioApp {
         return;
       }
 
-      const delta = Math.max(0, Math.min((currentTime - this._lastFrameTime) / 1000, 0.1));
+      const frameDelta = Math.max(0, (currentTime - this._lastFrameTime) / 1000);
+      const delta = Math.min(frameDelta, .1);
       this._lastFrameTime = currentTime;
 
-      // 1. Advance spatial camera waypoint transition
       const isGatewayStation = this.getActiveStation().id === 'gateway';
-      const shouldAdvanceWaypoint = this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001);
-      if (this.camera && shouldAdvanceWaypoint) {
+      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
+      const projectsDesired = Boolean(this.experiencesAct && (this.getActiveStation().id === 'lab' ||
+        (isGatewayStation && this.journeyState?.getBranch() === 'red' && currentProgress >= .6 && currentProgress < .8)));
+      if (projectsDesired !== Boolean(this._projectsCameraOwned)) {
+        this._projectsCameraOwned = projectsDesired;
+        if (projectsDesired) {
+          const pose = this.experiencesAct.getCameraPose();
+          this._startCameraFlight(pose.position, pose.target, true);
+        } else if (isGatewayStation && this.gatewayAct) {
+          this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, false);
+        }
+      }
+      if (projectsDesired && !this._cameraFlight) {
+        const pose = this.experiencesAct.getCameraPose();
+        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
+        this._currentCamLookAt.copy(pose.target); this.camera.lookAt(pose.target);
+      }
+      // All stations share a camera; the flight owns it until the dolly finishes.
+      if (this._cameraFlight) this._advanceCameraFlight(Math.min(frameDelta, .5));
+
+      const shouldAdvanceWaypoint = !projectsDesired && (this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001));
+      if (this.camera && shouldAdvanceWaypoint && !this._cameraFlight && !projectsDesired) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
@@ -1527,10 +1482,19 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
-      const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
-
-      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning) {
+      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
         this.gatewayAct.update({
+          progress: currentProgress,
+          pointer: this.pointer || { x: 0, y: 0 },
+          delta,
+          speedFactor,
+          branch: this.pillChoiceAct?.selectedBranch,
+          selectionProgress: this.pillChoiceAct?.getSelectionProgress() || 0
+        });
+      }
+
+      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
+        this.pillChoiceAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
           delta,
@@ -1538,13 +1502,10 @@ export class PortfolioApp {
         });
       }
 
-      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning) {
-        this.pillChoiceAct.update({
-          progress: currentProgress,
-          pointer: this.pointer || { x: 0, y: 0 },
-          delta,
-          speedFactor
-        });
+      if (this.experiencesAct) {
+        this.experiencesAct.setActive(projectsDesired && !this._cameraFlight);
+        this.container?.setAttribute('data-experiences-active', String(projectsDesired));
+        this.experiencesAct.update(delta, speedFactor);
       }
 
       if (this.journeyScene) {
@@ -1572,14 +1533,14 @@ export class PortfolioApp {
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
       const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
-      const isResting = !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting;
+      const isResting = (!this.experiencesAct || this.experiencesAct.isResting()) && !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting && (!this.bioHologram || this.bioHologram.isResting());
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
-      if (this.isBioHologramOpen) {
-        this._updateHologramBeam();
+      if (this.bioHologram?.isVisible()) {
+        this._updateHologramBeam(delta);
       }
 
-      if (!shouldSuspend && this.renderer && this.scene && this.camera) {
+      if (!shouldSuspend && !this._isPreparingScene && this.renderer && this.scene && this.camera) {
         this.renderer.render(this.scene, this.camera);
       }
 
@@ -1597,6 +1558,43 @@ export class PortfolioApp {
 
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       this._animFrameId = window.requestAnimationFrame(this._renderFrame);
+    }
+  }
+
+  /** A continuous curved dolly from the actual camera pose, without scene swaps. */
+  _startCameraFlight(position, target, projects = false) {
+    if (!this.camera) return;
+    if (!projects && this.getActiveStation().id === 'gateway' && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = true;
+    const start = this.camera.position.clone();
+    const direction = this.camera.getWorldDirection(new THREE.Vector3());
+    const startLook = start.clone().addScaledVector(direction, 8);
+    const end = position.clone();
+    this._targetCamPos.copy(end); this._targetCamLookAt.copy(target);
+    this._cameraFlight = {
+      elapsed: 0, duration: 1.4, startLook, target: target.clone(), projects,
+      curve: new THREE.CubicBezierCurve3(start, start.clone().lerp(end, .25).add(new THREE.Vector3(0, 1.2, 0)), start.clone().lerp(end, .7).add(new THREE.Vector3(0, 1.4, 0)), end),
+      background: this.scene.background?.isColor ? this.scene.background.clone() : new THREE.Color('#060b10'),
+      backgroundTarget: projects ? new THREE.Color('#979d9b') : (this.getActiveStation().id === 'gateway' && this.gatewayAct ? ((this.journeyState?.getProgress() ?? .4) <= .25 ? this.gatewayAct._lightRoomColor.clone() : this.gatewayAct._darkRoomColor.clone()) : new THREE.Color('#060b10'))
+    };
+    this._isCameraTransitioning = true;
+  }
+
+  _advanceCameraFlight(delta) {
+    const flight = this._cameraFlight;
+    flight.elapsed += delta;
+    const t = THREE.MathUtils.clamp(flight.elapsed / flight.duration, 0, 1);
+    const eased = t * t * t * (t * (t * 6 - 15) + 10);
+    this.camera.position.copy(flight.curve.getPoint(eased));
+    this._currentCamLookAt.lerpVectors(flight.startLook, flight.target, eased);
+    this.camera.lookAt(this._currentCamLookAt);
+    if (this.scene.background?.isColor) {
+      this.scene.background.copy(flight.background).lerp(flight.backgroundTarget, eased);
+      this.scene.fog?.color?.copy(this.scene.background);
+    }
+    if (t === 1) {
+      this._cameraFlight = null; this._isCameraTransitioning = false;
+      if (flight.projects && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = false;
+      if (!flight.projects && this.getActiveStation().id === 'gateway') this.gatewayAct?.rebaseCamera(this.camera.position, this._currentCamLookAt);
     }
   }
 
@@ -1690,6 +1688,10 @@ export class PortfolioApp {
    * @returns {boolean}
    * @private
    */
+  _isNavigationBlocked() {
+    return Boolean(this.activeModal || this.isBioHologramOpen || this.experiencesAct?.hasOpenSelection());
+  }
+
   _canScrollInDirection(direction) {
     const sc = this.stationContainer || (this.container?.querySelector ? this.container.querySelector('.station-container') : null);
     if (!sc) return false;
@@ -1726,10 +1728,10 @@ export class PortfolioApp {
           }
           this._resumeLoop();
           return;
-        } else if (this.journeyState && this.journeyState.getBranch() === 'unselected') {
-          // Gated: strictly block navigation past pill choice until user selects a pill
+        } else if (this.journeyState) {
+          // End this visual slice at the branch entrance; Act 3 is not built yet.
           if (this.scrollEngine) {
-            this.scrollEngine.scrollTo(0.38);
+            this.scrollEngine.scrollTo(this.journeyState.getBranch() === 'unselected' ? 0.38 : 0.60);
           }
           if (this.pillChoiceAct) {
             this.pillChoiceAct.handlePointerMove(this.pointer || { x: 0, y: 0 });
@@ -1737,6 +1739,13 @@ export class PortfolioApp {
           return;
         }
       } else if (direction < 0) {
+        if (currentProg > 0.42 && this.journeyState && this.journeyState.getBranch() !== 'unselected') {
+          this.journeyState.resetBranch();
+          this.scrollEngine.scrollTo(0.38);
+          if (this.idleManager) this.idleManager.recordActivity();
+          this._resumeLoop();
+          return;
+        }
         if (currentProg > 0.28) {
           // Ascend within Gateway: tilts up to armchairs view above TV
           if (this.scrollEngine) {
@@ -1810,7 +1819,15 @@ export class PortfolioApp {
       const targetLookAt = activeStation.camera.target || { x: 0, y: 0, z: 0 };
       this._targetCamPos.set(targetPos.x, targetPos.y, targetPos.z);
       this._targetCamLookAt.set(targetLookAt.x, targetLookAt.y, targetLookAt.z);
-      this._isCameraTransitioning = true;
+      const wasProjects = Boolean(this._projectsCameraOwned);
+      const projectsLab = activeStation.id === 'lab' && Boolean(this.experiencesAct);
+      this._projectsCameraOwned = projectsLab;
+      const pose = projectsLab
+        ? this.experiencesAct.getCameraPose()
+        : (activeStation.id === 'gateway' && wasProjects && this.gatewayAct)
+          ? { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt }
+          : { position: this._targetCamPos, target: this._targetCamLookAt };
+      this._startCameraFlight(pose.position, pose.target, projectsLab);
     }
 
     if (this.container) {
@@ -1825,7 +1842,7 @@ export class PortfolioApp {
         this.gatewayAct.setTvReticleVisible(false);
       }
       if (this.pillChoiceAct) {
-        if (this.pillChoiceAct.rootGroup) {
+        if (this.pillChoiceAct.rootGroup && !this._cameraFlight) {
           this.pillChoiceAct.rootGroup.visible = false;
         }
         this.pillChoiceAct.hoveredPill = null;
@@ -1866,6 +1883,8 @@ export class PortfolioApp {
       this.closeBioHologram();
     }
     this.isDestroyed = true;
+    this.bioHologram?.dispose();
+    this.bioHologram = null;
     this._isLoopRunning = false;
     this._isCameraTransitioning = false;
 
@@ -1933,6 +1952,9 @@ export class PortfolioApp {
       this.journeyScene = null;
     }
 
+    this.experiencesAct?.dispose();
+    this.experiencesAct = null;
+
     if (this.gatewayAct) {
       this.gatewayAct.dispose();
       this.gatewayAct = null;
@@ -1959,6 +1981,11 @@ export class PortfolioApp {
     }
 
     if (this.renderer) {
+      if (this._studioEnvironment) {
+        if (this.scene) this.scene.environment = null;
+        this._studioEnvironment.dispose();
+        this._studioEnvironment = null;
+      }
       this.renderer.dispose();
       this.renderer = null;
     }

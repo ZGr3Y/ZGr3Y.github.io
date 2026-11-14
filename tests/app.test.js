@@ -225,7 +225,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(modal.getAttribute('role')).toBe('dialog');
     expect(modal.getAttribute('aria-modal')).toBe('true');
     expect(modal.textContent).toContain('CTF Vulnerability Lab');
-    expect(modal.textContent).toContain('Developed three isolated microservices simulating real-world vulnerabilities');
+    expect(modal.querySelector('.modal-full-desc').textContent).toBe(app.stations.find(station => station.id === 'lab').projects[0].fullDesc);
 
     // Press Escape to close modal
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -348,7 +348,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(srAnnouncements.textContent).toContain('LAB');
   });
 
-  it('maintains active, visible station content across all stations when navigating', async () => {
+  it('maintains active station content and keeps the TV projection closed until activated', async () => {
     const stationContainer = document.createElement('main');
     stationContainer.id = 'station-container';
     stationContainer.className = 'station-container';
@@ -362,7 +362,8 @@ describe('PortfolioApp (Application Root Seam)', () => {
       const activeCard = stationContainer.querySelector(`.station-card[data-station="${activeStation.id}"]`);
       expect(activeCard).not.toBeNull();
       expect(activeCard.classList.contains('active')).toBe(true);
-      expect(activeCard.hasAttribute('hidden')).toBe(false);
+      // The Gateway projection remains closed until the TV is activated.
+      expect(activeCard.hasAttribute('hidden')).toBe(app.getActiveStation().id === 'gateway');
     }
   });
 
@@ -442,7 +443,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.camera.position.z).toBeLessThan(16);
 
     // Simulate remaining frames until transition settles
-    for (let frame = 10; frame < 120; frame++) {
+    for (let frame = 10; frame < 220; frame++) {
       app._renderFrame(1000 + frame * 16);
     }
 

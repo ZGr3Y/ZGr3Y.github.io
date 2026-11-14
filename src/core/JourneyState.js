@@ -22,8 +22,8 @@ export class JourneyState {
       { id: 'act0', min: 0.0, max: 0.2, tag: 'ACT 00', title: "DON'T PANIC (Loader & Gateway)" },
       { id: 'act1', min: 0.2, max: 0.35, tag: 'ACT 01', title: 'Matrix White Room (Architectural Horizon)' },
       { id: 'act2', min: 0.35, max: 0.6, tag: 'ACT 02', title: 'Pill Choice (Creation of Intelligence)' },
-      { id: 'act3_blue', min: 0.6, max: 0.8, tag: 'ACT 03-A', title: 'Origami Unicorns (Experiences)' },
-      { id: 'act3_red', min: 0.6, max: 0.8, tag: 'ACT 03-B', title: 'Wheatley Core (Harness)' },
+      { id: 'act3_blue', min: 0.6, max: 0.8, tag: 'ACT 03-A', title: 'Wheatley Core (Harness)' },
+      { id: 'act3_red', min: 0.6, max: 0.8, tag: 'ACT 03-B', title: 'Origami Unicorns (Experiences)' },
       { id: 'act4', min: 0.8, max: 1.0, tag: 'ACT 04', title: "Rick's Ship & Transmission Horizon" }
     ];
   }
@@ -73,13 +73,13 @@ export class JourneyState {
   }
 
   /**
-   * Selects a narrative branch ('blue'/'experiences' or 'red'/'harness'), unlocking the rest of the journey
+   * Selects a narrative branch ('blue'/'harness' or 'red'/'experiences'), unlocking the rest of the journey
    * @param {'blue' | 'red' | 'experiences' | 'harness'} branch
    */
   selectBranch(branch) {
     let normalized = branch;
-    if (branch === 'experiences') normalized = 'blue';
-    if (branch === 'harness') normalized = 'red';
+    if (branch === 'experiences') normalized = 'red';
+    if (branch === 'harness') normalized = 'blue';
     if (normalized !== 'blue' && normalized !== 'red') return;
     if (this.branchState === normalized) return;
     this.branchState = normalized;
@@ -111,7 +111,7 @@ export class JourneyState {
     for (const seg of this.segments) {
       if (p >= seg.min && (p < seg.max || (seg.max === 1.0 && p <= 1.0))) {
         if (seg.id === 'act3_blue' && this.branchState === 'red') {
-          return this.segments[4]; // Act 03-B Wheatley Core
+          return this.segments[4]; // Act 03-B Origami Unicorns
         }
         return seg;
       }

@@ -106,30 +106,34 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
   });
 
   describe('PillChoiceAct: Raycasting Hover & Selection Logic', () => {
-    it('detects raycast intersection on pills and applies hover highlight and scale', () => {
+    it('eases into and out of a raycast hover without an instantaneous scale change', () => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
       const act = new PillChoiceAct({ scene, camera });
 
-      // Frame camera directly at Blue Pill
+      act.update({ progress: 0.38, speedFactor: 0 });
+      // Frame the current transformed pill, including responsive hand placement.
       const blueWorldPos = new THREE.Vector3();
       act.bluePill.mesh.getWorldPosition(blueWorldPos);
       camera.position.set(blueWorldPos.x, blueWorldPos.y, blueWorldPos.z + 1.0);
       camera.lookAt(blueWorldPos);
       camera.updateMatrixWorld();
 
-      // Make visible at choice progress
-      act.update({ progress: 0.38 });
-
       // Pointer at dead center (0, 0)
       act.handlePointerMove({ x: 0, y: 0 });
       expect(act.hoveredPill).toBe('blue');
+      expect(act.bluePill.mesh.scale.x).toBe(1.0);
+      expect(act.isResting()).toBe(false);
+      act.update({ progress: 0.38, delta: 0.016, speedFactor: 0 });
       expect(act.bluePill.mesh.scale.x).toBeGreaterThan(1.0);
 
       // Move pointer away
       act.handlePointerMove({ x: 0.99, y: 0.99 });
       expect(act.hoveredPill).toBeNull();
+      expect(act.bluePill.mesh.scale.x).toBeGreaterThan(1.0);
+      for (let i = 0; i < 120; i++) act.update({ progress: 0.38, delta: 0.016, speedFactor: 0 });
       expect(act.bluePill.mesh.scale.x).toBe(1.0);
+      expect(act.isResting()).toBe(true);
 
       act.dispose();
     });
@@ -140,6 +144,7 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       const onSelect = vi.fn();
       const act = new PillChoiceAct({ scene, camera, onSelect });
 
+      act.update({ progress: 0.38, speedFactor: 0 });
       // Frame camera directly at Red Pill
       const redWorldPos = new THREE.Vector3();
       act.redPill.mesh.getWorldPosition(redWorldPos);
@@ -147,14 +152,55 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       camera.lookAt(redWorldPos);
       camera.updateMatrixWorld();
 
-      // Make visible at choice progress
-      act.update({ progress: 0.38 });
-
       const result = act.handlePointerClick({ x: 0, y: 0 });
       expect(result).toBe('red');
       expect(act.selectedBranch).toBe('red');
       expect(onSelect).toHaveBeenCalledWith('red');
 
+      act.dispose();
+    });
+
+    it('keeps the selected pill in its palm while the camera moves, then resets its light', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const onSelect = vi.fn();
+      const act = new PillChoiceAct({ scene, camera, onSelect });
+      act.update({ progress: 0.38, delta: 0, speedFactor: 0 });
+      const originalParent = act.bluePill.group.parent;
+      const originalPosition = act.bluePill.group.position.clone();
+      const initialWorld = act.bluePill.mesh.getWorldPosition(new THREE.Vector3());
+      camera.position.copy(initialWorld).add(new THREE.Vector3(0, 0, 1));
+      camera.lookAt(initialWorld);
+
+      act.selectBranch('blue');
+      act.selectBranch('blue');
+      expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(act.bluePill.mesh.getWorldPosition(new THREE.Vector3()).distanceTo(initialWorld)).toBeLessThan(0.00001);
+      expect(act.getSelectionProgress()).toBe(0);
+      expect(act.isResting()).toBe(false);
+
+      act.update({ progress: 0.38, delta: 0.016, speedFactor: 0 });
+      expect(act.getSelectionProgress()).toBeGreaterThan(0);
+      expect(act.getSelectionProgress()).toBeLessThan(1);
+      for (let i = 0; i < 120; i++) act.update({ progress: 0.6, delta: 0.016, speedFactor: 0 });
+      expect(act.getSelectionProgress()).toBe(1);
+      expect(act.bluePill.group.parent).toBe(originalParent);
+      expect(act.bluePill.group.position.equals(originalPosition)).toBe(true);
+      camera.position.set(42, 0, -1);
+      act.update({ progress: .6, delta: .1, speedFactor: 0 });
+      expect(act.bluePill.group.position.equals(originalPosition)).toBe(true);
+
+      expect(act.isResting()).toBe(true);
+
+      const selectedWorld = act.bluePill.group.getWorldPosition(new THREE.Vector3());
+      act.resetSelection();
+      expect(act.bluePill.group.getWorldPosition(new THREE.Vector3()).distanceTo(selectedWorld)).toBeLessThan(0.00001);
+      expect(act.isResting()).toBe(false);
+      for (let i = 0; i < 120; i++) act.update({ progress: 0.38, delta: 0.016, speedFactor: 0 });
+      expect(act.bluePill.group.parent).toBe(originalParent);
+      expect(act.bluePill.group.position.equals(originalPosition)).toBe(true);
+      expect(act.getSelectionProgress()).toBe(0);
+      expect(act.isResting()).toBe(true);
       act.dispose();
     });
 
@@ -197,19 +243,19 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
   });
 
   describe('JourneyState & Branch Gating Integration', () => {
-    it('maps experiences to blue branch and harness to red branch', () => {
+    it('maps experiences to red branch and harness to blue branch per ADR 0003', () => {
       const state = new JourneyState();
 
       expect(state.getBranch()).toBe('unselected');
 
       state.selectBranch('experiences');
-      expect(state.getBranch()).toBe('blue');
+      expect(state.getBranch()).toBe('red');
 
       state.resetBranch();
       expect(state.getBranch()).toBe('unselected');
 
       state.selectBranch('harness');
-      expect(state.getBranch()).toBe('red');
+      expect(state.getBranch()).toBe('blue');
     });
 
     it('allows resetting selection when scrolling back up', () => {
@@ -229,6 +275,74 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
   });
 
   describe('Zero-CPU Idle & Teardown', () => {
+    function createRenderer() {
+      const renderStates = [];
+      return {
+        renderStates,
+        getViewport: (v) => v.set(0, 0, 800, 600),
+        getScissor: (v) => v.set(0, 0, 800, 600),
+        getScissorTest: () => false,
+        setViewport: vi.fn(),
+        setScissor: vi.fn(),
+        setScissorTest: vi.fn(),
+        compileAsync: vi.fn().mockResolvedValue(undefined),
+        render: (scene) => renderStates.push(scene.getObjectByName('PillChoiceActGroup').visible)
+      };
+    }
+
+    it('prepares both lighting configurations before first entry and restores rendering state', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      const mesh = act.bluePill.mesh;
+      const wasCulled = mesh.frustumCulled;
+      // A loader animation frame can hide the hands while compileAsync is pending.
+      renderer.compileAsync.mockImplementation(async () => {
+        act.update({ progress: 0 });
+      });
+
+      await act.prepare(renderer);
+
+      expect(renderer.renderStates).toEqual([true, false]);
+      expect(act.rootGroup.visible).toBe(false);
+      expect(mesh.frustumCulled).toBe(wasCulled);
+      expect(renderer.setViewport).toHaveBeenLastCalledWith(new THREE.Vector4(0, 0, 800, 600));
+      expect(renderer.setScissorTest).toHaveBeenLastCalledWith(false);
+      act.dispose();
+    });
+
+    it('restores visibility and culling if GPU preparation fails', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      renderer.compileAsync.mockRejectedValue(new Error('Context lost'));
+
+      await expect(act.prepare(renderer)).rejects.toThrow('Context lost');
+
+      expect(act.rootGroup.visible).toBe(false);
+      expect(act.bluePill.mesh.frustumCulled).toBe(true);
+      expect(renderer.renderStates).toEqual([]);
+      act.dispose();
+    });
+
+    it('does not render after disposal while shader preparation is pending', async () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+      const renderer = createRenderer();
+      let finishCompilation;
+      renderer.compileAsync.mockImplementation(() => new Promise(resolve => { finishCompilation = resolve; }));
+
+      const pending = act.prepare(renderer);
+      act.dispose();
+      finishCompilation();
+      await pending;
+
+      expect(renderer.renderStates).toEqual([]);
+    });
+
     it('reports isResting true when hands are stationary, including during a settled hover', () => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -364,7 +478,7 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
     });
 
-    it('unlocks navigation once a pill is clicked', () => {
+    it('animates to the branch entrance after selection without entering an unbuilt act', () => {
       app = new PortfolioApp({ container, canvas, enableLoader: true });
       if (app.loaderController) app.loaderController.complete();
 
@@ -375,13 +489,31 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       // Select Blue Pill
       app.pillChoiceAct.selectBranch('blue');
       expect(app.journeyState.getBranch()).toBe('blue');
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.60);
 
       // Advance past debounce cooldown
       vi.advanceTimersByTime(600);
 
-      // Now scroll down advances to next station
+      // Further scrolling holds at the current slice's branch entrance.
       window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
-      expect(app.getActiveStationIndex()).toBe(1);
+      expect(app.getActiveStationIndex()).toBe(0);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.60);
+    });
+
+    it('scrolling up from a selected branch returns to the choice and re-arms its gate', () => {
+      app = new PortfolioApp({ container, canvas, enableLoader: true });
+      app.loaderController.complete();
+      app.scrollEngine.currentProgress = 0.6;
+      app.journeyState.selectBranch('red');
+      app.journeyState.setProgress(0.6);
+      app.scrollEngine.scrollTo(0.6);
+
+      window.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+
+      expect(app.journeyState.getBranch()).toBe('unselected');
+      expect(app.pillChoiceAct.selectedBranch).toBeNull();
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.38);
+      expect(app.isStationGated(1)).toBe(true);
     });
 
     it('dims room lighting and background while tilting camera downward at Pill Choice (progress 0.38) and restores at 0.20', () => {
@@ -395,9 +527,9 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       const ambIntensityAtEntrance = app.ambientLight.intensity;
       const bgHexAtEntrance = app.scene.background.getHex();
 
-      expect(keyIntensityAtEntrance).toBeCloseTo(0.85, 2);
-      expect(hemiIntensityAtEntrance).toBeCloseTo(0.60, 2);
-      expect(ambIntensityAtEntrance).toBeCloseTo(0.90, 2);
+      expect(keyIntensityAtEntrance).toBeGreaterThan(0);
+      expect(hemiIntensityAtEntrance).toBeGreaterThan(0);
+      expect(ambIntensityAtEntrance).toBeGreaterThan(0);
       expect(bgHexAtEntrance).toBe(0xeaecef);
 
       // Descend to Pill Choice (progress 0.38): room lights dim down and background darkens
@@ -426,17 +558,19 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       const baseBlueLight = app.pillChoiceAct.bluePill.baseLightIntensity;
       const baseRedLight = app.pillChoiceAct.redPill.baseLightIntensity;
       app.pillChoiceAct.selectBranch('blue');
-      expect(app.pillChoiceAct.bluePill.haloMesh.scale.x).toBeCloseTo(1.3, 2);
+      for (let i = 0; i < 120; i++) app.pillChoiceAct.update({ progress: 0.6, delta: 0.016, speedFactor: 0 });
+      expect(app.pillChoiceAct.bluePill.light.intensity).toBeGreaterThan(baseBlueLight);
       app.pillChoiceAct.resetSelection();
+      for (let i = 0; i < 120; i++) app.pillChoiceAct.update({ progress: 0.38, delta: 0.016, speedFactor: 0 });
       expect(app.pillChoiceAct.bluePill.haloMesh.scale.x).toBeCloseTo(1.0, 2);
       expect(app.pillChoiceAct.bluePill.light.intensity).toBeCloseTo(baseBlueLight, 2);
       expect(app.pillChoiceAct.redPill.light.intensity).toBeCloseTo(baseRedLight, 2);
 
       // Ascending back to progress 0.20 restores full studio lighting
       app.gatewayAct.update({ progress: 0.20, pointer: { x: 0, y: 0 }, delta: 0.016, speedFactor: 1.0 });
-      expect(app.gatewayAct.keyLight.intensity).toBeCloseTo(0.85, 2);
-      expect(app.gatewayAct.hemiLight.intensity).toBeCloseTo(0.60, 2);
-      expect(app.ambientLight.intensity).toBeCloseTo(0.90, 2);
+      expect(app.gatewayAct.keyLight.intensity).toBeCloseTo(keyIntensityAtEntrance, 2);
+      expect(app.gatewayAct.hemiLight.intensity).toBeCloseTo(hemiIntensityAtEntrance, 2);
+      expect(app.ambientLight.intensity).toBeCloseTo(ambIntensityAtEntrance, 2);
       expect(app.scene.background.getHex()).toBe(0xeaecef);
     });
 
@@ -475,7 +609,11 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       // Navigating to another station once a branch is chosen hides PillChoiceAct and restores ambient light
       app.journeyState.selectBranch('blue');
       app.navigateTo(1);
+      // The hands stay in world space during the dolly, then leave the project view.
+      expect(app.pillChoiceAct.rootGroup.visible).toBe(true);
+      app._advanceCameraFlight(2.8);
       expect(app.pillChoiceAct.rootGroup.visible).toBe(false);
+      expect(app.scene.background.getHexString()).toBe('979d9b');
       expect(app.ambientLight.intensity).toBeCloseTo(0.9, 2);
     });
 
@@ -515,30 +653,25 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.getActiveStation().id).toBe('lab');
     });
 
-    it('exposes keyboard-accessible branch choice buttons at the 0.38 scroll gate and syncs 3D pill selection', () => {
+    it('selects the pills from the focused canvas without overlay buttons', () => {
       app = new PortfolioApp({ container, canvas, enableLoader: true });
-      if (app.loaderController) app.loaderController.complete();
-
-      // At White Room view (progress 0.20), branch prompt is hidden
-      app.journeyState.setProgress(0.20);
-      app.journeyHud.update();
-      const branchActions = container.querySelector('.journey-branch-actions');
-      expect(branchActions.hasAttribute('hidden')).toBe(true);
-
-      // At Pill Choice gate (progress 0.38), accessible branch choices are revealed for keyboard-only users
+      app.loaderController.complete();
       app.journeyState.setProgress(0.38);
+      app.pillChoiceAct.update({ progress: 0.38 });
       app.journeyHud.update();
-      expect(branchActions.hasAttribute('hidden')).toBe(false);
+      expect(container.querySelector('.journey-branch-actions')).toBeNull();
+      expect(container.querySelector('.btn-branch-choice')).toBeNull();
 
-      // Activating accessible Blue Pill choice unlocks journeyState and triggers 3D selection
-      const blueBtn = branchActions.querySelector('.branch-blue');
-      blueBtn.click();
+      canvas.focus();
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      // Normal rendering between key presses must keep the keyboard highlight.
+      app.pillChoiceAct.update({ progress: 0.38, pointer: { x: 0, y: 0 } });
+      expect(app.pillChoiceAct.hoveredPill).toBe('blue');
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
       expect(app.journeyState.getBranch()).toBe('blue');
-      expect(app.journeyState.getMaxReachable()).toBe(1.0);
-      expect(branchActions.hasAttribute('hidden')).toBe(true);
       expect(app.pillChoiceAct.selectedBranch).toBe('blue');
-      expect(app.pillChoiceAct.bluePill.mesh.scale.x).toBeCloseTo(1.3, 2);
+      expect(app.scrollEngine.getTargetProgress()).toBe(0.60);
     });
   });
 });

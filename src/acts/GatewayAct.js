@@ -29,6 +29,7 @@ export class GatewayAct {
     this.lights = [];
     this.isDisposed = false;
     this.elapsedTime = 0;
+    this._hologramLightBlend = 0;
 
     // Waypoints for Act 0 (Loader / Hitchhiker) and Act 1 (Gateway / White Room)
     this.act0CamPos = new THREE.Vector3(0, 0.30, 1.25);
@@ -37,9 +38,10 @@ export class GatewayAct {
     // Fog & Background palettes for Act 0 (Hitchhiker Magrathea), Act 1 (White Room), & Act 2 (Dimmed Pill Choice)
     this.act0FogColor = 0xb4b8b8;
     this.act1FogColor = 0xeaecef;
-    this.act2FogColor = 0x181a1f;
+    this.act2FogColor = 0x070c13;
     this._lightRoomColor = new THREE.Color(this.act1FogColor);
     this._darkRoomColor = new THREE.Color(this.act2FogColor);
+    this._hologramRoomColor = new THREE.Color(0x0a1420);
     if (this.scene) {
       this.scene.background = new THREE.Color(this.act0FogColor);
       this.scene.fog = new THREE.Fog(this.act0FogColor, 0.77, 2.32);
@@ -240,20 +242,62 @@ export class GatewayAct {
     if (!this.scene) return;
 
     // Directional studio key light highlighting room architecture
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.85);
-    keyLight.position.set(this.roomPosition.x + 6, 12, 8);
-    keyLight.target.position.copy(this.roomPosition);
+    const keyLight = new THREE.DirectionalLight(0xffe4c4, 3.2);
+    keyLight.position.set(this.roomPosition.x - 3.5, 6, 4.5);
+    keyLight.target.position.set(this.roomPosition.x, this.roomPosition.y + 0.8, 0.5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    Object.assign(keyLight.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 0.1, far: 20 });
+    keyLight.shadow.bias = -0.0003;
+    keyLight.shadow.normalBias = 0.012;
+    keyLight.shadow.radius = 5;
+    keyLight.shadow.blurSamples = 8;
+    keyLight.shadow.autoUpdate = false;
+    keyLight.shadow.needsUpdate = true;
     this.scene.add(keyLight);
     this.scene.add(keyLight.target);
     this.keyLight = keyLight;
     this.lights.push(keyLight, keyLight.target);
 
     // Soft hemisphere ambient fill to maintain high-key studio light
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xd8dce2, 0.6);
+    const hemiLight = new THREE.HemisphereLight(0xc9e2ff, 0x65524a, 0.22);
     hemiLight.position.set(this.roomPosition.x, 15, 0);
     this.scene.add(hemiLight);
     this.hemiLight = hemiLight;
     this.lights.push(hemiLight);
+
+    const fill = new THREE.DirectionalLight(0xb1d3ff, 0.65);
+    fill.position.set(this.roomPosition.x + 4, 3, 2);
+    fill.target.position.copy(this.roomPosition);
+    this.scene.add(fill, fill.target);
+    this.fillLight = fill;
+    this.lights.push(fill, fill.target);
+
+    const rim = new THREE.DirectionalLight(0xe7f2ff, 1.7);
+    rim.position.set(this.roomPosition.x + 1, 4, -3);
+    rim.target.position.copy(this.roomPosition);
+    this.scene.add(rim, rim.target);
+    this.rimLight = rim;
+    this.lights.push(rim, rim.target);
+
+    this.tvLight = new THREE.PointLight(0xa0e5ff, 0.6, 4, 2);
+    this.scene.add(this.tvLight);
+    this.lights.push(this.tvLight);
+
+    // A broad emissive projection lights the inner edges of the furniture.
+    this.hologramLight = new THREE.RectAreaLight(0x8edfff, 0, 1.9, 1.2);
+    this.hologramLight.position.set(this.roomPosition.x - 0.2, 2.1, 2.1);
+    this.hologramLight.lookAt(this.roomPosition.x - 0.2, 0.3, 0);
+    this.scene.add(this.hologramLight);
+    this.lights.push(this.hologramLight);
+
+    this.shadowFloor = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.ShadowMaterial({ color: 0x222b39, opacity: 0.23, depthWrite: false })
+    );
+    this.shadowFloor.rotation.x = -Math.PI / 2;
+    this.shadowFloor.receiveShadow = true;
+    this.scene.add(this.shadowFloor);
   }
 
   /**
@@ -297,6 +341,11 @@ export class GatewayAct {
     }
 
     this.whiteRoomModel.position.copy(this.roomPosition);
+    this.whiteRoomModel.updateMatrixWorld(true);
+    const furnitureBounds = new THREE.Box3().setFromObject(this.whiteRoomModel);
+    const floorY = Number.isFinite(furnitureBounds.min.y) ? furnitureBounds.min.y : this.roomPosition.y;
+    this.shadowFloor.position.set(this.roomPosition.x, floorY - 0.004, this.roomPosition.z);
+    this.keyLight.shadow.needsUpdate = true;
 
     // Collect CRT TV screen, reticle, and casing meshes for interactive raycast projection
     this.tvInteractiveTargets = [];
@@ -314,6 +363,8 @@ export class GatewayAct {
     let fallbackScreenMesh = null;
     this.whiteRoomModel.traverse((child) => {
       if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
         let nameChain = (child.name || '');
         let p = child.parent;
         while (p && p !== this.whiteRoomModel) {
@@ -331,6 +382,11 @@ export class GatewayAct {
           }
           if ((lower.includes('screen') || lower.includes('527')) && child.material && typeof child.material.clone === 'function') {
             const clonedMat = child.material.clone();
+            if (clonedMat.emissive) {
+              clonedMat.emissive.setHex(0xc9e7ed);
+              clonedMat.emissiveMap = clonedMat.map;
+              clonedMat.emissiveIntensity = 0.35;
+            }
             child.material = clonedMat;
             this._dimmableScreenMaterials.push({
               material: clonedMat,
@@ -359,6 +415,8 @@ export class GatewayAct {
       this.tvReticle.position.set(center.x, center.y, screenBox.max.z + 0.02);
       this.tvReticle.renderOrder = 10;
       this.tvScreenWorldPos = center.clone();
+      this.tvLight.position.copy(this.tvReticle.position);
+      this.tvLight.position.z += 0.1;
     }
   }
 
@@ -369,8 +427,10 @@ export class GatewayAct {
    * @param {Object} [state.pointer] - Normalized pointer coordinates { x, y } [-1.0 - 1.0]
    * @param {number} [state.delta=0.016] - Time delta in seconds
    * @param {number} [state.speedFactor=1.0] - Idle speed dampening factor
+   * @param {'blue'|'red'|null} [state.branch=null] - Selected path
+   * @param {number} [state.selectionProgress=0] - Pill flight progress [0, 1]
    */
-  update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0 } = {}) {
+  update({ progress = 0, pointer = { x: 0, y: 0 }, delta = 0.016, speedFactor = 1.0, branch = null, selectionProgress = 0 } = {}) {
     if (this.isDisposed || !this.camera) return;
 
     const safeDelta = Math.max(0, Math.min(delta, 0.1));
@@ -390,21 +450,34 @@ export class GatewayAct {
       dimT = rawDim * rawDim * (3 - 2 * rawDim);
     }
 
-    // Smoothly dim studio lights & ambient light so room recedes and glowing pills take focus
+    const hologramTarget = this.isHologramOpen ? 1 : 0;
+    this._hologramLightBlend = THREE.MathUtils.damp(this._hologramLightBlend, hologramTarget, 4, safeDelta);
+    if (Math.abs(hologramTarget - this._hologramLightBlend) < 0.001) this._hologramLightBlend = hologramTarget;
+    const hologram = this._hologramLightBlend;
+    const roomDim = 1 - (1 - dimT) * (1 - hologram * 0.965);
+
+    // Preserve darkness while practical sources and grazing light shape the subjects.
     if (this.keyLight) {
-      this.keyLight.intensity = 0.85 * (1 - dimT * 0.86);
+      this.keyLight.intensity = 3.2 * (1 - roomDim * 0.995);
     }
     if (this.hemiLight) {
-      this.hemiLight.intensity = 0.60 * (1 - dimT * 0.92);
+      this.hemiLight.intensity = 0.22 * (1 - roomDim * 0.96);
     }
+    this.fillLight.intensity = 0.65 * (1 - roomDim * 0.965);
+    this.rimLight.intensity = 1.7 * (1 - roomDim * 0.90);
+    this.hologramLight.intensity = 3.2 * hologram * (1 - dimT);
+    const tvTarget = (0.6 + hologram * 0.5) * (1 - dimT * 0.98);
+    this.tvLight.intensity = THREE.MathUtils.damp(this.tvLight.intensity, tvTarget, 6, safeDelta);
+    this.shadowFloor.material.opacity = 0.23 * (1 - roomDim * 0.9);
+    if (this.scene) this.scene.environmentIntensity = 0.45 * (1 - roomDim * 0.94);
     if (this.contactShadow && this.contactShadow.material) {
-      const baseShadowOpacity = this.contactShadow.material.map ? 0.75 : 0.05;
-      this.contactShadow.material.opacity = baseShadowOpacity * (1 - dimT * 0.85);
+      const baseShadowOpacity = this.contactShadow.material.map ? 0.28 : 0.025;
+      this.contactShadow.material.opacity = baseShadowOpacity * (1 - roomDim * 0.85);
     }
     if (this.scene) {
       const amb = this.scene.getObjectByName && this.scene.getObjectByName('AmbientLight');
       if (amb && amb.isLight) {
-        amb.intensity = 0.90 * (1 - dimT * 0.90);
+        amb.intensity = 0.12 * (1 - roomDim * 0.97);
       }
     }
     if (this._dimmableScreenMaterials && this._dimmableScreenMaterials.length > 0) {
@@ -415,6 +488,7 @@ export class GatewayAct {
         }
         if (entry.material.emissive && entry.baseEmissive) {
           entry.material.emissive.copy(entry.baseEmissive).multiplyScalar(1 - dimT * 0.92);
+          entry.material.emissiveIntensity = 0.35 * (1 - hologram * 0.35);
         }
       }
     }
@@ -427,18 +501,22 @@ export class GatewayAct {
         this.scene.fog.far = 2.32 + t * 200;
         if (this.scene.background && this.scene.background.isColor) {
           this.scene.background.setHex(t < 0.5 ? this.act0FogColor : this.act1FogColor);
+          this.scene.background.lerp(this._hologramRoomColor, hologram);
         }
         if (this.scene.fog.color) {
           this.scene.fog.color.setHex(t < 0.5 ? this.act0FogColor : this.act1FogColor);
+          this.scene.fog.color.lerp(this._hologramRoomColor, hologram);
         }
       } else {
         this.scene.fog.near = 100;
         this.scene.fog.far = 500;
         if (this.scene.background && this.scene.background.isColor) {
           this.scene.background.copy(this._lightRoomColor).lerp(this._darkRoomColor, dimT);
+          this.scene.background.lerp(this._hologramRoomColor, hologram);
         }
         if (this.scene.fog.color) {
           this.scene.fog.color.copy(this._lightRoomColor).lerp(this._darkRoomColor, dimT);
+          this.scene.fog.color.lerp(this._hologramRoomColor, hologram);
         }
       }
     }
@@ -458,6 +536,22 @@ export class GatewayAct {
       const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       baseCamPos = new THREE.Vector3().lerpVectors(this.act1EntranceCamPos, this.act1InteriorCamPos, easedT);
       baseLookAt = new THREE.Vector3().lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
+    }
+
+    // Leave room above the CRT for its projection, retaining the visible light source.
+    if (this.isHologramOpen) {
+      baseCamPos.z += 0.25;
+      baseLookAt.y += 0.55;
+    }
+
+    // Let the pill lead, then carry the camera towards the chosen branch entrance.
+    if (branch === 'blue' || branch === 'red') {
+      const travel = Math.max(0, Math.min((selectionProgress - 0.25) / 0.75, 1));
+      const eased = travel * travel * (3 - 2 * travel);
+      const side = branch === 'blue' ? -1 : 1;
+      baseCamPos.x += side * eased * 0.24;
+      baseCamPos.z -= eased * 0.32;
+      baseLookAt.x += side * eased * 0.28;
     }
 
     // Compute pointer parallax target
@@ -533,7 +627,8 @@ export class GatewayAct {
     const camPosDistSq = this.currentCamPos.distanceToSquared(this.targetFinalCamPos);
     const lookAtDistSq = this.currentLookAt.distanceToSquared(this.targetFinalLookAt);
 
-    return parallaxDistSq < 1e-5 && camPosDistSq < 1e-5 && lookAtDistSq < 1e-5;
+    const lightSettled = this._hologramLightBlend === (this.isHologramOpen ? 1 : 0);
+    return lightSettled && parallaxDistSq < 1e-5 && camPosDistSq < 1e-5 && lookAtDistSq < 1e-5;
   }
 
   /**
@@ -656,6 +751,11 @@ export class GatewayAct {
    */
   dispose() {
     this.isDisposed = true;
+    if (this.shadowFloor) {
+      this.scene?.remove(this.shadowFloor);
+      disposeThreeObject(this.shadowFloor);
+      this.shadowFloor = null;
+    }
 
     if (this.mixer) {
       this.mixer.stopAllAction();

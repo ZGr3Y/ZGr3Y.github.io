@@ -35,6 +35,13 @@ export class PillChoiceAct {
     this.elapsedTime = 0;
     this.hoveredPill = null;
     this.selectedBranch = null;
+    this._keyboardFocus = false;
+    this._selectionProgress = 0;
+    this._selectionTarget = 0;
+    this._flyingPill = null;
+    this._flightHome = null;
+    this._flightStart = new THREE.Vector3();
+    this._flightTarget = new THREE.Vector3();
 
     this.raycaster = new THREE.Raycaster();
     this.raycastTargets = [];
@@ -90,8 +97,74 @@ export class PillChoiceAct {
     this._setupLighting();
     this._createFloorGlowPools();
 
+    // Reuse the existing effect meshes and buffers throughout the animation.
+    this._effectObjects = [];
+    for (const group of [this.blueWispsGroup, this.redGlitchGroup]) {
+      group.children.forEach((object, index) => {
+        const red = group === this.redGlitchGroup;
+        const darkCutout = red && object.material.color?.r < .02 && object.material.color?.g < .02;
+        object.material.opacity *= darkCutout ? 0 : red ? .28 : .65;
+        this._effectObjects.push({
+          object,
+          blue: group === this.blueWispsGroup,
+          phase: index * 0.73,
+          position: object.position.clone(),
+          rotation: object.rotation.z,
+          opacity: object.material.opacity,
+          particles: object.isPoints ? object.geometry.attributes.position.array.slice() : null
+        });
+      });
+    }
+
     if (this.scene) {
       this.scene.add(this.rootGroup);
+    }
+  }
+
+  /**
+   * Prepares the first visible frame while the loader is still on screen.
+   * Downloaded models still need shader compilation and GPU buffer/texture uploads.
+   * A small scissored render exercises the same framebuffer and material fragments.
+   */
+  async prepare(renderer, camera = this.camera) {
+    if (!renderer || this.isDisposed || !this.scene || !this.camera) return;
+
+    const root = this.rootGroup;
+    const scene = this.scene;
+    const wasVisible = root.visible;
+    const viewport = renderer.getViewport(new THREE.Vector4());
+    const scissor = renderer.getScissor(new THREE.Vector4());
+    const scissorTest = renderer.getScissorTest();
+    const culling = [];
+    scene.traverse(object => {
+      if (object.isMesh || object.isPoints || object.isLine || object.isSprite) {
+        culling.push([object, object.frustumCulled]);
+        object.frustumCulled = false;
+      }
+    });
+
+    try {
+      // The hidden hands also hide their lights, producing a second shader variant.
+      for (const visible of [true, false]) {
+        if (this.isDisposed) return;
+        root.visible = visible;
+        await renderer.compileAsync(scene, camera);
+        if (this.isDisposed) return;
+        // Animation updates may hide the hands while compilation yields to the loader.
+        root.visible = visible;
+        renderer.setViewport(0, 0, 32, 32);
+        renderer.setScissor(0, 0, 32, 32);
+        renderer.setScissorTest(true);
+        renderer.render(scene, camera);
+      }
+    } finally {
+      root.visible = wasVisible;
+      for (const [object, wasCulled] of culling) object.frustumCulled = wasCulled;
+      if (!this.isDisposed) {
+        renderer.setViewport(viewport);
+        renderer.setScissor(scissor);
+        renderer.setScissorTest(scissorTest);
+      }
     }
   }
 
@@ -242,9 +315,9 @@ export class PillChoiceAct {
     const group = new THREE.Group();
     group.name = `Pill_${pillId}`;
 
-    const baseEmissiveIntensity = pillId === 'blue' ? 1.92 : 1.85;
+    const baseEmissiveIntensity = pillId === 'blue' ? .52 : .45;
     // Calibrated point lights illuminate each palm locally while preserving dark creases & armor contrast
-    const baseLightIntensity = pillId === 'blue' ? 1.45 : 3.25;
+    const baseLightIntensity = pillId === 'blue' ? .85 : 1.2;
 
     // Realistic sleek capsule dimensions matching palm proportions in reference image
     const geometry = new THREE.CapsuleGeometry(0.022, 0.058, 24, 32);
@@ -252,9 +325,9 @@ export class PillChoiceAct {
       color: colorHex,
       emissive: glowColorHex,
       emissiveIntensity: baseEmissiveIntensity,
-      roughness: 0.16,
-      metalness: 0.12,
-      toneMapped: false
+      roughness: .24,
+      metalness: .05,
+      toneMapped: true
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -270,7 +343,7 @@ export class PillChoiceAct {
     const haloMat = new THREE.MeshBasicMaterial({
       color: glowColorHex,
       transparent: true,
-      opacity: 0.06,
+      opacity: .018,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -284,8 +357,8 @@ export class PillChoiceAct {
     const light = new THREE.PointLight(
       pillId === 'blue' ? 0x22d3ee : 0xff3b30,
       baseLightIntensity,
-      0.92,
-      pillId === 'blue' ? 1.45 : 1.75
+      .65,
+      2
     );
     light.position.set(
       pillId === 'blue' ? -0.03 : 0.04,
@@ -308,7 +381,9 @@ export class PillChoiceAct {
       baseScale: new THREE.Vector3(1, 1, 1),
       baseRotZ,
       baseLightIntensity,
-      baseEmissiveIntensity
+      baseEmissiveIntensity,
+      hoverAmount: 0,
+      targetHover: 0
     };
   }
 
@@ -633,14 +708,14 @@ export class PillChoiceAct {
     const centerX = this.roomPosition.x - 0.2;
 
     // Subtle fill light from outer-left so curled right fingers of human hand keep natural dark shading
-    const leftRimLight = new THREE.PointLight(0xdbeafe, 0.16, 1.4, 1.8);
-    leftRimLight.position.set(centerX - 0.96, this.roomPosition.y + 1.05, this.roomPosition.z + 4.35);
+    const leftRimLight = new THREE.PointLight(0xffd5ae, 0.65, 1.5, 2);
+    leftRimLight.position.set(centerX - 0.92, this.roomPosition.y + 1.3, this.roomPosition.z + 3.7);
     this.rootGroup.add(leftRimLight);
     this.lights.push(leftRimLight);
 
     // Cool metallic rim light for right (robotic) hand
-    const rightRimLight = new THREE.PointLight(0xe2e8f0, 1.25, 1.6, 1.6);
-    rightRimLight.position.set(centerX + 0.45, this.roomPosition.y + 1.22, this.roomPosition.z + 4.35);
+    const rightRimLight = new THREE.PointLight(0x9bbce5, 1.5, 1.5, 2);
+    rightRimLight.position.set(centerX + 0.90, this.roomPosition.y + 1.4, this.roomPosition.z + 3.55);
     this.rootGroup.add(rightRimLight);
     this.lights.push(rightRimLight);
   }
@@ -873,8 +948,10 @@ export class PillChoiceAct {
   update({ progress = 0, pointer = null, delta = 0.016, speedFactor = 1.0 } = {}) {
     if (this.isDisposed) return;
 
+    const safeDelta = Math.max(0, Math.min(delta, 0.1));
+
     if (speedFactor > 0.0001) {
-      this.elapsedTime += delta * speedFactor;
+      this.elapsedTime += safeDelta * speedFactor;
     }
 
     // Visibility window: Hands emerge as progress advances past Matrix White Room entrance (0.22)
@@ -884,6 +961,10 @@ export class PillChoiceAct {
       if (this.hoveredPill) {
         this.hoveredPill = null;
         this._applyHoverStates();
+      }
+      if (this._selectionTarget === 0 && this._flyingPill) {
+        this._selectionProgress = 0;
+        this._restoreFlyingPill();
       }
       return;
     }
@@ -916,7 +997,7 @@ export class PillChoiceAct {
     this.rightGroup.scale.set(handScale, handScale, handScale);
 
     // Scale localized pill PointLight radius proportionally when hands move closer on narrow screens
-    const lightDist = 0.92 * Math.min(1.0, xAspectScale);
+    const lightDist = .65 * Math.min(1.0, xAspectScale);
     if (this.bluePill && this.bluePill.light) {
       this.bluePill.light.distance = lightDist;
     }
@@ -953,8 +1034,61 @@ export class PillChoiceAct {
     }
 
     // Interactive pointer raycasting
-    if (pointer && this.camera && progress >= 0.30) {
+    if (pointer && this.camera && progress >= 0.30 && !this.selectedBranch && !this._keyboardFocus) {
       this.handlePointerMove(pointer);
+    }
+
+    const step = safeDelta / 1.4;
+    if (this._selectionProgress < this._selectionTarget) {
+      this._selectionProgress = Math.min(this._selectionTarget, this._selectionProgress + step);
+    } else if (this._selectionProgress > this._selectionTarget) {
+      this._selectionProgress = Math.max(this._selectionTarget, this._selectionProgress - step * 1.5);
+    }
+
+    const damping = 1 - Math.exp(-12 * safeDelta);
+    for (const pill of [this.bluePill, this.redPill]) {
+      pill.hoverAmount += (pill.targetHover - pill.hoverAmount) * damping;
+      if (Math.abs(pill.targetHover - pill.hoverAmount) < 0.001) pill.hoverAmount = pill.targetHover;
+      const chosen = pill === this._flyingPill;
+      const selection = this._selectionProgress;
+      const scale = 1 + pill.hoverAmount * 0.14 + selection * (chosen ? .04 : -.08);
+      pill.mesh.scale.setScalar(scale);
+      pill.haloMesh.scale.setScalar(scale);
+      pill.mesh.material.emissiveIntensity = pill.baseEmissiveIntensity *
+        (1 + pill.hoverAmount * .25 + selection * (chosen ? .3 : -.35));
+      pill.light.intensity = pill.baseLightIntensity *
+        (1 + pill.hoverAmount * .18 + selection * (chosen ? .2 : -.35));
+      pill.haloMesh.material.opacity = .018 + pill.hoverAmount * .009 + (chosen ? selection * .008 : 0);
+    }
+
+    // Selection stays in the palm; the shared camera alone carries the journey.
+    if (this._flyingPill && this._selectionProgress === 0 && this._selectionTarget === 0) this._restoreFlyingPill();
+
+    if (speedFactor > 0.0001) this._updateAtmosphere();
+  }
+
+  /** Animates the existing mist, dust and embers without allocating new GPU resources. */
+  _updateAtmosphere() {
+    const time = this.elapsedTime;
+    for (const effect of this._effectObjects) {
+      const { object, phase, position, rotation, opacity, particles, blue } = effect;
+      const wave = Math.sin(time * (blue ? 0.9 : 2.2) + phase);
+      object.material.opacity = opacity * (blue ? 0.82 + wave * 0.18 : 0.65 + wave * 0.35);
+      if (particles) {
+        const attribute = object.geometry.attributes.position;
+        const values = attribute.array;
+        for (let i = 0; i < values.length; i += 3) {
+          const drift = time * (blue ? 0.8 : 1.6) + i * 0.37 + phase;
+          values[i] = particles[i] + Math.sin(drift) * (blue ? 0.009 : 0.012);
+          values[i + 1] = particles[i + 1] + Math.sin(drift * 0.7) * (blue ? 0.024 : 0.012);
+          values[i + 2] = particles[i + 2] + Math.cos(drift) * 0.005;
+        }
+        attribute.needsUpdate = true;
+      } else {
+        object.position.x = position.x + wave * (blue ? 0.006 : 0.004);
+        object.position.y = position.y + Math.cos(time * 0.7 + phase) * (blue ? 0.008 : 0.002);
+        object.rotation.z = rotation + wave * (blue ? 0.035 : 0.025);
+      }
     }
   }
 
@@ -963,8 +1097,11 @@ export class PillChoiceAct {
    * @param {{ x: number, y: number }} pointer - Normalized pointer coords [-1, 1]
    */
   handlePointerMove(pointer) {
-    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return;
+    if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible || this.selectedBranch) return;
 
+    this._keyboardFocus = false;
+    this.rootGroup.updateWorldMatrix(true, true);
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);
 
@@ -981,51 +1118,17 @@ export class PillChoiceAct {
   }
 
   /**
-   * Updates pill scale and emissive intensity based on hover state
+   * Sets hover targets; update() interpolates their visible scale and light.
    * @private
    */
   _applyHoverStates() {
     if (this.isDisposed) return;
 
-    const isBlueHover = this.hoveredPill === 'blue';
-    const isRedHover = this.hoveredPill === 'red';
-
-    if (this.bluePill) {
-      const targetScale = isBlueHover ? 1.18 : 1.0;
-      this.bluePill.mesh.scale.set(targetScale, targetScale, targetScale);
-      if (this.bluePill.haloMesh) {
-        this.bluePill.haloMesh.scale.set(targetScale, targetScale, targetScale);
-      }
-      if (this.bluePill.mesh.material) {
-        this.bluePill.mesh.material.emissiveIntensity = isBlueHover
-          ? 3.5
-          : (this.bluePill.baseEmissiveIntensity || 2.4);
-      }
-      if (this.bluePill.light) {
-        const baseLight = this.bluePill.baseLightIntensity || 2.15;
-        this.bluePill.light.intensity = isBlueHover ? baseLight * 1.45 : baseLight;
-      }
-    }
-
-    if (this.redPill) {
-      const targetScale = isRedHover ? 1.18 : 1.0;
-      this.redPill.mesh.scale.set(targetScale, targetScale, targetScale);
-      if (this.redPill.haloMesh) {
-        this.redPill.haloMesh.scale.set(targetScale, targetScale, targetScale);
-      }
-      if (this.redPill.mesh.material) {
-        this.redPill.mesh.material.emissiveIntensity = isRedHover
-          ? 3.5
-          : (this.redPill.baseEmissiveIntensity || 2.4);
-      }
-      if (this.redPill.light) {
-        const baseLight = this.redPill.baseLightIntensity || 4.2;
-        this.redPill.light.intensity = isRedHover ? baseLight * 1.45 : baseLight;
-      }
-    }
+    if (this.bluePill) this.bluePill.targetHover = !this.selectedBranch && this.hoveredPill === 'blue' ? 1 : 0;
+    if (this.redPill) this.redPill.targetHover = !this.selectedBranch && this.hoveredPill === 'red' ? 1 : 0;
 
     if (this.canvas) {
-      this.canvas.style.cursor = this.hoveredPill ? 'pointer' : 'default';
+      this.canvas.style.cursor = this.hoveredPill && !this.selectedBranch ? 'pointer' : 'default';
     }
   }
 
@@ -1037,6 +1140,8 @@ export class PillChoiceAct {
   handlePointerClick(pointer) {
     if (this.isDisposed || !this.camera || !pointer || !this.rootGroup || !this.rootGroup.visible) return null;
 
+    this.rootGroup.updateWorldMatrix(true, true);
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(pointer, this.camera);
     const intersects = this.raycaster.intersectObjects(this.raycastTargets, true);
 
@@ -1052,6 +1157,24 @@ export class PillChoiceAct {
     return null;
   }
 
+  /** Keyboard selection acts on the pills themselves, without a second set of buttons. */
+  handleKeyDown(event) {
+    if (this.isDisposed || !this.rootGroup.visible || this.selectedBranch || event.ctrlKey || event.metaKey) return false;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      this._keyboardFocus = true;
+      this.hoveredPill = event.key === 'ArrowLeft' ? 'blue' : 'red';
+      this._applyHoverStates();
+      return true;
+    }
+    if ((event.key === 'Enter' || event.key === ' ') && this.hoveredPill) {
+      event.preventDefault();
+      this.selectBranch(this.hoveredPill);
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Selects a narrative branch ('blue' or 'red') with selection animation
    * @param {'blue' | 'red'} branch
@@ -1060,37 +1183,21 @@ export class PillChoiceAct {
     if (this.isDisposed || (branch !== 'blue' && branch !== 'red')) return;
     if (this.selectedBranch === branch) return;
 
+    if (this._flyingPill) this._restoreFlyingPill();
     this.selectedBranch = branch;
-
-    // Trigger visual selection pulse
     const selectedPill = branch === 'blue' ? this.bluePill : this.redPill;
-    const otherPill = branch === 'blue' ? this.redPill : this.bluePill;
-
-    if (selectedPill && selectedPill.mesh) {
-      selectedPill.mesh.scale.set(1.3, 1.3, 1.3);
-      if (selectedPill.haloMesh) {
-        selectedPill.haloMesh.scale.set(1.3, 1.3, 1.3);
-      }
-      if (selectedPill.mesh.material) {
-        selectedPill.mesh.material.emissiveIntensity = 5.0;
-      }
-      if (selectedPill.light) {
-        selectedPill.light.intensity = (selectedPill.baseLightIntensity || 3.0) * 1.8;
-      }
-    }
-
-    if (otherPill && otherPill.mesh) {
-      otherPill.mesh.scale.set(0.8, 0.8, 0.8);
-      if (otherPill.haloMesh) {
-        otherPill.haloMesh.scale.set(0.8, 0.8, 0.8);
-      }
-      if (otherPill.mesh.material) {
-        otherPill.mesh.material.emissiveIntensity = 1.0;
-      }
-      if (otherPill.light) {
-        otherPill.light.intensity = (otherPill.baseLightIntensity || 2.0) * 0.5;
-      }
-    }
+    this._flightHome = {
+      parent: selectedPill.group.parent,
+      position: selectedPill.group.position.clone(),
+      quaternion: selectedPill.group.quaternion.clone(),
+      scale: selectedPill.group.scale.clone()
+    };
+    // Keep the capsule and its light attached to the hand.
+    this._flyingPill = selectedPill;
+    this._selectionProgress = 0;
+    this._selectionTarget = 1;
+    this.hoveredPill = null;
+    this._applyHoverStates();
 
     if (typeof this.onSelect === 'function') {
       this.onSelect(branch);
@@ -1102,8 +1209,28 @@ export class PillChoiceAct {
    */
   resetSelection() {
     this.selectedBranch = null;
+    this._keyboardFocus = false;
+    this._selectionTarget = 0;
     this.hoveredPill = null;
     this._applyHoverStates();
+  }
+
+  /** Restores the original hand attachment after returning from a selected path. */
+  _restoreFlyingPill() {
+    if (!this._flyingPill || !this._flightHome) return;
+    const group = this._flyingPill.group;
+    const home = this._flightHome;
+    home.parent.add(group);
+    group.position.copy(home.position);
+    group.quaternion.copy(home.quaternion);
+    group.scale.copy(home.scale);
+    this._flyingPill = null;
+    this._flightHome = null;
+  }
+
+  /** @returns {number} Pill flight progress [0, 1], shared with the camera choreography. */
+  getSelectionProgress() {
+    return this._selectionProgress;
   }
 
   /**
@@ -1112,7 +1239,11 @@ export class PillChoiceAct {
    * @returns {boolean}
    */
   isResting() {
-    return true;
+    return this.isDisposed || !this.rootGroup.visible || (
+      this._selectionProgress === this._selectionTarget &&
+      this.bluePill.hoverAmount === this.bluePill.targetHover &&
+      this.redPill.hoverAmount === this.redPill.targetHover
+    );
   }
 
   /**
@@ -1120,6 +1251,9 @@ export class PillChoiceAct {
    */
   dispose() {
     this.isDisposed = true;
+    this._effectObjects = [];
+    this._flyingPill = null;
+    this._flightHome = null;
 
     if (this.canvas) {
       this.canvas.style.cursor = 'default';
