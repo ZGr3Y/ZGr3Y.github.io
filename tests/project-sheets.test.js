@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
 import { metalSheetMaps } from '../src/acts/UnicornSurface.js';
-import { createUnicornOpening } from '../src/acts/UnicornOpening.js';
+import { createUnicornOpening, createUnicornOpeningTemplate } from '../src/acts/UnicornOpening.js';
 
 describe('project sheet texture loading', () => {
   it.each([0, 1, 2])('loads precomputed maps asynchronously for sheet %i', async variant => {
@@ -31,12 +31,15 @@ describe('project sheet texture loading', () => {
     }
   });
 
-  it.each([0, 1, 2])('ships precomputed normal and roughness webp assets for sheet %i in public/', variant => {
+  it.each([0, 1, 2])('ships precomputed normal and roughness webp assets for sheet %i within budget in public/', variant => {
     const texturesDir = path.resolve(process.cwd(), 'public/textures/project-sheets');
+    const maxBytes = 600 * 1024;
     for (const kind of ['normal', 'roughness']) {
       const filePath = path.join(texturesDir, `${variant}-${kind}.webp`);
       expect(fs.existsSync(filePath)).toBe(true);
-      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
+      const size = fs.statSync(filePath).size;
+      expect(size).toBeGreaterThan(0);
+      expect(size).toBeLessThanOrEqual(maxBytes);
     }
   });
 });
@@ -86,6 +89,47 @@ describe('UnicornOpening geometry & folding math', () => {
       });
       front.dispose();
       paper.dispose();
+    }
+  });
+
+  it('reuses a shared template cleanly across multiple rigs without mutating sibling buffers', () => {
+    const template = createUnicornOpeningTemplate();
+    const frontA = new THREE.MeshStandardMaterial({ side: THREE.FrontSide });
+    const paperA = new THREE.MeshStandardMaterial({ side: THREE.BackSide });
+    const frontB = new THREE.MeshStandardMaterial({ side: THREE.FrontSide });
+    const paperB = new THREE.MeshStandardMaterial({ side: THREE.BackSide });
+
+    const rigA = createUnicornOpening(frontA, paperA, template);
+    const rigB = createUnicornOpening(frontB, paperB, template);
+
+    try {
+      const meshesB = [];
+      rigB.root.traverse(obj => {
+        if (obj.isMesh) meshesB.push(obj);
+      });
+      const initialB = meshesB.map(m => Float32Array.from(m.geometry.attributes.position.array));
+
+      rigA.pose(1);
+      expect(rigB.progress).toBe(0);
+      meshesB.forEach((mesh, idx) => {
+        expect(mesh.geometry.attributes.position.array).toEqual(initialB[idx]);
+      });
+    } finally {
+      rigA.dispose();
+      rigB.dispose();
+      [rigA.root, rigB.root].forEach(root => {
+        const seen = new Set();
+        root.traverse(obj => {
+          if (obj.geometry && !seen.has(obj.geometry)) {
+            seen.add(obj.geometry);
+            obj.geometry.dispose();
+          }
+        });
+      });
+      frontA.dispose();
+      paperA.dispose();
+      frontB.dispose();
+      paperB.dispose();
     }
   });
 });

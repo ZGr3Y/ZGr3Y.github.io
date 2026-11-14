@@ -64,6 +64,12 @@ export class PortfolioApp {
     this._isLoopRunning = false;
     this._isPreparingScene = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this._projectsCameraOwned = false;
+    this._lastProjectsActiveAttr = null;
+    this._scratchExperiencesPose = {
+      position: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+    };
 
     // Floating Minimalist HUD Navigation state
     this.hudNav = null;
@@ -1428,26 +1434,10 @@ export class PortfolioApp {
       const delta = Math.min(frameDelta, .1);
       this._lastFrameTime = currentTime;
 
-      const isGatewayStation = this.getActiveStation().id === 'gateway';
+      const activeStation = this.getActiveStation();
+      const isGatewayStation = activeStation.id === 'gateway';
       const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
-      const projectsDesired = Boolean(this.experiencesAct && (this.getActiveStation().id === 'lab' ||
-        (isGatewayStation && this.journeyState?.getBranch() === 'red' && currentProgress >= .6 && currentProgress < .8)));
-      if (projectsDesired !== Boolean(this._projectsCameraOwned)) {
-        this._projectsCameraOwned = projectsDesired;
-        if (projectsDesired) {
-          const pose = this.experiencesAct.getCameraPose();
-          this._startCameraFlight(pose.position, pose.target, true);
-        } else if (isGatewayStation && this.gatewayAct) {
-          this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, false);
-        }
-      }
-      if (projectsDesired && !this._cameraFlight) {
-        const pose = this.experiencesAct.getCameraPose();
-        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
-        this._currentCamLookAt.copy(pose.target); this.camera.lookAt(pose.target);
-      }
-      // All stations share a camera; the flight owns it until the dolly finishes.
-      if (this._cameraFlight) this._advanceCameraFlight(Math.min(frameDelta, .5));
+      const projectsDesired = this._syncExperiencesCamera(activeStation, currentProgress, delta, frameDelta);
 
       const shouldAdvanceWaypoint = !projectsDesired && (this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001));
       if (this.camera && shouldAdvanceWaypoint && !this._cameraFlight && !projectsDesired) {
@@ -1504,7 +1494,10 @@ export class PortfolioApp {
 
       if (this.experiencesAct) {
         this.experiencesAct.setActive(projectsDesired && !this._cameraFlight);
-        this.container?.setAttribute('data-experiences-active', String(projectsDesired));
+        if (this._lastProjectsActiveAttr !== projectsDesired) {
+          this._lastProjectsActiveAttr = projectsDesired;
+          this.container?.setAttribute('data-experiences-active', String(projectsDesired));
+        }
         this.experiencesAct.update(delta, speedFactor);
       }
 
@@ -1559,6 +1552,48 @@ export class PortfolioApp {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       this._animFrameId = window.requestAnimationFrame(this._renderFrame);
     }
+  }
+
+  /**
+   * Synchronizes ownership of the shared camera between Gateway/Lab and ExperiencesAct,
+   * avoiding per-frame allocations once converged.
+   * @private
+   */
+  _syncExperiencesCamera(activeStation, currentProgress, delta, frameDelta) {
+    const isGatewayStation = activeStation.id === 'gateway';
+    const projectsDesired = Boolean(
+      this.experiencesAct &&
+      (activeStation.id === 'lab' ||
+        (isGatewayStation && this.journeyState?.getBranch() === 'red' && currentProgress >= 0.6 && currentProgress < 0.8))
+    );
+
+    if (projectsDesired !== this._projectsCameraOwned) {
+      this._projectsCameraOwned = projectsDesired;
+      if (projectsDesired) {
+        const pose = this.experiencesAct.getCameraPose(this._scratchExperiencesPose);
+        this._startCameraFlight(pose.position, pose.target, true);
+      } else if (isGatewayStation && this.gatewayAct) {
+        this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, false);
+      }
+    }
+
+    if (projectsDesired && !this._cameraFlight) {
+      const pose = this.experiencesAct.getCameraPose(this._scratchExperiencesPose);
+      if (this.camera.position.distanceToSquared(pose.position) > 1e-6) {
+        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
+      } else {
+        this.camera.position.copy(pose.position);
+      }
+      this._currentCamLookAt.copy(pose.target);
+      this.camera.lookAt(pose.target);
+    }
+
+    // All stations share a camera; the flight owns it until the dolly finishes.
+    if (this._cameraFlight) {
+      this._advanceCameraFlight(Math.min(frameDelta, 0.5));
+    }
+
+    return projectsDesired;
   }
 
   /** A continuous curved dolly from the actual camera pose, without scene swaps. */
@@ -1823,7 +1858,7 @@ export class PortfolioApp {
       const projectsLab = activeStation.id === 'lab' && Boolean(this.experiencesAct);
       this._projectsCameraOwned = projectsLab;
       const pose = projectsLab
-        ? this.experiencesAct.getCameraPose()
+        ? this.experiencesAct.getCameraPose(this._scratchExperiencesPose)
         : (activeStation.id === 'gateway' && wasProjects && this.gatewayAct)
           ? { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt }
           : { position: this._targetCamPos, target: this._targetCamLookAt };
@@ -1954,6 +1989,8 @@ export class PortfolioApp {
 
     this.experiencesAct?.dispose();
     this.experiencesAct = null;
+    this._projectsCameraOwned = false;
+    this._lastProjectsActiveAttr = null;
 
     if (this.gatewayAct) {
       this.gatewayAct.dispose();

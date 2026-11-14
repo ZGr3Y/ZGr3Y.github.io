@@ -9,6 +9,7 @@ const surfaceMocks = vi.hoisted(() => ({
 
 const variantMocks = vi.hoisted(() => ({
   createUnicornOpening: vi.fn(),
+  createUnicornOpeningTemplate: vi.fn(),
 }));
 
 vi.mock('../src/acts/UnicornSurface.js', async importOriginal => {
@@ -23,6 +24,7 @@ vi.mock('../src/acts/UnicornSurface.js', async importOriginal => {
 
 vi.mock('../src/acts/UnicornOpening.js', () => ({
   createUnicornOpening: variantMocks.createUnicornOpening,
+  createUnicornOpeningTemplate: variantMocks.createUnicornOpeningTemplate,
 }));
 
 import { ExperiencesAct } from '../src/acts/ExperiencesAct.js';
@@ -125,9 +127,11 @@ describe('ExperiencesAct (Origami Project Sheets & Lifecycle)', () => {
     grainTexture = new THREE.Texture();
     envRenderTarget = { texture: new THREE.Texture(), dispose: vi.fn() };
 
+    const sharedTemplate = { records: [], groups: new Map() };
     surfaceMocks.referenceFoilMaps.mockImplementation(async () => foilMaps);
     surfaceMocks.metalSheetMaps.mockImplementation(async index => sheetMapsList[index]);
     surfaceMocks.paperGrain.mockImplementation(() => grainTexture);
+    variantMocks.createUnicornOpeningTemplate.mockReturnValue(sharedTemplate);
     variantMocks.createUnicornOpening.mockImplementation((front, paper) => createFakeRig(front, paper));
 
     fromSceneSpy = vi
@@ -244,6 +248,8 @@ describe('ExperiencesAct (Origami Project Sheets & Lifecycle)', () => {
       await h.act.prepare();
       expect(h.act.ready).toBe(true);
       expect(h.status().textContent).toBe('Choose an origami');
+      expect(variantMocks.createUnicornOpeningTemplate).toHaveBeenCalledTimes(1);
+      expect(variantMocks.createUnicornOpening).toHaveBeenCalledTimes(3);
       expect(fromSceneSpy).toHaveBeenCalledTimes(1);
       expect(pmremDisposeSpy).toHaveBeenCalledTimes(1);
 
@@ -387,6 +393,7 @@ describe('ExperiencesAct (Origami Project Sheets & Lifecycle)', () => {
       const rearDisposeSpies = h.act.rearSurfaces.map(r => vi.spyOn(r.material, 'dispose'));
       const frontDisposeSpies = h.act.frontSurfaces.map(f => vi.spyOn(f, 'dispose'));
       const rigDisposeSpies = h.act.rigs.map(r => vi.spyOn(r, 'dispose'));
+      const grainDisposeSpy = vi.spyOn(grainTexture, 'dispose');
 
       h.act.dispose();
 
@@ -403,6 +410,7 @@ describe('ExperiencesAct (Origami Project Sheets & Lifecycle)', () => {
       rearDisposeSpies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
       frontDisposeSpies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
       rigDisposeSpies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
+      expect(grainDisposeSpy).toHaveBeenCalledTimes(1);
     });
 
     it('disposes async foil and sheet textures immediately if disposed mid-initialization', async () => {

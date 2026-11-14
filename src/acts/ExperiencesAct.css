@@ -55,6 +55,7 @@
   .project-sheet__highlights { font-size: 13px; }
 }
 
+#app[data-experiences-sheet-open="true"] .hud-nav,
 #app:has(.experiences-scene.has-selection:not([hidden])) .hud-nav { opacity: 0; visibility: hidden; pointer-events: none; }
 
 .project-sheet__stamp {
