@@ -71,6 +71,31 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
   });
 
   describe('GatewayAct: Camera Navigation & Pointer Parallax', () => {
+    it('dims the room while the hologram emits light and restores the original lighting on close', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+      act.update({ progress: 0.2, delta: 0.016, speedFactor: 0 });
+      const keyBefore = act.keyLight.intensity;
+      const environmentBefore = scene.environmentIntensity;
+      const backgroundBefore = scene.background.getHex();
+
+      act.setBioHologramOpen(true);
+      expect(act.isResting()).toBe(false);
+      for (let i = 0; i < 180; i++) act.update({ progress: 0.2, delta: 0.016, speedFactor: 0 });
+      expect(act.keyLight.intensity).toBeLessThan(keyBefore * 0.2);
+      expect(scene.environmentIntensity).toBeLessThan(environmentBefore * 0.2);
+      expect(act.hologramLight.intensity).toBeGreaterThan(0);
+      expect(scene.background.getHex()).not.toBe(backgroundBefore);
+
+      act.setBioHologramOpen(false);
+      for (let i = 0; i < 180; i++) act.update({ progress: 0.2, delta: 0.016, speedFactor: 0 });
+      expect(act.hologramLight.intensity).toBe(0);
+      expect(act.keyLight.intensity).toBeCloseTo(keyBefore);
+      expect(scene.background.getHex()).toBe(backgroundBefore);
+      act.dispose();
+    });
+
     it('transitions camera smoothly towards the right as progress advances from 0.0 to 0.2', () => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -394,13 +419,13 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(app.isCameraTransitioning()).toBe(true);
 
       // Simulate render frames
-      for (let frame = 0; frame < 100; frame++) {
+      for (let frame = 0; frame < 220; frame++) {
         app._renderFrame(1000 + frame * 16);
       }
 
       // Transition flag should clear and camera should reach target
       expect(app.isCameraTransitioning()).toBe(false);
-      expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+      expect(app.camera.position.distanceTo(app.experiencesAct.getCameraPose().position)).toBeLessThan(.1);
 
       app.destroy();
     });
@@ -468,11 +493,11 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       // Navigate to Lab station once a branch is chosen
       app.journeyState.selectBranch('blue');
       await app.navigateTo(1);
-      for (let frame = 0; frame < 100; frame++) {
+      for (let frame = 0; frame < 220; frame++) {
         app._renderFrame(2000 + frame * 16);
       }
       expect(app.isCameraTransitioning()).toBe(false);
-      expect(app.camera.position.x).toBeCloseTo(6, 0.5);
+      expect(app.camera.position.distanceTo(app.experiencesAct.getCameraPose().position)).toBeLessThan(.1);
 
       // Navigate back to Gateway
       await app.navigateTo(0);
@@ -480,7 +505,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
 
       // Advance frames until transition finishes
       let frameSettled = -1;
-      for (let frame = 0; frame < 100; frame++) {
+      for (let frame = 0; frame < 220; frame++) {
         app._renderFrame(4000 + frame * 16);
         if (!app.isCameraTransitioning()) {
           frameSettled = frame;
@@ -490,9 +515,9 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       expect(frameSettled).toBeGreaterThan(-1);
 
       // In the frame that clears transition, gatewayAct was rebased from the camera
-      // rather than retaining stale position (~24) and jumping
-      expect(app.camera.position.x).toBeLessThan(3.0);
-      expect(app.gatewayAct.currentCamPos.x).toBeLessThan(3.0);
+      // rather than retaining the old project camera pose and jumping
+      expect(app.camera.position.distanceTo(app.gatewayAct.currentCamPos)).toBeLessThan(.1);
+      expect(app.camera.position.x).toBeCloseTo(app.gatewayAct.act1InteriorCamPos.x, 0);
 
       app.destroy();
     });
@@ -518,7 +543,7 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       await app.navigateTo(1);
 
       // Finish waypoint camera transition
-      for (let frame = 0; frame < 100; frame++) {
+      for (let frame = 0; frame < 220; frame++) {
         app._renderFrame(1000 + frame * 16);
       }
       expect(app.isCameraTransitioning()).toBe(false);

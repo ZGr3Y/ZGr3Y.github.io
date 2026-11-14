@@ -101,6 +101,9 @@ export class PillChoiceAct {
     this._effectObjects = [];
     for (const group of [this.blueWispsGroup, this.redGlitchGroup]) {
       group.children.forEach((object, index) => {
+        const red = group === this.redGlitchGroup;
+        const darkCutout = red && object.material.color?.r < .02 && object.material.color?.g < .02;
+        object.material.opacity *= darkCutout ? 0 : red ? .28 : .65;
         this._effectObjects.push({
           object,
           blue: group === this.blueWispsGroup,
@@ -121,9 +124,9 @@ export class PillChoiceAct {
   /**
    * Prepares the first visible frame while the loader is still on screen.
    * Downloaded models still need shader compilation and GPU buffer/texture uploads.
-   * A one-pixel scissored render uses the same framebuffer/color space as the journey.
+   * A small scissored render exercises the same framebuffer and material fragments.
    */
-  async prepare(renderer) {
+  async prepare(renderer, camera = this.camera) {
     if (!renderer || this.isDisposed || !this.scene || !this.camera) return;
 
     const root = this.rootGroup;
@@ -145,14 +148,14 @@ export class PillChoiceAct {
       for (const visible of [true, false]) {
         if (this.isDisposed) return;
         root.visible = visible;
-        await renderer.compileAsync(scene, this.camera);
+        await renderer.compileAsync(scene, camera);
         if (this.isDisposed) return;
         // Animation updates may hide the hands while compilation yields to the loader.
         root.visible = visible;
-        renderer.setViewport(0, 0, 1, 1);
-        renderer.setScissor(0, 0, 1, 1);
+        renderer.setViewport(0, 0, 32, 32);
+        renderer.setScissor(0, 0, 32, 32);
         renderer.setScissorTest(true);
-        renderer.render(scene, this.camera);
+        renderer.render(scene, camera);
       }
     } finally {
       root.visible = wasVisible;
@@ -312,9 +315,9 @@ export class PillChoiceAct {
     const group = new THREE.Group();
     group.name = `Pill_${pillId}`;
 
-    const baseEmissiveIntensity = pillId === 'blue' ? 1.92 : 1.85;
+    const baseEmissiveIntensity = pillId === 'blue' ? .52 : .45;
     // Calibrated point lights illuminate each palm locally while preserving dark creases & armor contrast
-    const baseLightIntensity = pillId === 'blue' ? 1.45 : 3.25;
+    const baseLightIntensity = pillId === 'blue' ? .85 : 1.2;
 
     // Realistic sleek capsule dimensions matching palm proportions in reference image
     const geometry = new THREE.CapsuleGeometry(0.022, 0.058, 24, 32);
@@ -322,9 +325,9 @@ export class PillChoiceAct {
       color: colorHex,
       emissive: glowColorHex,
       emissiveIntensity: baseEmissiveIntensity,
-      roughness: 0.16,
-      metalness: 0.12,
-      toneMapped: false
+      roughness: .24,
+      metalness: .05,
+      toneMapped: true
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -340,7 +343,7 @@ export class PillChoiceAct {
     const haloMat = new THREE.MeshBasicMaterial({
       color: glowColorHex,
       transparent: true,
-      opacity: 0.06,
+      opacity: .018,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -354,8 +357,8 @@ export class PillChoiceAct {
     const light = new THREE.PointLight(
       pillId === 'blue' ? 0x22d3ee : 0xff3b30,
       baseLightIntensity,
-      0.92,
-      pillId === 'blue' ? 1.45 : 1.75
+      .65,
+      2
     );
     light.position.set(
       pillId === 'blue' ? -0.03 : 0.04,
@@ -705,14 +708,14 @@ export class PillChoiceAct {
     const centerX = this.roomPosition.x - 0.2;
 
     // Subtle fill light from outer-left so curled right fingers of human hand keep natural dark shading
-    const leftRimLight = new THREE.PointLight(0xdbeafe, 0.16, 1.4, 1.8);
-    leftRimLight.position.set(centerX - 0.96, this.roomPosition.y + 1.05, this.roomPosition.z + 4.35);
+    const leftRimLight = new THREE.PointLight(0xffd5ae, 0.65, 1.5, 2);
+    leftRimLight.position.set(centerX - 0.92, this.roomPosition.y + 1.3, this.roomPosition.z + 3.7);
     this.rootGroup.add(leftRimLight);
     this.lights.push(leftRimLight);
 
     // Cool metallic rim light for right (robotic) hand
-    const rightRimLight = new THREE.PointLight(0xe2e8f0, 1.25, 1.6, 1.6);
-    rightRimLight.position.set(centerX + 0.45, this.roomPosition.y + 1.22, this.roomPosition.z + 4.35);
+    const rightRimLight = new THREE.PointLight(0x9bbce5, 1.5, 1.5, 2);
+    rightRimLight.position.set(centerX + 0.90, this.roomPosition.y + 1.4, this.roomPosition.z + 3.55);
     this.rootGroup.add(rightRimLight);
     this.lights.push(rightRimLight);
   }
@@ -994,7 +997,7 @@ export class PillChoiceAct {
     this.rightGroup.scale.set(handScale, handScale, handScale);
 
     // Scale localized pill PointLight radius proportionally when hands move closer on narrow screens
-    const lightDist = 0.92 * Math.min(1.0, xAspectScale);
+    const lightDist = .65 * Math.min(1.0, xAspectScale);
     if (this.bluePill && this.bluePill.light) {
       this.bluePill.light.distance = lightDist;
     }
@@ -1048,27 +1051,18 @@ export class PillChoiceAct {
       if (Math.abs(pill.targetHover - pill.hoverAmount) < 0.001) pill.hoverAmount = pill.targetHover;
       const chosen = pill === this._flyingPill;
       const selection = this._selectionProgress;
-      const scale = 1 + pill.hoverAmount * 0.14 + selection * (chosen ? 0.22 : -0.18);
+      const scale = 1 + pill.hoverAmount * 0.14 + selection * (chosen ? .04 : -.08);
       pill.mesh.scale.setScalar(scale);
       pill.haloMesh.scale.setScalar(scale);
       pill.mesh.material.emissiveIntensity = pill.baseEmissiveIntensity *
-        (1 + pill.hoverAmount * 0.55 + selection * (chosen ? 0.9 : -0.65));
+        (1 + pill.hoverAmount * .25 + selection * (chosen ? .3 : -.35));
       pill.light.intensity = pill.baseLightIntensity *
-        (1 + pill.hoverAmount * 0.4 + selection * (chosen ? 0.6 : -0.7));
-      pill.haloMesh.material.opacity = 0.06 + pill.hoverAmount * 0.035 + (chosen ? selection * 0.05 : 0);
+        (1 + pill.hoverAmount * .18 + selection * (chosen ? .2 : -.35));
+      pill.haloMesh.material.opacity = .018 + pill.hoverAmount * .009 + (chosen ? selection * .008 : 0);
     }
 
-    if (this._flyingPill && this.camera) {
-      const t = this._selectionProgress;
-      const eased = t * t * (3 - 2 * t);
-      const side = this._flyingPill === this.bluePill ? -1 : 1;
-      this.camera.updateMatrixWorld();
-      this._flightTarget.set(side * 0.035, -0.025, -0.72).applyMatrix4(this.camera.matrixWorld);
-      this.rootGroup.worldToLocal(this._flightTarget);
-      this._flyingPill.group.position.lerpVectors(this._flightStart, this._flightTarget, eased);
-      this._flyingPill.group.position.y += Math.sin(t * Math.PI) * 0.12;
-      if (t === 0 && this._selectionTarget === 0) this._restoreFlyingPill();
-    }
+    // Selection stays in the palm; the shared camera alone carries the journey.
+    if (this._flyingPill && this._selectionProgress === 0 && this._selectionTarget === 0) this._restoreFlyingPill();
 
     if (speedFactor > 0.0001) this._updateAtmosphere();
   }
@@ -1198,8 +1192,7 @@ export class PillChoiceAct {
       quaternion: selectedPill.group.quaternion.clone(),
       scale: selectedPill.group.scale.clone()
     };
-    this.rootGroup.attach(selectedPill.group);
-    this._flightStart.copy(selectedPill.group.position);
+    // Keep the capsule and its light attached to the hand.
     this._flyingPill = selectedPill;
     this._selectionProgress = 0;
     this._selectionTarget = 1;

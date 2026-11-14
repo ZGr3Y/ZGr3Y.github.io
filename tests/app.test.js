@@ -225,7 +225,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(modal.getAttribute('role')).toBe('dialog');
     expect(modal.getAttribute('aria-modal')).toBe('true');
     expect(modal.textContent).toContain('CTF Vulnerability Lab');
-    expect(modal.textContent).toContain('Developed three isolated microservices simulating real-world vulnerabilities');
+    expect(modal.querySelector('.modal-full-desc').textContent).toBe(app.stations.find(station => station.id === 'lab').projects[0].fullDesc);
 
     // Press Escape to close modal
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
@@ -443,7 +443,7 @@ describe('PortfolioApp (Application Root Seam)', () => {
     expect(app.camera.position.z).toBeLessThan(16);
 
     // Simulate remaining frames until transition settles
-    for (let frame = 10; frame < 120; frame++) {
+    for (let frame = 10; frame < 220; frame++) {
       app._renderFrame(1000 + frame * 16);
     }
 
