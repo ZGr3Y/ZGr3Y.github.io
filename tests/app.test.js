@@ -701,4 +701,115 @@ describe('PortfolioApp (Application Root Seam)', () => {
     await app.navigateTo(1);
     expect(srAnnouncements.textContent).toContain('LAB');
   });
+
+  it('keeps HarnessAct stage visible throughout outgoing flight when returning from Blue Pill', () => {
+    app = new PortfolioApp({
+      container,
+      canvas,
+      srAnnouncer: srAnnouncements,
+      enableLoader: true,
+      enableJourney: true
+    });
+    app.loaderController.complete();
+
+    let t = 1000;
+    app.scrollEngine.currentProgress = 0.38;
+    app.scrollEngine.targetProgress = 0.38;
+    app.journeyState.setProgress(0.38);
+    app.journeyState.selectBranch('blue');
+
+    for (let i = 0; i < 160; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(app.harnessAct.active).toBe(true);
+    expect(app.harnessAct.root.visible).toBe(true);
+
+    // Trigger upward wheel scroll back to Pill Choice
+    window.dispatchEvent(new WheelEvent('wheel', { deltaY: -120 }));
+    app._renderFrame((t += 16));
+
+    // DOM overlays deactivate immediately, while the 3D stage stays visible during retreat
+    expect(app.harnessAct.active).toBe(false);
+    expect(app.harnessAct.root.visible).toBe(true);
+    expect(app.isCameraTransitioning()).toBe(true);
+
+    for (let i = 0; i < 30; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(app.harnessAct.root.visible).toBe(true);
+
+    for (let i = 0; i < 80; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(app.isCameraTransitioning()).toBe(false);
+    expect(app.harnessAct.root.visible).toBe(false);
+    expect(app.camera.position.distanceTo(app.gatewayAct.act1InteriorCamPos)).toBeLessThan(0.25);
+  });
+
+  it('returns smoothly from Arsenal (0.70) to Gateway (0.20) in a single uninterrupted flight without flash or snap', async () => {
+    app = new PortfolioApp({
+      container,
+      canvas,
+      srAnnouncer: srAnnouncements,
+      enableLoader: true,
+      enableJourney: true
+    });
+    app.loaderController.complete();
+
+    let t = 1000;
+    app.journeyState.selectBranch('blue');
+    await app.navigateTo(2);
+    for (let i = 0; i < 120; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(app.harnessAct.active).toBe(true);
+    expect(app.journeyState.getProgress()).toBeCloseTo(0.7, 1);
+
+    const flightSpy = vi.spyOn(app, '_startCameraFlight');
+    await app.navigateTo(0);
+
+    for (let i = 0; i < 10; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(flightSpy).toHaveBeenCalledTimes(1);
+    expect(app.harnessAct.root.visible).toBe(true);
+
+    for (let i = 0; i < 100; i++) {
+      app._renderFrame((t += 16));
+    }
+    expect(app.isCameraTransitioning()).toBe(false);
+    expect(app.harnessAct.root.visible).toBe(false);
+    expect(app.scene.background.getHexString()).toBe('eaecef');
+    expect(app.camera.position.distanceTo(app.gatewayAct.act1EntranceCamPos)).toBeLessThan(0.25);
+
+    // Subsequent Gateway frames remain settled with zero jump
+    app._renderFrame((t += 16));
+    expect(app.scene.background.getHexString()).toBe('eaecef');
+    expect(app.camera.position.distanceTo(app.gatewayAct.act1EntranceCamPos)).toBeLessThan(0.25);
+  });
+
+  it('keeps ExperiencesAct origami constellation outside the Matrix White Room ultrawide frustum', () => {
+    app = new PortfolioApp({
+      container,
+      canvas,
+      srAnnouncer: srAnnouncements,
+      enableLoader: true,
+      enableJourney: true
+    });
+    app.loaderController.complete();
+
+    app.camera.aspect = 21 / 9;
+    app.camera.updateProjectionMatrix();
+    app.camera.position.copy(app.gatewayAct.act1EntranceCamPos);
+    const lookRightWithParallax = app.gatewayAct.act1EntranceLookAt.clone();
+    lookRightWithParallax.x += 0.45;
+    app.camera.lookAt(lookRightWithParallax);
+    app.camera.updateMatrixWorld(true);
+
+    // Leftmost desktop origami spans roughly -5 units from ExperiencesAct root center
+    const leftmostCorner = app.experiencesAct.root.position.clone();
+    leftmostCorner.x -= 5;
+    const projected = leftmostCorner.project(app.camera);
+    expect(projected.x).toBeGreaterThan(1.25);
+  });
 });

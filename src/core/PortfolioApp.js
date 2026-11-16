@@ -1523,9 +1523,9 @@ export class PortfolioApp {
       if (this.harnessAct) {
         const blueSettled = blueActive && !this._cameraFlight;
         this.harnessAct.setActive(blueSettled);
-        if (blueActive && this._cameraFlight) {
+        if (this._cameraFlight) {
           const flightProgress = this._cameraFlight.elapsed / Math.max(0.001, this._cameraFlight.duration);
-          if (flightProgress > 0.35) {
+          if ((blueActive && flightProgress > 0.35) || this._cameraFlight.leavingBlue) {
             this.harnessAct.setStageVisible(true);
           }
         }
@@ -1606,11 +1606,15 @@ export class PortfolioApp {
     const isGatewayStation = activeStation?.id === 'gateway';
     const selectedBranch = this.journeyState?.getBranch();
     const inAct3Window = isGatewayStation && currentProgress >= 0.6 && currentProgress < 0.8;
+    const isLeavingAct3ToGateway = isGatewayStation &&
+      this._branchCameraOwner === null &&
+      this.scrollEngine &&
+      this.scrollEngine.getTargetProgress() < 0.6;
 
-    if (this.experiencesAct && (activeStation?.id === 'lab' || (inAct3Window && selectedBranch === 'red'))) {
+    if (this.experiencesAct && (activeStation?.id === 'lab' || (inAct3Window && !isLeavingAct3ToGateway && selectedBranch === 'red'))) {
       return 'red';
     }
-    if (this.harnessAct && (activeStation?.id === 'arsenal' || (inAct3Window && selectedBranch === 'blue'))) {
+    if (this.harnessAct && (activeStation?.id === 'arsenal' || (inAct3Window && !isLeavingAct3ToGateway && selectedBranch === 'blue'))) {
       return 'blue';
     }
     return null;
@@ -1650,7 +1654,7 @@ export class PortfolioApp {
 
     // All stations share a camera; the flight owns it until the dolly finishes.
     if (this._cameraFlight) {
-      this._advanceCameraFlight(Math.min(frameDelta, 0.5));
+      this._advanceCameraFlight(delta);
     }
 
     return branchMode;
@@ -1661,8 +1665,13 @@ export class PortfolioApp {
     if (!this.camera) return;
     const normalizedMode = branchMode === true ? 'red' : branchMode === false ? null : branchMode;
     const inAct3Branch = normalizedMode === 'red' || normalizedMode === 'blue';
+    const leavingBlue = normalizedMode !== 'blue' && Boolean(this.harnessAct?.root?.visible || this.harnessAct?.active);
+    const destProgress = this.scrollEngine
+      ? this.scrollEngine.getTargetProgress()
+      : (this.journeyState?.getProgress() ?? 0.4);
+
     if (!inAct3Branch && this.getActiveStation().id === 'gateway' && this.pillChoiceAct) {
-      this.pillChoiceAct.rootGroup.visible = true;
+      this.pillChoiceAct.rootGroup.visible = destProgress >= 0.22;
     }
     const start = this.camera.position.clone();
     const direction = this.camera.getWorldDirection(new THREE.Vector3());
@@ -1677,7 +1686,7 @@ export class PortfolioApp {
     } else if (normalizedMode === 'blue') {
       backgroundTarget = HARNESS_BG_COLOR.clone();
     } else if (this.getActiveStation().id === 'gateway' && this.gatewayAct) {
-      backgroundTarget = (this.journeyState?.getProgress() ?? 0.4) <= 0.25
+      backgroundTarget = destProgress <= 0.25
         ? this.gatewayAct._lightRoomColor.clone()
         : this.gatewayAct._darkRoomColor.clone();
     } else {
@@ -1689,9 +1698,29 @@ export class PortfolioApp {
     if (normalizedMode === 'blue') {
       targetFogNear = 26;
       targetFogFar = 64;
-    } else if (normalizedMode !== 'red' && (this.journeyState?.getProgress() ?? 0.4) <= 0.1) {
+    } else if (normalizedMode !== 'red' && destProgress <= 0.1) {
       targetFogNear = 0.77;
       targetFogFar = 2.32;
+    } else if (normalizedMode !== 'red' && destProgress <= 0.205 && this.getActiveStation().id === 'gateway') {
+      const fogT = Math.max(0, Math.min(destProgress / 0.2, 1.0));
+      targetFogNear = 0.77 + fogT * 50;
+      targetFogFar = 2.32 + fogT * 200;
+    }
+
+    let targetAmbient = null;
+    if (normalizedMode === 'blue') {
+      targetAmbient = 0.55;
+    } else if (leavingBlue) {
+      if (this.getActiveStation().id === 'gateway' && this.gatewayAct) {
+        let dimT = 0;
+        if (destProgress > 0.22 && destProgress <= 0.65) {
+          const rawDim = Math.max(0, Math.min((destProgress - 0.22) / 0.13, 1.0));
+          dimT = rawDim * rawDim * (3 - 2 * rawDim);
+        }
+        targetAmbient = 0.12 * (1 - dimT * 0.97);
+      } else {
+        targetAmbient = 0.9;
+      }
     }
 
     this._cameraFlight = {
@@ -1701,6 +1730,7 @@ export class PortfolioApp {
       target: target.clone(),
       branchMode: normalizedMode,
       projects: inAct3Branch,
+      leavingBlue,
       curve: new THREE.CubicBezierCurve3(
         start,
         start.clone().lerp(end, 0.25).add(new THREE.Vector3(0, 1.2, 0)),
@@ -1714,7 +1744,7 @@ export class PortfolioApp {
       targetFogNear,
       targetFogFar,
       startAmbient: this.ambientLight ? this.ambientLight.intensity : 0.9,
-      targetAmbient: normalizedMode === 'blue' ? 0.55 : null,
+      targetAmbient,
     };
     this._isCameraTransitioning = true;
   }
@@ -1741,6 +1771,9 @@ export class PortfolioApp {
     if (t === 1) {
       this._cameraFlight = null;
       this._isCameraTransitioning = false;
+      if (flight.leavingBlue && this.harnessAct) {
+        this.harnessAct.setStageVisible(false);
+      }
       if (flight.projects && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = false;
       if (!flight.projects && this.getActiveStation().id === 'gateway') {
         this.gatewayAct?.rebaseCamera(this.camera.position, this._currentCamLookAt);
@@ -1978,13 +2011,17 @@ export class PortfolioApp {
             : null;
       this._branchCameraOwner = targetBranchMode;
       this._projectsCameraOwned = targetBranchMode === 'red';
+      const destProgress = this.scrollEngine?.snapPoints?.[stationIndex] ??
+        (this.scrollEngine ? this.scrollEngine.getTargetProgress() : 0.4);
       const pose =
         targetBranchMode === 'red'
           ? this.experiencesAct.getCameraPose(this._scratchExperiencesPose)
           : targetBranchMode === 'blue'
             ? this.harnessAct.getCameraPose(this._scratchExperiencesPose)
             : (activeStation.id === 'gateway' && wasBranchOwned && this.gatewayAct)
-              ? { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt }
+              ? (destProgress <= 0.25
+                  ? { position: this.gatewayAct.act1EntranceCamPos, target: this.gatewayAct.act1EntranceLookAt }
+                  : { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt })
               : { position: this._targetCamPos, target: this._targetCamLookAt };
       this._startCameraFlight(pose.position, pose.target, targetBranchMode);
     }

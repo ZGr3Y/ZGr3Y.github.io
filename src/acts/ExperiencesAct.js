@@ -28,7 +28,8 @@ export class ExperiencesAct {
 
     this.root = new THREE.Group();
     this.root.name = 'ExperiencesConstellation';
-    this.root.position.set(42, 0, -12);
+    // Keep the origami constellation outside wide Matrix White Room camera frustums.
+    this.root.position.set(64, 0, -10);
     scene.add(this.root);
 
     this.host = document.createElement('section');
