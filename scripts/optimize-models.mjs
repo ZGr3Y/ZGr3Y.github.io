@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, resample, textureCompress } from '@gltf-transform/functions';
+import { prune, dedup, resample, textureCompress, weld, quantize } from '@gltf-transform/functions';
 import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,8 +63,84 @@ const MODELS = [
     name: 'ricks_ship_from_rick_and_morty.glb',
     quality: 85,
     resize: [1024, 1024]
+  },
+  {
+    name: 'surveillance_room.glb',
+    quality: 82,
+    resize: [1024, 1024],
+    compactUnlitGeometry: true
   }
 ];
+
+function compactUnlitRoomMeshes(doc) {
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      prim.setAttribute('NORMAL', null);
+      const isCables = prim.getMaterial()?.getName() === 'Shading2_cables';
+      const posAttr = prim.getAttribute('POSITION');
+      const uvAttr = prim.getAttribute('TEXCOORD_0');
+      if (!posAttr || !uvAttr) continue;
+      const pos = posAttr.getArray();
+      const uv = uvAttr.getArray();
+      const seen = new Map();
+      const grid = isCables ? 34 : 500;
+      const uvTol = isCables ? 0.006 : 0.002;
+      for (let i = 0; i < pos.length / 3; i++) {
+        const pk =
+          Math.round(pos[i * 3] * grid) +
+          ',' +
+          Math.round(pos[i * 3 + 1] * grid) +
+          ',' +
+          Math.round(pos[i * 3 + 2] * grid);
+        const u = uv[i * 2];
+        const v = uv[i * 2 + 1];
+        const bucket = seen.get(pk);
+        if (!bucket) {
+          seen.set(pk, [{ u, v, x: pos[i * 3], y: pos[i * 3 + 1], z: pos[i * 3 + 2] }]);
+        } else {
+          let matched = null;
+          for (const entry of bucket) {
+            if (Math.abs(u - entry.u) <= uvTol && Math.abs(v - entry.v) <= uvTol) {
+              matched = entry;
+              break;
+            }
+          }
+          if (matched) {
+            pos[i * 3] = matched.x;
+            pos[i * 3 + 1] = matched.y;
+            pos[i * 3 + 2] = matched.z;
+            uv[i * 2] = matched.u;
+            uv[i * 2 + 1] = matched.v;
+          } else {
+            bucket.push({ u, v, x: pos[i * 3], y: pos[i * 3 + 1], z: pos[i * 3 + 2] });
+          }
+        }
+      }
+      posAttr.setArray(pos);
+      uvAttr.setArray(uv);
+    }
+  }
+}
+
+function stripDegenerateTriangles(doc) {
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const idxAttr = prim.getIndices();
+      if (!idxAttr) continue;
+      const idx = idxAttr.getArray();
+      const filtered = [];
+      for (let i = 0; i < idx.length; i += 3) {
+        const a = idx[i];
+        const b = idx[i + 1];
+        const c = idx[i + 2];
+        if (a !== b && b !== c && a !== c) {
+          filtered.push(a, b, c);
+        }
+      }
+      idxAttr.setArray(new Uint16Array(filtered));
+    }
+  }
+}
 
 async function run() {
   if (!fs.existsSync(inputDir)) {
@@ -119,18 +195,35 @@ async function run() {
       }
     }
 
-    // Apply optimizations
-    await doc.transform(
-      dedup(),
-      resample(),
-      textureCompress({
-        encoder: sharp,
-        targetFormat: 'webp',
-        quality: modelConfig.quality,
-        resize: modelConfig.resize
-      }),
-      prune()
-    );
+    if (modelConfig.compactUnlitGeometry) {
+      compactUnlitRoomMeshes(doc);
+      await doc.transform(dedup(), resample(), weld());
+      stripDegenerateTriangles(doc);
+      await doc.transform(
+        weld(),
+        quantize(),
+        textureCompress({
+          encoder: sharp,
+          targetFormat: 'webp',
+          quality: modelConfig.quality,
+          resize: modelConfig.resize
+        }),
+        prune()
+      );
+    } else {
+      // Apply optimizations
+      await doc.transform(
+        dedup(),
+        resample(),
+        textureCompress({
+          encoder: sharp,
+          targetFormat: 'webp',
+          quality: modelConfig.quality,
+          resize: modelConfig.resize
+        }),
+        prune()
+      );
+    }
 
     const optimizedBuffer = await io.writeBinary(doc);
     fs.writeFileSync(destPath, Buffer.from(optimizedBuffer));

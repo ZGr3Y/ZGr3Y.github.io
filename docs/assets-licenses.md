@@ -64,3 +64,12 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Author**: Micheal-Holloway ([https://sketchfab.com/Micheal-Holloway](https://sketchfab.com/Micheal-Holloway))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
 - **Modifications**: Preserved KHR transmission material properties while compressing diffuse/emissive textures to WebP.
+
+---
+
+## 8. Surveillance Room
+- **Production Asset**: `public/models/surveillance_room.glb`
+- **Original Title**: [Surveillance room](https://sketchfab.com/3d-models/surveillance-room-7fd56cd3917443a99966352beefd8304)
+- **Author**: wa_rouk ([https://sketchfab.com/wa_rouk](https://sketchfab.com/wa_rouk))
+- **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
+- **Modifications**: Welded duplicate cable geometry, quantized vertex attributes, and compressed baked lightmap textures to WebP.
