@@ -5,15 +5,17 @@
  * Paolo Maria Scarlata (ZGr3Y) Portfolio
  *
  * Compresses raw 3D assets from 3dObj/ into lightweight, production-ready
- * WebGL assets in public/models/ using WebP texture compression and animation pruning.
+ * WebGL assets in public/models/ using WebP texture compression, Meshopt geometry
+ * compression (preserving normals and UV fidelity), and animation pruning.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, resample, textureCompress, weld, quantize } from '@gltf-transform/functions';
+import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
+import { prune, dedup, resample, textureCompress, weld, meshopt } from '@gltf-transform/functions';
+import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,32 +28,38 @@ const outputDir = path.join(rootDir, 'public', 'models');
 const MODELS = [
   {
     name: 'the_hitchhikers_guide_to_the_galaxy.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'the_matrix_white_room.glb',
-    quality: 80,
-    resize: [1024, 1024]
+    quality: 85,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'hand.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [2048, 2048],
+    meshopt: true
   },
   {
     name: 'robotic_hand.glb',
-    quality: 80,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'origami_unicorn_from_blade_runner.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [2048, 2048],
+    meshopt: true
   },
   {
     name: 'portal_2_wheatly_rig.glb',
-    quality: 85,
+    // Omit meshopt: out-of-range UVs and skeletal skinning cause meshopt to skip compression and bloat the GLB past 5 MB.
+    quality: 88,
     resize: [1024, 1024],
     keepAnimations: [
       'core_personality_sphere_base_skeleton|core01_idle',
@@ -61,85 +69,68 @@ const MODELS = [
   },
   {
     name: 'ricks_ship_from_rick_and_morty.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'surveillance_room.glb',
-    quality: 82,
-    resize: [1024, 1024],
-    compactUnlitGeometry: true
+    quality: 90,
+    resize: [2048, 2048],
+    materialResizes: {
+      material: [4096, 4096]
+    },
+    quantizeTexcoord: 15,
+    meshopt: true,
+    skipWeld: true
   }
 ];
 
-function compactUnlitRoomMeshes(doc) {
-  for (const mesh of doc.getRoot().listMeshes()) {
-    for (const prim of mesh.listPrimitives()) {
-      prim.setAttribute('NORMAL', null);
-      const isCables = prim.getMaterial()?.getName() === 'Shading2_cables';
-      const posAttr = prim.getAttribute('POSITION');
-      const uvAttr = prim.getAttribute('TEXCOORD_0');
-      if (!posAttr || !uvAttr) continue;
-      const pos = posAttr.getArray();
-      const uv = uvAttr.getArray();
-      const seen = new Map();
-      const grid = isCables ? 34 : 500;
-      const uvTol = isCables ? 0.006 : 0.002;
-      for (let i = 0; i < pos.length / 3; i++) {
-        const pk =
-          Math.round(pos[i * 3] * grid) +
-          ',' +
-          Math.round(pos[i * 3 + 1] * grid) +
-          ',' +
-          Math.round(pos[i * 3 + 2] * grid);
-        const u = uv[i * 2];
-        const v = uv[i * 2 + 1];
-        const bucket = seen.get(pk);
-        if (!bucket) {
-          seen.set(pk, [{ u, v, x: pos[i * 3], y: pos[i * 3 + 1], z: pos[i * 3 + 2] }]);
-        } else {
-          let matched = null;
-          for (const entry of bucket) {
-            if (Math.abs(u - entry.u) <= uvTol && Math.abs(v - entry.v) <= uvTol) {
-              matched = entry;
-              break;
-            }
-          }
-          if (matched) {
-            pos[i * 3] = matched.x;
-            pos[i * 3 + 1] = matched.y;
-            pos[i * 3 + 2] = matched.z;
-            uv[i * 2] = matched.u;
-            uv[i * 2 + 1] = matched.v;
-          } else {
-            bucket.push({ u, v, x: pos[i * 3], y: pos[i * 3 + 1], z: pos[i * 3 + 2] });
-          }
-        }
-      }
-      posAttr.setArray(pos);
-      uvAttr.setArray(uv);
-    }
+async function compressTexturesWithMaterialOverrides(doc, modelConfig) {
+  if (!modelConfig.materialResizes) {
+    await doc.transform(
+      textureCompress({
+        encoder: sharp,
+        targetFormat: 'webp',
+        quality: modelConfig.quality,
+        resize: modelConfig.resize
+      })
+    );
+    return;
   }
-}
 
-function stripDegenerateTriangles(doc) {
-  for (const mesh of doc.getRoot().listMeshes()) {
-    for (const prim of mesh.listPrimitives()) {
-      const idxAttr = prim.getIndices();
-      if (!idxAttr) continue;
-      const idx = idxAttr.getArray();
-      const filtered = [];
-      for (let i = 0; i < idx.length; i += 3) {
-        const a = idx[i];
-        const b = idx[i + 1];
-        const c = idx[i + 2];
-        if (a !== b && b !== c && a !== c) {
-          filtered.push(a, b, c);
-        }
+  const textureTargets = new Map();
+  for (const mat of doc.getRoot().listMaterials()) {
+    const override = modelConfig.materialResizes[mat.getName()];
+    const size = override || modelConfig.resize;
+    const slots = [
+      mat.getBaseColorTexture(),
+      mat.getNormalTexture(),
+      mat.getMetallicRoughnessTexture(),
+      mat.getEmissiveTexture(),
+      mat.getOcclusionTexture()
+    ];
+    for (const tex of slots) {
+      if (!tex) continue;
+      const prev = textureTargets.get(tex);
+      if (!prev || size[0] > prev[0] || size[1] > prev[1]) {
+        textureTargets.set(tex, size);
       }
-      idxAttr.setArray(new Uint16Array(filtered));
     }
   }
+
+  for (const tex of doc.getRoot().listTextures()) {
+    const [maxW, maxH] = textureTargets.get(tex) || modelConfig.resize;
+    const rawImage = tex.getImage();
+    if (!rawImage) continue;
+    const encoded = await sharp(Buffer.from(rawImage))
+      .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: modelConfig.quality })
+      .toBuffer();
+    tex.setImage(new Uint8Array(encoded)).setMimeType('image/webp');
+  }
+
+  doc.createExtension(EXTTextureWebP).setRequired(true);
 }
 
 async function run() {
@@ -152,7 +143,15 @@ async function run() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+  await MeshoptEncoder.ready;
+  await MeshoptDecoder.ready;
+
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({
+      'meshopt.decoder': MeshoptDecoder,
+      'meshopt.encoder': MeshoptEncoder
+    });
 
   console.log('='.repeat(70));
   console.log(' Starting 3D Model Optimization Pipeline');
@@ -195,35 +194,25 @@ async function run() {
       }
     }
 
-    if (modelConfig.compactUnlitGeometry) {
-      compactUnlitRoomMeshes(doc);
-      await doc.transform(dedup(), resample(), weld());
-      stripDegenerateTriangles(doc);
-      await doc.transform(
-        weld(),
-        quantize(),
-        textureCompress({
-          encoder: sharp,
-          targetFormat: 'webp',
-          quality: modelConfig.quality,
-          resize: modelConfig.resize
-        }),
-        prune()
-      );
-    } else {
-      // Apply optimizations
-      await doc.transform(
-        dedup(),
-        resample(),
-        textureCompress({
-          encoder: sharp,
-          targetFormat: 'webp',
-          quality: modelConfig.quality,
-          resize: modelConfig.resize
-        }),
-        prune()
+    const transforms = [dedup(), resample()];
+    if (!modelConfig.skipWeld) {
+      transforms.push(weld());
+    }
+    if (modelConfig.meshopt) {
+      transforms.push(
+        meshopt({
+          encoder: MeshoptEncoder,
+          level: 'medium',
+          quantizePosition: 16,
+          quantizeNormal: 12,
+          quantizeTexcoord: modelConfig.quantizeTexcoord || 14
+        })
       );
     }
+
+    await doc.transform(...transforms);
+    await compressTexturesWithMaterialOverrides(doc, modelConfig);
+    await doc.transform(prune());
 
     const optimizedBuffer = await io.writeBinary(doc);
     fs.writeFileSync(destPath, Buffer.from(optimizedBuffer));
@@ -243,10 +232,10 @@ async function run() {
   console.log(` Total Optimized Size: ${(totalOptimizedBytes / (1024 * 1024)).toFixed(2)} MB`);
   const overallSavings = (((totalRawBytes - totalOptimizedBytes) / totalRawBytes) * 100).toFixed(1);
   console.log(` Overall Bundle Saved: ${overallSavings}%`);
-  console.log('='.repeat(70) + '\n');
+  console.log('='.repeat(70));
 }
 
 run().catch((err) => {
-  console.error('Fatal error during model optimization:', err);
+  console.error('Optimization script failed:', err);
   process.exit(1);
 });

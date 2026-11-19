@@ -1,4 +1,5 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { disposeThreeObject } from '../utils/threeUtils.js';
 
 /**
@@ -14,6 +15,9 @@ export class AssetLibrary {
     this._cache = new Map();
     this._inFlight = new Map();
     this._loader = loader || new GLTFLoader();
+    if (typeof this._loader?.setMeshoptDecoder === 'function') {
+      this._loader.setMeshoptDecoder(MeshoptDecoder);
+    }
     this.isDisposed = false;
   }
 

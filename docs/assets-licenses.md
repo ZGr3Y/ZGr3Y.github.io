@@ -9,7 +9,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [The Hitchhiker's Guide to the Galaxy](https://sketchfab.com/3d-models/the-hitchhikers-guide-to-the-galaxy-03ff8b8ec77c41f1981011167622f837)
 - **Author**: vslite ([https://sketchfab.com/vslite](https://sketchfab.com/vslite))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Converted textures to WebP and optimized geometry for web delivery.
+- **Modifications**: Applied Meshopt geometry compression with high-precision quantization and converted textures to 1024px WebP (quality 88).
 
 ---
 
@@ -18,7 +18,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [The Matrix White Room](https://sketchfab.com/3d-models/the-matrix-white-room-063bcbf52b4e489e8920f6ff596238c5)
 - **Author**: commonfactory ([https://sketchfab.com/commonfactory](https://sketchfab.com/commonfactory))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Optimized draw calls, resized and converted textures to WebP.
+- **Modifications**: Applied Meshopt geometry compression with high-precision quantization and resized/converted textures to 1024px WebP (quality 85).
 
 ---
 
@@ -27,7 +27,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Hand](https://sketchfab.com/3d-models/hand-046563449b144c67a2f8cc54bf86835b)
 - **Author**: DJMaesen ([https://sketchfab.com/bumstrum](https://sketchfab.com/bumstrum))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Scaled down 2048px textures and converted PNG maps to WebP.
+- **Modifications**: Applied Meshopt geometry compression with high-precision quantization and converted textures to 2048px WebP (quality 88).
 
 ---
 
@@ -36,7 +36,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Robotic Hand](https://sketchfab.com/3d-models/robotic-hand-a1a352baccb243009687ad22a3e4364a)
 - **Author**: Jackal04 ([https://sketchfab.com/Jackal04](https://sketchfab.com/Jackal04))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Pruned duplicate materials, compressed texture channels to WebP.
+- **Modifications**: Pruned duplicate materials, applied Meshopt geometry compression, and compressed textures to 1024px WebP (quality 88).
 
 ---
 
@@ -45,7 +45,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Origami Unicorn from Blade Runner](https://sketchfab.com/3d-models/origami-unicorn-from-blade-runner-db71fff4ce64433d975244ac95b807c2)
 - **Author**: Glowbox 3D ([https://sketchfab.com/ra3id](https://sketchfab.com/ra3id))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Scaled textures and converted PNG to WebP.
+- **Modifications**: Applied Meshopt geometry compression with high-precision quantization and converted textures to 2048px WebP (quality 88).
 
 ---
 
@@ -54,7 +54,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Portal 2 Wheatly Rig](https://sketchfab.com/3d-models/portal-2-wheatly-rig-c0849dcda50b4b4293b53cbd48dd23ad)
 - **Author**: NO DONT EAT ME CASEOH (Ferris wheel) ([https://sketchfab.com/NO.DONT.EAT.ME.CASEOH](https://sketchfab.com/NO.DONT.EAT.ME.CASEOH))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Pruned ~95 unused cinematic animation clips down to 3 required interactive clips (`core01_idle`, look-tracking, `sphere_WideEye`), converted textures to WebP.
+- **Modifications**: Pruned unused cinematic animation clips down to 3 required interactive clips (`core01_idle`, `sphere_idle_front`, `sphere_WideEye`), converted textures to 1024px WebP (quality 88), and kept geometry uncompressed to preserve skeletal skinning and stay under the 5 MB limit.
 
 ---
 
@@ -63,7 +63,7 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Rick's ship from Rick and Morty](https://sketchfab.com/3d-models/ricks-ship-from-rick-and-morty-71dce3dd627146e9a1e4776a490e786b)
 - **Author**: Micheal-Holloway ([https://sketchfab.com/Micheal-Holloway](https://sketchfab.com/Micheal-Holloway))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Preserved KHR transmission material properties while compressing diffuse/emissive textures to WebP.
+- **Modifications**: Preserved KHR transmission material properties, applied Meshopt geometry compression, and compressed diffuse/emissive textures to 1024px WebP (quality 88).
 
 ---
 
@@ -72,4 +72,4 @@ This project incorporates 3D models licensed under the Creative Commons Attribut
 - **Original Title**: [Surveillance room](https://sketchfab.com/3d-models/surveillance-room-7fd56cd3917443a99966352beefd8304)
 - **Author**: wa_rouk ([https://sketchfab.com/wa_rouk](https://sketchfab.com/wa_rouk))
 - **License**: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Modifications**: Welded duplicate cable geometry, quantized vertex attributes, and compressed baked lightmap textures to WebP.
+- **Modifications**: Skipped vertex/cable welding to preserve UV seams, applied high-precision texcoord quantization (15-bit) with Meshopt geometry compression, and compressed baked textures to WebP (4096x4096 floor, 2048x2048 hardware and cables, quality 90).
