@@ -4,7 +4,8 @@ import { LoaderController } from '../src/core/LoaderController.js';
 import { LoaderUI } from '../src/ui/Loader.js';
 import { AssetLibrary } from '../src/core/AssetLibrary.js';
 import { JourneyScene } from '../src/core/JourneyScene.js';
-import { disposeThreeObject } from '../src/utils/threeUtils.js';
+import { applySceneAnisotropy, disposeThreeObject, resolveMaxAnisotropy } from '../src/utils/threeUtils.js';
+import { ExperiencesAct } from '../src/acts/ExperiencesAct.js';
 import { PortfolioApp } from '../src/core/PortfolioApp.js';
 
 describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Foundation', () => {
@@ -240,6 +241,17 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
 
       library.dispose();
     });
+
+    it('configures MeshoptDecoder on default GLTFLoader and safely accepts mock loaders without setMeshoptDecoder', () => {
+      const defaultLibrary = new AssetLibrary();
+      expect(defaultLibrary._loader.meshoptDecoder).toBeDefined();
+      expect(defaultLibrary._loader.meshoptDecoder.supported).toBe(true);
+      defaultLibrary.dispose();
+
+      const customLibrary = new AssetLibrary({ loader: { loadAsync: vi.fn() } });
+      expect(customLibrary._loader).toBeDefined();
+      customLibrary.dispose();
+    });
   });
 
   describe('JourneyScene (Hitchhiker Foundation & Rotation)', () => {
@@ -324,6 +336,36 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
       expect(normalTexture.dispose).toHaveBeenCalledTimes(1);
       expect(roughnessTexture.dispose).toHaveBeenCalledTimes(1);
     });
+
+    it('applySceneAnisotropy raises texture anisotropy across material slots without lowering existing values', () => {
+      const lowTex = { isTexture: true, anisotropy: 1, needsUpdate: false };
+      const bumpTex = { isTexture: true, anisotropy: 1, needsUpdate: false };
+      const highTex = { isTexture: true, anisotropy: 16, needsUpdate: false };
+      const root = new THREE.Group();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial()
+      );
+      mesh.material.map = lowTex;
+      mesh.material.bumpMap = bumpTex;
+      mesh.material.normalMap = highTex;
+      root.add(mesh);
+
+      applySceneAnisotropy(root, 8);
+
+      expect(lowTex.anisotropy).toBe(8);
+      expect(lowTex.needsUpdate).toBe(true);
+      expect(bumpTex.anisotropy).toBe(8);
+      expect(bumpTex.needsUpdate).toBe(true);
+      expect(highTex.anisotropy).toBe(16);
+      expect(highTex.needsUpdate).toBe(false);
+    });
+
+    it('resolveMaxAnisotropy clamps GPU anisotropy cap and provides a safe fallback', () => {
+      expect(resolveMaxAnisotropy({ capabilities: { getMaxAnisotropy: () => 32 } }, 16)).toBe(16);
+      expect(resolveMaxAnisotropy({ capabilities: { getMaxAnisotropy: () => 8 } }, 16)).toBe(8);
+      expect(resolveMaxAnisotropy(null, 16, 4)).toBe(4);
+    });
   });
 
   describe('PortfolioApp Integration (Loader & Idle Wake)', () => {
@@ -351,12 +393,15 @@ describe('Ticket 03: Loader "DON\'T PANIC" (42 Glitch) & Hitchhiker Scene Founda
         return Promise.resolve(mockModel);
       });
 
+      const expPrepSpy = vi.spyOn(ExperiencesAct.prototype, 'prepare').mockResolvedValue(undefined);
       const app = new PortfolioApp({
         container,
         canvas,
         srAnnouncer,
         enableLoader: true
       });
+      expect(expPrepSpy).toHaveBeenCalledTimes(1);
+      expect(expPrepSpy.mock.calls[0][0].layers.isEnabled(1)).toBe(true);
 
       const recordSpy = vi.spyOn(app.idleManager, 'recordActivity');
       const resumeSpy = vi.spyOn(app, '_resumeLoop');

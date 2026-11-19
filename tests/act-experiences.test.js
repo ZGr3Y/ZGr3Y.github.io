@@ -228,6 +228,24 @@ describe('ExperiencesAct (Origami Project Sheets & Lifecycle)', () => {
   });
 
   describe('Activation, Selection & Focus Lifecycle', () => {
+    it('enables layer 1 on prep camera and prewarms unfolded sheetMaps before restoring closed foil maps', async () => {
+      const h = createExperiencesHarness();
+      const prepCam = new THREE.PerspectiveCamera();
+      const compiledNormalMaps = [];
+      h.renderer.compileAsync.mockImplementation(async () => {
+        compiledNormalMaps.push(h.act.rearSurfaces[0]?.material.normalMap ?? null);
+      });
+
+      await h.act.prepare(prepCam);
+
+      expect(prepCam.layers.isEnabled(1)).toBe(true);
+      expect(compiledNormalMaps).toEqual([sheetMapsList[0].normal, foilMaps.normal]);
+      expect(h.act.rearSurfaces[0].material.normalMap).toBe(foilMaps.normal);
+      expect(h.act.papers[0].normalMap).toBe(foilMaps.normal);
+      expect(sheetMapsList[0].normal.anisotropy).toBe(8);
+      h.act.dispose();
+    });
+
     it('ignores open() until active and ready, then opens, focuses close, and restores trigger focus after close animation', async () => {
       let nowMs = 1000;
       vi.spyOn(performance, 'now').mockImplementation(() => nowMs);

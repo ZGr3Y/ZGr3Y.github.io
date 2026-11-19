@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PortfolioApp } from '../src/core/PortfolioApp.js';
+import { ExperiencesAct } from '../src/acts/ExperiencesAct.js';
 
 describe('PortfolioApp (Application Root Seam)', () => {
   let container;
@@ -811,5 +812,38 @@ describe('PortfolioApp (Application Root Seam)', () => {
     leftmostCorner.x -= 5;
     const projected = leftmostCorner.project(app.camera);
     expect(projected.x).toBeGreaterThan(1.25);
+  });
+
+  it('awaits full ExperiencesAct preparation inside loader assetPromise before marking ready', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveExpPrep;
+      const expPrepPromise = new Promise((resolve) => {
+        resolveExpPrep = resolve;
+      });
+      const prepareSpy = vi.spyOn(ExperiencesAct.prototype, 'prepare').mockReturnValueOnce(expPrepPromise);
+
+      app = new PortfolioApp({
+        container,
+        canvas,
+        srAnnouncer: srAnnouncements,
+        enableLoader: true,
+        enableJourney: true
+      });
+
+      expect(prepareSpy).toHaveBeenCalledTimes(1);
+      expect(app.loaderController.maxTimeoutMs).toBe(22000);
+
+      // Even after minDwellMs (4000ms), loader stays pending until ExperiencesAct preparation finishes
+      await vi.advanceTimersByTimeAsync(4500);
+      expect(app.loaderController.isReady).toBe(false);
+
+      resolveExpPrep();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(app.loaderController.isReady).toBe(true);
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
   });
 });

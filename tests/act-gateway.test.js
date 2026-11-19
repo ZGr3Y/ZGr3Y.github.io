@@ -1176,5 +1176,65 @@ describe('Ticket 05: Act Gateway (Matrix White Room Zoom-Through & Bio)', () => 
       app.destroy();
       container.remove();
     });
+
+    it('culls recessed TV_Screen animation nodes while keeping the active front frame interactive', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 100);
+      const act = new GatewayAct({ scene, camera });
+
+      const root = new THREE.Group();
+      const frame1 = new THREE.Group();
+      frame1.name = 'TV_Screen001_0';
+      frame1.position.set(0.01, 0, 0);
+      const screenMesh1 = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshStandardMaterial({ color: 0xffffff })
+      );
+      screenMesh1.name = 'Object_1';
+      frame1.add(screenMesh1);
+
+      const frame2 = new THREE.Group();
+      frame2.name = 'TV_Screen002_1';
+      frame2.position.set(0.01, 0, -0.01);
+      const screenMesh2 = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshStandardMaterial({ color: 0xffffff })
+      );
+      screenMesh2.name = 'Object_3';
+      frame2.add(screenMesh2);
+
+      const frame3 = new THREE.Group();
+      frame3.name = 'TV_Screen003_2';
+      frame3.position.set(0.01, 0, -0.01);
+      const screenMesh3 = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshStandardMaterial({ color: 0xffffff })
+      );
+      screenMesh3.name = 'Object_5';
+      frame3.add(screenMesh3);
+
+      root.add(frame1, frame2, frame3);
+      act.setWhiteRoomModel(root);
+
+      expect(frame1.visible).toBe(true);
+      expect(frame2.visible).toBe(false);
+      expect(frame3.visible).toBe(false);
+
+      const tvScreenRayTargets = act.tvInteractiveTargets.filter((target) =>
+        [screenMesh1, screenMesh2, screenMesh3].includes(target)
+      );
+      expect(tvScreenRayTargets).toEqual([screenMesh1]);
+
+      // Advance frame 2 to the front plane and verify visibility flips deterministically
+      frame1.position.z = -0.01;
+      frame2.position.z = 0;
+      act._syncTvAnimationFrames();
+
+      expect(frame1.visible).toBe(false);
+      expect(frame2.visible).toBe(true);
+      expect(frame3.visible).toBe(false);
+
+      act.dispose();
+    });
   });
 });
