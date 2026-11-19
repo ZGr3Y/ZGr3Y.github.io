@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import { disposeThreeObject } from '../utils/threeUtils.js';
+import {
+  applySceneAnisotropy,
+  disposeThreeObject,
+  prewarmSceneStage,
+  resolveMaxAnisotropy,
+} from '../utils/threeUtils.js';
 import { SURVEILLANCE_TECHS, drawTechBadgeCanvas } from './surveillanceCatalog.js';
 import { mountSurveillanceScreens, setScreenActiveVisual } from './surveillanceScreens.js';
 import './HarnessAct.css';
@@ -304,7 +309,8 @@ export class HarnessAct {
     cloned.traverse(child => {
       child.layers.set(HARNESS_LAYER);
       if (child.isMesh) {
-        child.frustumCulled = false;
+        child.geometry?.computeBoundingSphere?.();
+        child.frustumCulled = true;
         if (Array.isArray(child.material)) {
           child.material = child.material.map(m => (m ? m.clone() : m));
         } else if (child.material) {
@@ -319,9 +325,8 @@ export class HarnessAct {
     this.roomInstance = cloned;
     this.roomPivot.add(cloned);
 
-    const maxAniso = this.renderer?.capabilities?.getMaxAnisotropy
-      ? Math.min(8, this.renderer.capabilities.getMaxAnisotropy())
-      : 4;
+    const maxAniso = resolveMaxAnisotropy(this.renderer, 16);
+    applySceneAnisotropy(cloned, maxAniso);
     this._screenMount = mountSurveillanceScreens({
       roomPivot: this.roomPivot,
       roomInstance: cloned,
@@ -352,17 +357,31 @@ export class HarnessAct {
   }
 
   /**
-   * Pre-compiles GPU shaders for the surveillance room during initial loading.
+   * Pre-compiles GPU shaders and uploads screen textures for the surveillance room during loading.
    */
   async prepare(renderer = this.renderer, camera = this.camera) {
     if (!renderer || this.disposed || !this.scene || !camera) return;
     if (typeof renderer.compileAsync !== 'function') return;
 
     const wasVisible = this.root.visible;
+    const culling = [];
+    this.root.traverse(child => {
+      if (child.isMesh) {
+        culling.push([child, child.frustumCulled]);
+        child.frustumCulled = false;
+      }
+    });
+
     try {
       this.root.visible = true;
       await renderer.compileAsync(this.scene, camera);
+      if (!this.disposed) {
+        prewarmSceneStage(renderer, this.scene, camera);
+      }
     } finally {
+      for (const [child, wasCulled] of culling) {
+        child.frustumCulled = wasCulled;
+      }
       if (!this.disposed) {
         this.root.visible = wasVisible;
       }

@@ -17,6 +17,7 @@ import { PillChoiceAct } from '../acts/PillChoiceAct.js';
 import { ExperiencesAct } from '../acts/ExperiencesAct.js';
 import { HarnessAct, HARNESS_BG_COLOR } from '../acts/HarnessAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
+import { applySceneAnisotropy, resolveMaxAnisotropy } from '../utils/threeUtils.js';
 
 /**
  * PortfolioApp — Primary Application Root Seam
@@ -70,7 +71,7 @@ export class PortfolioApp {
     this._branchCameraOwner = null;
     this._lastProjectsActiveAttr = null;
     this._lastHarnessActiveAttr = null;
-    this._scratchExperiencesPose = {
+    this._scratchBranchPose = {
       position: new THREE.Vector3(),
       target: new THREE.Vector3(),
     };
@@ -958,7 +959,12 @@ export class PortfolioApp {
         projects: this.stations.find(station => station.id === 'lab').projects,
         wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
       });
-      this.experiencesAct.prepare();
+      const experiencesPrepCam = this.camera.clone();
+      experiencesPrepCam.layers?.enable?.(1);
+      const expPose = this.experiencesAct.getCameraPose(this._scratchBranchPose);
+      experiencesPrepCam.position.copy(expPose.position);
+      experiencesPrepCam.lookAt(expPose.target);
+      const experiencesReady = this.experiencesAct.prepare(experiencesPrepCam);
       this.harnessAct = new HarnessAct({
         container: this.container, scene: this.scene, camera: this.camera, renderer: this.renderer, canvas: this.canvas,
         wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
@@ -967,7 +973,7 @@ export class PortfolioApp {
       this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
       this.camera.lookAt(this._currentCamLookAt);
 
-      // Preload critical models and set Hitchhiker Guide in background
+      // Preload critical models, textures, and shaders in full during the loader screen
       const criticalModels = [
         './models/the_hitchhikers_guide_to_the_galaxy.glb',
         './models/the_matrix_white_room.glb',
@@ -975,9 +981,9 @@ export class PortfolioApp {
         './models/robotic_hand.glb',
         './models/surveillance_room.glb'
       ];
-      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels);
-      // Show the book as soon as it arrives, independently of the larger hand models.
-      const bookReady = this.assetLibrary.load(criticalModels[0]).then(book => {
+      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels, { timeoutMs: 20000 });
+      // Show the book as soon as it arrives, independently of the larger models.
+      const bookReady = this.assetLibrary.load(criticalModels[0], { timeoutMs: 20000 }).then(book => {
         if (book && !this.isDestroyed && this.journeyScene) {
           this.journeyScene.setHitchhikerModel(book);
           if (this.placeholderMesh && this.scene) {
@@ -987,7 +993,7 @@ export class PortfolioApp {
           this._resumeLoop();
         }
       });
-      const assetPromise = Promise.all([criticalAssets, bookReady])
+      const assetPromise = Promise.all([criticalAssets, bookReady, experiencesReady])
         .then(async ([models]) => {
           if (this.isDestroyed) return;
           const [, room, humanHand, roboticHand, surveillanceRoom] = models || [];
@@ -996,16 +1002,22 @@ export class PortfolioApp {
           if (roboticHand && this.pillChoiceAct) this.pillChoiceAct.setRoboticHandModel(roboticHand);
           if (surveillanceRoom && this.harnessAct) this.harnessAct.setRoomModel(surveillanceRoom);
 
+          const maxAniso = resolveMaxAnisotropy(this.renderer, 16);
+          applySceneAnisotropy(this.scene, maxAniso);
+
           if (this.renderer && this.pillChoiceAct) {
-            // Keep the loader's book frame intact while hidden scene variants prepare.
+            // Keep the loader's book frame intact while hidden scene variants compile and upload.
             this._isPreparingScene = true;
             try {
               const preparationCamera = this.camera.clone();
+              preparationCamera.position.copy(this.gatewayAct.act1EntranceCamPos);
+              preparationCamera.lookAt(this.gatewayAct.act1EntranceLookAt);
+              this.gatewayAct.prepare(this.renderer, preparationCamera);
               preparationCamera.position.copy(this.gatewayAct.act1InteriorCamPos);
               preparationCamera.lookAt(this.gatewayAct.act1InteriorLookAt);
               await this.pillChoiceAct.prepare(this.renderer, preparationCamera);
               if (this.harnessAct) {
-                const harnessPose = this.harnessAct.getCameraPose(this._scratchExperiencesPose);
+                const harnessPose = this.harnessAct.getCameraPose(this._scratchBranchPose);
                 preparationCamera.position.copy(harnessPose.position);
                 preparationCamera.lookAt(harnessPose.target);
                 await this.harnessAct.prepare(this.renderer, preparationCamera);
@@ -1032,6 +1044,7 @@ export class PortfolioApp {
 
         this.loaderController = new LoaderController({
           minDwellMs: 4000,
+          maxTimeoutMs: 22000,
           assetPromise,
           requireClick: true
         });
@@ -1634,7 +1647,7 @@ export class PortfolioApp {
     if (branchMode !== this._branchCameraOwner) {
       this._branchCameraOwner = branchMode;
       if (activeBranchAct) {
-        const pose = activeBranchAct.getCameraPose(this._scratchExperiencesPose);
+        const pose = activeBranchAct.getCameraPose(this._scratchBranchPose);
         this._startCameraFlight(pose.position, pose.target, branchMode);
       } else if (isGatewayStation && this.gatewayAct) {
         this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, null);
@@ -1642,7 +1655,7 @@ export class PortfolioApp {
     }
 
     if (activeBranchAct && !this._cameraFlight) {
-      const pose = activeBranchAct.getCameraPose(this._scratchExperiencesPose);
+      const pose = activeBranchAct.getCameraPose(this._scratchBranchPose);
       if (this.camera.position.distanceToSquared(pose.position) > 1e-6) {
         this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
       } else {
@@ -2015,9 +2028,9 @@ export class PortfolioApp {
         (this.scrollEngine ? this.scrollEngine.getTargetProgress() : 0.4);
       const pose =
         targetBranchMode === 'red'
-          ? this.experiencesAct.getCameraPose(this._scratchExperiencesPose)
+          ? this.experiencesAct.getCameraPose(this._scratchBranchPose)
           : targetBranchMode === 'blue'
-            ? this.harnessAct.getCameraPose(this._scratchExperiencesPose)
+            ? this.harnessAct.getCameraPose(this._scratchBranchPose)
             : (activeStation.id === 'gateway' && wasBranchOwned && this.gatewayAct)
               ? (destProgress <= 0.25
                   ? { position: this.gatewayAct.act1EntranceCamPos, target: this.gatewayAct.act1EntranceLookAt }

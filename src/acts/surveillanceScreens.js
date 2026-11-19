@@ -258,6 +258,8 @@ export function mountSurveillanceScreens({ roomPivot, roomInstance, maxAnisotrop
   // Replace Lumires mesh geometry with a cloned LED-only index buffer so cached asset stays untouched
   const ledGeo = baseGeo.clone();
   ledGeo.setIndex(ledIndices);
+  ledGeo.computeBoundingBox();
+  ledGeo.computeBoundingSphere();
   lumiresMesh.geometry = ledGeo;
   disposables.push(ledGeo);
 
@@ -283,7 +285,7 @@ export function mountSurveillanceScreens({ roomPivot, roomInstance, maxAnisotrop
     screenMesh.name = `SurveillanceScreen_${tech.id}`;
     screenMesh.position.copy(localCenter);
     screenMesh.layers.set(layer);
-    screenMesh.frustumCulled = false;
+    screenMesh.frustumCulled = true;
     screenMesh.userData.techIndex = idx;
     screenMesh.userData.techId = tech.id;
     screenMesh.userData.tech = tech;

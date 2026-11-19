@@ -3,6 +3,7 @@ import { createUnicornOpening, createUnicornOpeningTemplate } from './UnicornOpe
 import { foilStudio, paperGrain, referenceFoilMaps, metalSheetMaps, disposeTree } from './UnicornSurface.js';
 import { createProjectSheet, syncProjectSheet } from './ProjectSheetView.js';
 import { trapFocus } from '../utils/a11yUtils.js';
+import { prewarmSceneStage, resolveMaxAnisotropy } from '../utils/threeUtils.js';
 import './ExperiencesAct.css';
 
 const CLOSED_SURFACE_COLOR = new THREE.Color('#d1d5d8');
@@ -161,9 +162,9 @@ export class ExperiencesAct {
     });
   }
 
-  prepare() {
+  prepare(preparationCamera = this.camera) {
     if (!this.preparation) {
-      this.preparation = this.initialize().catch(error => {
+      this.preparation = this.initialize(preparationCamera).catch(error => {
         console.error('[ExperiencesAct]', error);
         this.statusEl.textContent = '3D preview unavailable.';
       });
@@ -171,7 +172,8 @@ export class ExperiencesAct {
     return this.preparation;
   }
 
-  async initialize() {
+  async initialize(preparationCamera = this.camera) {
+    preparationCamera?.layers?.enable?.(1);
     if (!this.renderer) return;
 
     const maps = await referenceFoilMaps();
@@ -200,7 +202,7 @@ export class ExperiencesAct {
     }
     this.camera.layers.enable(1);
 
-    const maxAnisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    const maxAnisotropy = resolveMaxAnisotropy(this.renderer, 8);
     maps.normal.anisotropy = maps.roughness.anisotropy = maxAnisotropy;
 
     const silver = new THREE.MeshStandardMaterial({
@@ -232,7 +234,7 @@ export class ExperiencesAct {
       return;
     }
 
-    const anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const anisotropy = resolveMaxAnisotropy(this.renderer, 16);
     for (const texture of this.sheetMaps.flatMap(surface => Object.values(surface))) {
       texture.anisotropy = anisotropy;
     }
@@ -296,8 +298,15 @@ export class ExperiencesAct {
     silver.dispose();
     this.ready = true;
     this.layout(0, 0);
-    await this.renderer.compileAsync(this.scene, this.camera);
+    // Warm unfolded metal sheet textures first, then restore closed rest state and prewarm foil shaders.
+    this.rigs.forEach((_, i) => this._syncRearSurface(i, 0.9, 1));
+    await this.renderer.compileAsync(this.scene, preparationCamera);
     if (this.disposed) return;
+    prewarmSceneStage(this.renderer, this.scene, preparationCamera);
+    this.layout(0, 0);
+    await this.renderer.compileAsync(this.scene, preparationCamera);
+    if (this.disposed) return;
+    prewarmSceneStage(this.renderer, this.scene, preparationCamera);
 
     this.statusEl.textContent = STATUS_IDLE_TEXT;
     this.wake();
