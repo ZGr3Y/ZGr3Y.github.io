@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import sharp from 'sharp';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { NORMAL_ROUGHNESS_WEBP_OPTIONS, writeNormalRoughnessPixel } from './lib/packNormalRoughness.mjs';
 
 const SHEET_SIZE = 2048;
 const SHEET_COUNT = 3;
-const WEBP_OPTIONS = { quality: 92, effort: 6, smartSubsample: true };
 const captures = [];
 
 globalThis.document = {
@@ -65,9 +65,8 @@ export function metalSheetMaps(variant = 0) {
         const dy = v - crease.y;
         const across = dx * crease.cos + dy * crease.sin;
         const along = -dx * crease.sin + dy * crease.cos;
-        relief += 0.021 * Math.exp(
-          -across * across * crease.invWidthSq - along * along * crease.invLengthSq
-        );
+        relief +=
+          0.021 * Math.exp(-across * across * crease.invWidthSq - along * along * crease.invLengthSq);
       }
       height[rowOffset + x] = relief;
     }
@@ -92,19 +91,9 @@ export function metalSheetMaps(variant = 0) {
     for (let x = 0; x < SHEET_SIZE; x++) {
       const nx = (sampleHeight(x - 1, y) - sampleHeight(x + 1, y)) * 40;
       const ny = (sampleHeight(x, y + 1) - sampleHeight(x, y - 1)) * 40;
-      const length = Math.hypot(nx, ny, 1);
-      const pixelOffset = (y * SHEET_SIZE + x) * 4;
-
-      normal.data[pixelOffset] = 128 + (127 * nx) / length;
-      normal.data[pixelOffset + 1] = 128 + (127 * ny) / length;
-      normal.data[pixelOffset + 2] = 128 + 127 / length;
-      normal.data[pixelOffset + 3] = 255;
-
-      const roughValue = 170 + height[y * SHEET_SIZE + x] * 400;
-      rough.data[pixelOffset] = roughValue;
-      rough.data[pixelOffset + 1] = roughValue;
-      rough.data[pixelOffset + 2] = roughValue;
-      rough.data[pixelOffset + 3] = 255;
+      const idx = y * SHEET_SIZE + x;
+      const roughValue = 170 + height[idx] * 400;
+      writeNormalRoughnessPixel(normal.data, rough.data, idx * 4, nx, ny, roughValue);
     }
   }
 
@@ -130,7 +119,7 @@ for (let index = 0; index < SHEET_COUNT; index++) {
   for (const [i, type] of ['normal', 'roughness'].entries()) {
     const image = captures[i];
     await sharp(image.data, { raw: { width: image.width, height: image.height, channels: 4 } })
-      .webp(WEBP_OPTIONS)
+      .webp(NORMAL_ROUGHNESS_WEBP_OPTIONS)
       .toFile(`${outputDir}${index}-${type}.webp`);
   }
   Object.values(maps).forEach(texture => texture.dispose());
