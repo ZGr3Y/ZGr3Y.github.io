@@ -673,5 +673,29 @@ describe('Ticket 06: Act Pill Choice (Human Blue / Robotic Red Hands & Gated Bra
       expect(app.pillChoiceAct.selectedBranch).toBe('blue');
       expect(app.scrollEngine.getTargetProgress()).toBe(0.60);
     });
+
+    it('batches additive red-pill glitch shards into one InstancedMesh that updates in place and disposes', () => {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 100);
+      const act = new PillChoiceAct({ scene, camera });
+
+      const instanced = act.redGlitchGroup.getObjectByName('RedPillGlitchShardsInstanced');
+      expect(instanced).toBeDefined();
+      expect(instanced.isInstancedMesh).toBe(true);
+      expect(instanced.count).toBeGreaterThan(0);
+
+      const initialMatrix = new Float32Array(instanced.instanceMatrix.array);
+      const initialColor = new Float32Array(instanced.instanceColor.array);
+
+      act.update({ progress: 0.38, delta: 0.1, speedFactor: 1 });
+      act.update({ progress: 0.38, delta: 0.1, speedFactor: 1 });
+
+      expect(Array.from(instanced.instanceMatrix.array)).not.toEqual(Array.from(initialMatrix));
+      expect(Array.from(instanced.instanceColor.array)).not.toEqual(Array.from(initialColor));
+
+      act.dispose();
+      expect(act._redGlitchInstanced).toBeNull();
+      expect(act._redGlitchShards).toEqual([]);
+    });
   });
 });

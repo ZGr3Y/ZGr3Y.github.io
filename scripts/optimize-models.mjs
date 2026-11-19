@@ -5,15 +5,17 @@
  * Paolo Maria Scarlata (ZGr3Y) Portfolio
  *
  * Compresses raw 3D assets from 3dObj/ into lightweight, production-ready
- * WebGL assets in public/models/ using WebP texture compression and animation pruning.
+ * WebGL assets in public/models/ using WebP texture compression, Meshopt geometry
+ * compression (preserving normals and UV fidelity), and animation pruning.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { prune, dedup, resample, textureCompress } from '@gltf-transform/functions';
+import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
+import { prune, dedup, resample, textureCompress, weld, meshopt } from '@gltf-transform/functions';
+import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,32 +28,38 @@ const outputDir = path.join(rootDir, 'public', 'models');
 const MODELS = [
   {
     name: 'the_hitchhikers_guide_to_the_galaxy.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'the_matrix_white_room.glb',
-    quality: 80,
-    resize: [1024, 1024]
+    quality: 85,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'hand.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [2048, 2048],
+    meshopt: true
   },
   {
     name: 'robotic_hand.glb',
-    quality: 80,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
   },
   {
     name: 'origami_unicorn_from_blade_runner.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [2048, 2048],
+    meshopt: true
   },
   {
     name: 'portal_2_wheatly_rig.glb',
-    quality: 85,
+    // Omit meshopt: out-of-range UVs and skeletal skinning cause meshopt to skip compression and bloat the GLB past 5 MB.
+    quality: 88,
     resize: [1024, 1024],
     keepAnimations: [
       'core_personality_sphere_base_skeleton|core01_idle',
@@ -61,10 +69,69 @@ const MODELS = [
   },
   {
     name: 'ricks_ship_from_rick_and_morty.glb',
-    quality: 85,
-    resize: [1024, 1024]
+    quality: 88,
+    resize: [1024, 1024],
+    meshopt: true
+  },
+  {
+    name: 'surveillance_room.glb',
+    quality: 90,
+    resize: [2048, 2048],
+    materialResizes: {
+      material: [4096, 4096]
+    },
+    quantizeTexcoord: 15,
+    meshopt: true,
+    skipWeld: true
   }
 ];
+
+async function compressTexturesWithMaterialOverrides(doc, modelConfig) {
+  if (!modelConfig.materialResizes) {
+    await doc.transform(
+      textureCompress({
+        encoder: sharp,
+        targetFormat: 'webp',
+        quality: modelConfig.quality,
+        resize: modelConfig.resize
+      })
+    );
+    return;
+  }
+
+  const textureTargets = new Map();
+  for (const mat of doc.getRoot().listMaterials()) {
+    const override = modelConfig.materialResizes[mat.getName()];
+    const size = override || modelConfig.resize;
+    const slots = [
+      mat.getBaseColorTexture(),
+      mat.getNormalTexture(),
+      mat.getMetallicRoughnessTexture(),
+      mat.getEmissiveTexture(),
+      mat.getOcclusionTexture()
+    ];
+    for (const tex of slots) {
+      if (!tex) continue;
+      const prev = textureTargets.get(tex);
+      if (!prev || size[0] > prev[0] || size[1] > prev[1]) {
+        textureTargets.set(tex, size);
+      }
+    }
+  }
+
+  for (const tex of doc.getRoot().listTextures()) {
+    const [maxW, maxH] = textureTargets.get(tex) || modelConfig.resize;
+    const rawImage = tex.getImage();
+    if (!rawImage) continue;
+    const encoded = await sharp(Buffer.from(rawImage))
+      .resize(maxW, maxH, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: modelConfig.quality })
+      .toBuffer();
+    tex.setImage(new Uint8Array(encoded)).setMimeType('image/webp');
+  }
+
+  doc.createExtension(EXTTextureWebP).setRequired(true);
+}
 
 async function run() {
   if (!fs.existsSync(inputDir)) {
@@ -76,7 +143,15 @@ async function run() {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+  await MeshoptEncoder.ready;
+  await MeshoptDecoder.ready;
+
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({
+      'meshopt.decoder': MeshoptDecoder,
+      'meshopt.encoder': MeshoptEncoder
+    });
 
   console.log('='.repeat(70));
   console.log(' Starting 3D Model Optimization Pipeline');
@@ -119,18 +194,25 @@ async function run() {
       }
     }
 
-    // Apply optimizations
-    await doc.transform(
-      dedup(),
-      resample(),
-      textureCompress({
-        encoder: sharp,
-        targetFormat: 'webp',
-        quality: modelConfig.quality,
-        resize: modelConfig.resize
-      }),
-      prune()
-    );
+    const transforms = [dedup(), resample()];
+    if (!modelConfig.skipWeld) {
+      transforms.push(weld());
+    }
+    if (modelConfig.meshopt) {
+      transforms.push(
+        meshopt({
+          encoder: MeshoptEncoder,
+          level: 'medium',
+          quantizePosition: 16,
+          quantizeNormal: 12,
+          quantizeTexcoord: modelConfig.quantizeTexcoord || 14
+        })
+      );
+    }
+
+    await doc.transform(...transforms);
+    await compressTexturesWithMaterialOverrides(doc, modelConfig);
+    await doc.transform(prune());
 
     const optimizedBuffer = await io.writeBinary(doc);
     fs.writeFileSync(destPath, Buffer.from(optimizedBuffer));
@@ -150,10 +232,10 @@ async function run() {
   console.log(` Total Optimized Size: ${(totalOptimizedBytes / (1024 * 1024)).toFixed(2)} MB`);
   const overallSavings = (((totalRawBytes - totalOptimizedBytes) / totalRawBytes) * 100).toFixed(1);
   console.log(` Overall Bundle Saved: ${overallSavings}%`);
-  console.log('='.repeat(70) + '\n');
+  console.log('='.repeat(70));
 }
 
 run().catch((err) => {
-  console.error('Fatal error during model optimization:', err);
+  console.error('Optimization script failed:', err);
   process.exit(1);
 });

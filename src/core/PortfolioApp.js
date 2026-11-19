@@ -15,7 +15,9 @@ import { BioHologram } from '../ui/BioHologram.js';
 import { GatewayAct } from '../acts/GatewayAct.js';
 import { PillChoiceAct } from '../acts/PillChoiceAct.js';
 import { ExperiencesAct } from '../acts/ExperiencesAct.js';
+import { HarnessAct, HARNESS_BG_COLOR } from '../acts/HarnessAct.js';
 import { trapFocus } from '../utils/a11yUtils.js';
+import { applySceneAnisotropy, resolveMaxAnisotropy } from '../utils/threeUtils.js';
 
 /**
  * PortfolioApp — Primary Application Root Seam
@@ -58,12 +60,21 @@ export class PortfolioApp {
     this.gatewayAct = null;
     this.pillChoiceAct = null;
     this.experiencesAct = null;
+    this.harnessAct = null;
     this.pointer = { x: 0, y: 0 };
     this.idleManager = null;
     this._animFrameId = null;
     this._isLoopRunning = false;
     this._isPreparingScene = false;
     this._lastFrameTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this._projectsCameraOwned = false;
+    this._branchCameraOwner = null;
+    this._lastProjectsActiveAttr = null;
+    this._lastHarnessActiveAttr = null;
+    this._scratchBranchPose = {
+      position: new THREE.Vector3(),
+      target: new THREE.Vector3(),
+    };
 
     // Floating Minimalist HUD Navigation state
     this.hudNav = null;
@@ -948,21 +959,31 @@ export class PortfolioApp {
         projects: this.stations.find(station => station.id === 'lab').projects,
         wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
       });
-      this.experiencesAct.prepare();
+      const experiencesPrepCam = this.camera.clone();
+      experiencesPrepCam.layers?.enable?.(1);
+      const expPose = this.experiencesAct.getCameraPose(this._scratchBranchPose);
+      experiencesPrepCam.position.copy(expPose.position);
+      experiencesPrepCam.lookAt(expPose.target);
+      const experiencesReady = this.experiencesAct.prepare(experiencesPrepCam);
+      this.harnessAct = new HarnessAct({
+        container: this.container, scene: this.scene, camera: this.camera, renderer: this.renderer, canvas: this.canvas,
+        wake: () => { this.idleManager?.recordActivity(); this._resumeLoop(); }
+      });
       this.camera.position.copy(this.gatewayAct.act0CamPos);
       this._currentCamLookAt.copy(this.gatewayAct.act0LookAt);
       this.camera.lookAt(this._currentCamLookAt);
 
-      // Preload critical models and set Hitchhiker Guide in background
+      // Preload critical models, textures, and shaders in full during the loader screen
       const criticalModels = [
         './models/the_hitchhikers_guide_to_the_galaxy.glb',
         './models/the_matrix_white_room.glb',
         './models/hand.glb',
-        './models/robotic_hand.glb'
+        './models/robotic_hand.glb',
+        './models/surveillance_room.glb'
       ];
-      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels);
-      // Show the book as soon as it arrives, independently of the larger hand models.
-      const bookReady = this.assetLibrary.load(criticalModels[0]).then(book => {
+      const criticalAssets = this.assetLibrary.preloadCritical(criticalModels, { timeoutMs: 20000 });
+      // Show the book as soon as it arrives, independently of the larger models.
+      const bookReady = this.assetLibrary.load(criticalModels[0], { timeoutMs: 20000 }).then(book => {
         if (book && !this.isDestroyed && this.journeyScene) {
           this.journeyScene.setHitchhikerModel(book);
           if (this.placeholderMesh && this.scene) {
@@ -972,22 +993,35 @@ export class PortfolioApp {
           this._resumeLoop();
         }
       });
-      const assetPromise = Promise.all([criticalAssets, bookReady])
+      const assetPromise = Promise.all([criticalAssets, bookReady, experiencesReady])
         .then(async ([models]) => {
           if (this.isDestroyed) return;
-          const [, room, humanHand, roboticHand] = models;
+          const [, room, humanHand, roboticHand, surveillanceRoom] = models || [];
           if (room && this.gatewayAct) this.gatewayAct.setWhiteRoomModel(room);
           if (humanHand && this.pillChoiceAct) this.pillChoiceAct.setHumanHandModel(humanHand);
           if (roboticHand && this.pillChoiceAct) this.pillChoiceAct.setRoboticHandModel(roboticHand);
+          if (surveillanceRoom && this.harnessAct) this.harnessAct.setRoomModel(surveillanceRoom);
+
+          const maxAniso = resolveMaxAnisotropy(this.renderer, 16);
+          applySceneAnisotropy(this.scene, maxAniso);
 
           if (this.renderer && this.pillChoiceAct) {
-            // Keep the loader's book frame intact while hidden scene variants prepare.
+            // Keep the loader's book frame intact while hidden scene variants compile and upload.
             this._isPreparingScene = true;
             try {
               const preparationCamera = this.camera.clone();
+              preparationCamera.position.copy(this.gatewayAct.act1EntranceCamPos);
+              preparationCamera.lookAt(this.gatewayAct.act1EntranceLookAt);
+              this.gatewayAct.prepare(this.renderer, preparationCamera);
               preparationCamera.position.copy(this.gatewayAct.act1InteriorCamPos);
               preparationCamera.lookAt(this.gatewayAct.act1InteriorLookAt);
               await this.pillChoiceAct.prepare(this.renderer, preparationCamera);
+              if (this.harnessAct) {
+                const harnessPose = this.harnessAct.getCameraPose(this._scratchBranchPose);
+                preparationCamera.position.copy(harnessPose.position);
+                preparationCamera.lookAt(harnessPose.target);
+                await this.harnessAct.prepare(this.renderer, preparationCamera);
+              }
               if (!this.isDestroyed) this.renderer.render(this.scene, this.camera);
             } finally {
               this._isPreparingScene = false;
@@ -1010,6 +1044,7 @@ export class PortfolioApp {
 
         this.loaderController = new LoaderController({
           minDwellMs: 4000,
+          maxTimeoutMs: 22000,
           assetPromise,
           requireClick: true
         });
@@ -1428,29 +1463,13 @@ export class PortfolioApp {
       const delta = Math.min(frameDelta, .1);
       this._lastFrameTime = currentTime;
 
-      const isGatewayStation = this.getActiveStation().id === 'gateway';
+      const activeStation = this.getActiveStation();
+      const isGatewayStation = activeStation.id === 'gateway';
       const currentProgress = this.journeyState ? this.journeyState.getProgress() : 0;
-      const projectsDesired = Boolean(this.experiencesAct && (this.getActiveStation().id === 'lab' ||
-        (isGatewayStation && this.journeyState?.getBranch() === 'red' && currentProgress >= .6 && currentProgress < .8)));
-      if (projectsDesired !== Boolean(this._projectsCameraOwned)) {
-        this._projectsCameraOwned = projectsDesired;
-        if (projectsDesired) {
-          const pose = this.experiencesAct.getCameraPose();
-          this._startCameraFlight(pose.position, pose.target, true);
-        } else if (isGatewayStation && this.gatewayAct) {
-          this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, false);
-        }
-      }
-      if (projectsDesired && !this._cameraFlight) {
-        const pose = this.experiencesAct.getCameraPose();
-        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
-        this._currentCamLookAt.copy(pose.target); this.camera.lookAt(pose.target);
-      }
-      // All stations share a camera; the flight owns it until the dolly finishes.
-      if (this._cameraFlight) this._advanceCameraFlight(Math.min(frameDelta, .5));
+      const activeBranchMode = this._syncBranchCamera(activeStation, currentProgress, delta, frameDelta);
 
-      const shouldAdvanceWaypoint = !projectsDesired && (this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001));
-      if (this.camera && shouldAdvanceWaypoint && !this._cameraFlight && !projectsDesired) {
+      const shouldAdvanceWaypoint = !activeBranchMode && (this._isCameraTransitioning || (!isGatewayStation && this.camera && this.camera.position.distanceToSquared(this._targetCamPos) > 0.0001));
+      if (this.camera && shouldAdvanceWaypoint && !this._cameraFlight && !activeBranchMode) {
         const camLerp = Math.min(1.0, Math.max(0.01, delta * 3.5));
         this.camera.position.lerp(this._targetCamPos, camLerp);
         this._currentCamLookAt.lerp(this._targetCamLookAt, camLerp);
@@ -1482,7 +1501,7 @@ export class PortfolioApp {
         this.placeholderMesh.rotation.x += delta * 0.08 * speedFactor;
       }
 
-      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
+      if (this.gatewayAct && isGatewayStation && !this._isCameraTransitioning && !activeBranchMode) {
         this.gatewayAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
@@ -1493,7 +1512,7 @@ export class PortfolioApp {
         });
       }
 
-      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning && !projectsDesired) {
+      if (this.pillChoiceAct && isGatewayStation && !this._isCameraTransitioning && !activeBranchMode) {
         this.pillChoiceAct.update({
           progress: currentProgress,
           pointer: this.pointer || { x: 0, y: 0 },
@@ -1502,10 +1521,32 @@ export class PortfolioApp {
         });
       }
 
+      const redActive = activeBranchMode === 'red';
+      const blueActive = activeBranchMode === 'blue';
+
       if (this.experiencesAct) {
-        this.experiencesAct.setActive(projectsDesired && !this._cameraFlight);
-        this.container?.setAttribute('data-experiences-active', String(projectsDesired));
+        this.experiencesAct.setActive(redActive && !this._cameraFlight);
+        if (this._lastProjectsActiveAttr !== redActive) {
+          this._lastProjectsActiveAttr = redActive;
+          this.container?.setAttribute('data-experiences-active', String(redActive));
+        }
         this.experiencesAct.update(delta, speedFactor);
+      }
+
+      if (this.harnessAct) {
+        const blueSettled = blueActive && !this._cameraFlight;
+        this.harnessAct.setActive(blueSettled);
+        if (this._cameraFlight) {
+          const flightProgress = this._cameraFlight.elapsed / Math.max(0.001, this._cameraFlight.duration);
+          if ((blueActive && flightProgress > 0.35) || this._cameraFlight.leavingBlue) {
+            this.harnessAct.setStageVisible(true);
+          }
+        }
+        if (this._lastHarnessActiveAttr !== blueActive) {
+          this._lastHarnessActiveAttr = blueActive;
+          this.container?.setAttribute('data-harness-active', String(blueActive));
+        }
+        this.harnessAct.update(delta, speedFactor);
       }
 
       if (this.journeyScene) {
@@ -1533,7 +1574,15 @@ export class PortfolioApp {
       const isTopologyResting = !this.topology || (typeof this.topology.isResting === 'function' ? this.topology.isResting() : true);
       const isGatewayResting = !isGatewayStation || !this.gatewayAct || this.gatewayAct.isResting();
       const isPillChoiceResting = !isGatewayStation || !this.pillChoiceAct || this.pillChoiceAct.isResting();
-      const isResting = (!this.experiencesAct || this.experiencesAct.isResting()) && !this._isCameraTransitioning && isTopologyResting && isGatewayResting && isPillChoiceResting && (!this.bioHologram || this.bioHologram.isResting());
+      const isHarnessResting = !this.harnessAct || this.harnessAct.isResting(speedFactor);
+      const isResting =
+        (!this.experiencesAct || this.experiencesAct.isResting()) &&
+        isHarnessResting &&
+        !this._isCameraTransitioning &&
+        isTopologyResting &&
+        isGatewayResting &&
+        isPillChoiceResting &&
+        (!this.bioHologram || this.bioHologram.isResting());
       const shouldSuspend = isHidden || (speedFactor <= 0.0001 && isResting);
 
       if (this.bioHologram?.isVisible()) {
@@ -1561,20 +1610,154 @@ export class PortfolioApp {
     }
   }
 
+  /**
+   * Determines which Act 3 branch owns the camera for the given station and timeline progress.
+   * @returns {'red' | 'blue' | null}
+   * @private
+   */
+  _resolveBranchMode(activeStation, currentProgress) {
+    const isGatewayStation = activeStation?.id === 'gateway';
+    const selectedBranch = this.journeyState?.getBranch();
+    const inAct3Window = isGatewayStation && currentProgress >= 0.6 && currentProgress < 0.8;
+    const isLeavingAct3ToGateway = isGatewayStation &&
+      this._branchCameraOwner === null &&
+      this.scrollEngine &&
+      this.scrollEngine.getTargetProgress() < 0.6;
+
+    if (this.experiencesAct && (activeStation?.id === 'lab' || (inAct3Window && !isLeavingAct3ToGateway && selectedBranch === 'red'))) {
+      return 'red';
+    }
+    if (this.harnessAct && (activeStation?.id === 'arsenal' || (inAct3Window && !isLeavingAct3ToGateway && selectedBranch === 'blue'))) {
+      return 'blue';
+    }
+    return null;
+  }
+
+  /**
+   * Synchronizes ownership of the shared camera between Gateway and Act 3 branches
+   * (Red -> ExperiencesAct, Blue -> HarnessAct), avoiding per-frame allocations once converged.
+   * @private
+   */
+  _syncBranchCamera(activeStation, currentProgress, delta, frameDelta) {
+    const isGatewayStation = activeStation.id === 'gateway';
+    const branchMode = this._resolveBranchMode(activeStation, currentProgress);
+    const activeBranchAct = branchMode === 'red' ? this.experiencesAct : branchMode === 'blue' ? this.harnessAct : null;
+    this._projectsCameraOwned = branchMode === 'red';
+
+    if (branchMode !== this._branchCameraOwner) {
+      this._branchCameraOwner = branchMode;
+      if (activeBranchAct) {
+        const pose = activeBranchAct.getCameraPose(this._scratchBranchPose);
+        this._startCameraFlight(pose.position, pose.target, branchMode);
+      } else if (isGatewayStation && this.gatewayAct) {
+        this._startCameraFlight(this.gatewayAct.act1InteriorCamPos, this.gatewayAct.act1InteriorLookAt, null);
+      }
+    }
+
+    if (activeBranchAct && !this._cameraFlight) {
+      const pose = activeBranchAct.getCameraPose(this._scratchBranchPose);
+      if (this.camera.position.distanceToSquared(pose.position) > 1e-6) {
+        this.camera.position.lerp(pose.position, 1 - Math.exp(-4 * delta));
+      } else {
+        this.camera.position.copy(pose.position);
+      }
+      this._currentCamLookAt.copy(pose.target);
+      this.camera.lookAt(pose.target);
+    }
+
+    // All stations share a camera; the flight owns it until the dolly finishes.
+    if (this._cameraFlight) {
+      this._advanceCameraFlight(delta);
+    }
+
+    return branchMode;
+  }
+
   /** A continuous curved dolly from the actual camera pose, without scene swaps. */
-  _startCameraFlight(position, target, projects = false) {
+  _startCameraFlight(position, target, branchMode = null) {
     if (!this.camera) return;
-    if (!projects && this.getActiveStation().id === 'gateway' && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = true;
+    const normalizedMode = branchMode === true ? 'red' : branchMode === false ? null : branchMode;
+    const inAct3Branch = normalizedMode === 'red' || normalizedMode === 'blue';
+    const leavingBlue = normalizedMode !== 'blue' && Boolean(this.harnessAct?.root?.visible || this.harnessAct?.active);
+    const destProgress = this.scrollEngine
+      ? this.scrollEngine.getTargetProgress()
+      : (this.journeyState?.getProgress() ?? 0.4);
+
+    if (!inAct3Branch && this.getActiveStation().id === 'gateway' && this.pillChoiceAct) {
+      this.pillChoiceAct.rootGroup.visible = destProgress >= 0.22;
+    }
     const start = this.camera.position.clone();
     const direction = this.camera.getWorldDirection(new THREE.Vector3());
     const startLook = start.clone().addScaledVector(direction, 8);
     const end = position.clone();
-    this._targetCamPos.copy(end); this._targetCamLookAt.copy(target);
+    this._targetCamPos.copy(end);
+    this._targetCamLookAt.copy(target);
+
+    let backgroundTarget;
+    if (normalizedMode === 'red') {
+      backgroundTarget = new THREE.Color('#979d9b');
+    } else if (normalizedMode === 'blue') {
+      backgroundTarget = HARNESS_BG_COLOR.clone();
+    } else if (this.getActiveStation().id === 'gateway' && this.gatewayAct) {
+      backgroundTarget = destProgress <= 0.25
+        ? this.gatewayAct._lightRoomColor.clone()
+        : this.gatewayAct._darkRoomColor.clone();
+    } else {
+      backgroundTarget = new THREE.Color('#060b10');
+    }
+
+    let targetFogNear = 100;
+    let targetFogFar = 500;
+    if (normalizedMode === 'blue') {
+      targetFogNear = 26;
+      targetFogFar = 64;
+    } else if (normalizedMode !== 'red' && destProgress <= 0.1) {
+      targetFogNear = 0.77;
+      targetFogFar = 2.32;
+    } else if (normalizedMode !== 'red' && destProgress <= 0.205 && this.getActiveStation().id === 'gateway') {
+      const fogT = Math.max(0, Math.min(destProgress / 0.2, 1.0));
+      targetFogNear = 0.77 + fogT * 50;
+      targetFogFar = 2.32 + fogT * 200;
+    }
+
+    let targetAmbient = null;
+    if (normalizedMode === 'blue') {
+      targetAmbient = 0.55;
+    } else if (leavingBlue) {
+      if (this.getActiveStation().id === 'gateway' && this.gatewayAct) {
+        let dimT = 0;
+        if (destProgress > 0.22 && destProgress <= 0.65) {
+          const rawDim = Math.max(0, Math.min((destProgress - 0.22) / 0.13, 1.0));
+          dimT = rawDim * rawDim * (3 - 2 * rawDim);
+        }
+        targetAmbient = 0.12 * (1 - dimT * 0.97);
+      } else {
+        targetAmbient = 0.9;
+      }
+    }
+
     this._cameraFlight = {
-      elapsed: 0, duration: 1.4, startLook, target: target.clone(), projects,
-      curve: new THREE.CubicBezierCurve3(start, start.clone().lerp(end, .25).add(new THREE.Vector3(0, 1.2, 0)), start.clone().lerp(end, .7).add(new THREE.Vector3(0, 1.4, 0)), end),
+      elapsed: 0,
+      duration: 1.4,
+      startLook,
+      target: target.clone(),
+      branchMode: normalizedMode,
+      projects: inAct3Branch,
+      leavingBlue,
+      curve: new THREE.CubicBezierCurve3(
+        start,
+        start.clone().lerp(end, 0.25).add(new THREE.Vector3(0, 1.2, 0)),
+        start.clone().lerp(end, 0.7).add(new THREE.Vector3(0, 1.4, 0)),
+        end
+      ),
       background: this.scene.background?.isColor ? this.scene.background.clone() : new THREE.Color('#060b10'),
-      backgroundTarget: projects ? new THREE.Color('#979d9b') : (this.getActiveStation().id === 'gateway' && this.gatewayAct ? ((this.journeyState?.getProgress() ?? .4) <= .25 ? this.gatewayAct._lightRoomColor.clone() : this.gatewayAct._darkRoomColor.clone()) : new THREE.Color('#060b10'))
+      backgroundTarget,
+      startFogNear: this.scene.fog ? this.scene.fog.near : targetFogNear,
+      startFogFar: this.scene.fog ? this.scene.fog.far : targetFogFar,
+      targetFogNear,
+      targetFogFar,
+      startAmbient: this.ambientLight ? this.ambientLight.intensity : 0.9,
+      targetAmbient,
     };
     this._isCameraTransitioning = true;
   }
@@ -1591,10 +1774,23 @@ export class PortfolioApp {
       this.scene.background.copy(flight.background).lerp(flight.backgroundTarget, eased);
       this.scene.fog?.color?.copy(this.scene.background);
     }
+    if (this.scene.fog) {
+      this.scene.fog.near = THREE.MathUtils.lerp(flight.startFogNear, flight.targetFogNear, eased);
+      this.scene.fog.far = THREE.MathUtils.lerp(flight.startFogFar, flight.targetFogFar, eased);
+    }
+    if (this.ambientLight && flight.targetAmbient !== null) {
+      this.ambientLight.intensity = THREE.MathUtils.lerp(flight.startAmbient, flight.targetAmbient, eased);
+    }
     if (t === 1) {
-      this._cameraFlight = null; this._isCameraTransitioning = false;
+      this._cameraFlight = null;
+      this._isCameraTransitioning = false;
+      if (flight.leavingBlue && this.harnessAct) {
+        this.harnessAct.setStageVisible(false);
+      }
       if (flight.projects && this.pillChoiceAct) this.pillChoiceAct.rootGroup.visible = false;
-      if (!flight.projects && this.getActiveStation().id === 'gateway') this.gatewayAct?.rebaseCamera(this.camera.position, this._currentCamLookAt);
+      if (!flight.projects && this.getActiveStation().id === 'gateway') {
+        this.gatewayAct?.rebaseCamera(this.camera.position, this._currentCamLookAt);
+      }
     }
   }
 
@@ -1819,15 +2015,28 @@ export class PortfolioApp {
       const targetLookAt = activeStation.camera.target || { x: 0, y: 0, z: 0 };
       this._targetCamPos.set(targetPos.x, targetPos.y, targetPos.z);
       this._targetCamLookAt.set(targetLookAt.x, targetLookAt.y, targetLookAt.z);
-      const wasProjects = Boolean(this._projectsCameraOwned);
-      const projectsLab = activeStation.id === 'lab' && Boolean(this.experiencesAct);
-      this._projectsCameraOwned = projectsLab;
-      const pose = projectsLab
-        ? this.experiencesAct.getCameraPose()
-        : (activeStation.id === 'gateway' && wasProjects && this.gatewayAct)
-          ? { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt }
-          : { position: this._targetCamPos, target: this._targetCamLookAt };
-      this._startCameraFlight(pose.position, pose.target, projectsLab);
+      const wasBranchOwned = Boolean(this._branchCameraOwner);
+      const targetBranchMode =
+        activeStation.id === 'lab' && this.experiencesAct
+          ? 'red'
+          : activeStation.id === 'arsenal' && this.harnessAct
+            ? 'blue'
+            : null;
+      this._branchCameraOwner = targetBranchMode;
+      this._projectsCameraOwned = targetBranchMode === 'red';
+      const destProgress = this.scrollEngine?.snapPoints?.[stationIndex] ??
+        (this.scrollEngine ? this.scrollEngine.getTargetProgress() : 0.4);
+      const pose =
+        targetBranchMode === 'red'
+          ? this.experiencesAct.getCameraPose(this._scratchBranchPose)
+          : targetBranchMode === 'blue'
+            ? this.harnessAct.getCameraPose(this._scratchBranchPose)
+            : (activeStation.id === 'gateway' && wasBranchOwned && this.gatewayAct)
+              ? (destProgress <= 0.25
+                  ? { position: this.gatewayAct.act1EntranceCamPos, target: this.gatewayAct.act1EntranceLookAt }
+                  : { position: this.gatewayAct.act1InteriorCamPos, target: this.gatewayAct.act1InteriorLookAt })
+              : { position: this._targetCamPos, target: this._targetCamLookAt };
+      this._startCameraFlight(pose.position, pose.target, targetBranchMode);
     }
 
     if (this.container) {
@@ -1954,6 +2163,16 @@ export class PortfolioApp {
 
     this.experiencesAct?.dispose();
     this.experiencesAct = null;
+    this.harnessAct?.dispose();
+    this.harnessAct = null;
+    this._projectsCameraOwned = false;
+    this._branchCameraOwner = null;
+    this._lastProjectsActiveAttr = null;
+    this._lastHarnessActiveAttr = null;
+    if (this.container) {
+      this.container.removeAttribute('data-experiences-active');
+      this.container.removeAttribute('data-harness-active');
+    }
 
     if (this.gatewayAct) {
       this.gatewayAct.dispose();

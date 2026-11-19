@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { disposeThreeObject } from '../utils/threeUtils.js';
+import { disposeThreeObject, prewarmSceneStage } from '../utils/threeUtils.js';
 
 const ROOM_NORMALIZED_SIZE = 5.2;
 const ACT0_END_PROGRESS = 0.2;
@@ -26,6 +26,7 @@ export class GatewayAct {
     this.whiteRoomModel = null;
     this.mixer = null;
     this.tvAction = null;
+    this._tvAnimationFrames = [];
     this.lights = [];
     this.isDisposed = false;
     this.elapsedTime = 0;
@@ -64,6 +65,9 @@ export class GatewayAct {
 
     this.parallaxOffset = new THREE.Vector2(0, 0);
     this.targetParallax = new THREE.Vector2(0, 0);
+    this._scratchBaseCamPos = new THREE.Vector3();
+    this._scratchBaseLookAt = new THREE.Vector3();
+    this._scratchHoverScale = new THREE.Vector3();
 
     this.contactShadow = this._createContactShadow();
     if (this.contactShadow && this.scene) {
@@ -360,8 +364,12 @@ export class GatewayAct {
 
     this.tvScreenMesh = null;
     this._dimmableScreenMaterials = [];
+    this._tvAnimationFrames = [];
     let fallbackScreenMesh = null;
     this.whiteRoomModel.traverse((child) => {
+      if (!child.isMesh && /^TV[ _]Screen/i.test(child.name || '')) {
+        this._tvAnimationFrames.push(child);
+      }
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
@@ -371,14 +379,23 @@ export class GatewayAct {
           nameChain += ' ' + (p.name || '');
           p = p.parent;
         }
+        const isAnimatedTvFrame = /^TV[ _]Screen/i.test(child.parent?.name || '');
         const lower = nameChain.toLowerCase();
         if (lower.includes('screen') || lower.includes('tv') || lower.includes('case') || lower.includes('frame') || lower.includes('527')) {
-          child.userData.interactive = 'tv';
-          this.tvInteractiveTargets.push(child);
+          if (!isAnimatedTvFrame || child.parent === this._tvAnimationFrames[0]) {
+            child.userData.interactive = 'tv';
+            this.tvInteractiveTargets.push(child);
+          }
           if (lower.includes('screen_lowb') || lower.includes('527') || child.name === 'Object_527') {
             this.tvScreenMesh = child;
-          } else if (lower.includes('screen') && !fallbackScreenMesh) {
-            fallbackScreenMesh = child;
+            child.castShadow = false;
+            child.receiveShadow = false;
+          } else if (lower.includes('screen')) {
+            child.castShadow = false;
+            child.receiveShadow = false;
+            if (!fallbackScreenMesh) {
+              fallbackScreenMesh = child;
+            }
           }
           if ((lower.includes('screen') || lower.includes('527')) && child.material && typeof child.material.clone === 'function') {
             const clonedMat = child.material.clone();
@@ -418,6 +435,50 @@ export class GatewayAct {
       this.tvLight.position.copy(this.tvReticle.position);
       this.tvLight.position.z += 0.1;
     }
+
+    if (this.mixer) {
+      this.mixer.update(0);
+    }
+    this._syncTvAnimationFrames();
+  }
+
+  /**
+   * Hides inactive stop-motion CRT TV frame nodes positioned 1 cm behind the active screen plane
+   * so Three.js only submits the active front frame each draw pass.
+   * @private
+   */
+  _syncTvAnimationFrames() {
+    if (!this._tvAnimationFrames || this._tvAnimationFrames.length === 0) return;
+    let frontNode = this._tvAnimationFrames[0];
+    let maxZ = -Infinity;
+    for (let i = 0; i < this._tvAnimationFrames.length; i++) {
+      const node = this._tvAnimationFrames[i];
+      node.visible = false;
+      if (node.position.z > maxZ) {
+        maxZ = node.position.z;
+        frontNode = node;
+      }
+    }
+    if (frontNode) {
+      frontNode.visible = true;
+    }
+  }
+
+  /**
+   * Prewarms Gateway White Room shaders and uploads all CRT animation frame textures while loading.
+   * @param {THREE.WebGLRenderer} renderer
+   * @param {THREE.Camera} [preparationCamera=this.camera]
+   */
+  prepare(renderer, preparationCamera = this.camera) {
+    if (!renderer || this.isDisposed || !this.scene || !preparationCamera) return;
+    for (let i = 0; i < this._tvAnimationFrames.length; i++) {
+      this._tvAnimationFrames[i].visible = true;
+    }
+    try {
+      prewarmSceneStage(renderer, this.scene, preparationCamera);
+    } finally {
+      this._syncTvAnimationFrames();
+    }
   }
 
   /**
@@ -441,6 +502,7 @@ export class GatewayAct {
 
     if (this.mixer && speedFactor > 0.0001) {
       this.mixer.update(safeDelta * speedFactor);
+      this._syncTvAnimationFrames();
     }
 
     // Room dimming factor as camera descends from CRT TV (0.22) to Pill Choice (0.35 - 0.65)
@@ -521,21 +583,21 @@ export class GatewayAct {
       }
     }
 
-    let baseCamPos;
-    let baseLookAt;
+    const baseCamPos = this._scratchBaseCamPos;
+    const baseLookAt = this._scratchBaseLookAt;
 
     if (progress <= ACT0_END_PROGRESS) {
       // Act 0 -> Act 1: Turn right from Hitchhiker book into Matrix White Room
       const t = Math.max(0, Math.min(progress / ACT0_END_PROGRESS, 1.0));
       const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      baseCamPos = new THREE.Vector3().lerpVectors(this.act0CamPos, this.act1EntranceCamPos, easedT);
-      baseLookAt = new THREE.Vector3().lerpVectors(this.act0LookAt, this.act1EntranceLookAt, easedT);
+      baseCamPos.lerpVectors(this.act0CamPos, this.act1EntranceCamPos, easedT);
+      baseLookAt.lerpVectors(this.act0LookAt, this.act1EntranceLookAt, easedT);
     } else {
       // Act 1 exploration: subtle forward navigation deeper into the Matrix White Room
       const t = Math.max(0, Math.min((progress - ACT0_END_PROGRESS) / (ACT1_END_PROGRESS - ACT0_END_PROGRESS), 1.0));
       const easedT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      baseCamPos = new THREE.Vector3().lerpVectors(this.act1EntranceCamPos, this.act1InteriorCamPos, easedT);
-      baseLookAt = new THREE.Vector3().lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
+      baseCamPos.lerpVectors(this.act1EntranceCamPos, this.act1InteriorCamPos, easedT);
+      baseLookAt.lerpVectors(this.act1EntranceLookAt, this.act1InteriorLookAt, easedT);
     }
 
     // Leave room above the CRT for its projection, retaining the visible light source.
@@ -612,7 +674,8 @@ export class GatewayAct {
           this.tvReticleMaterials[3].opacity = 0.70 * pulse; // center
         }
         const hoverScale = this.isTvHovered ? 1.08 : 1.0;
-        this.tvReticle.scale.lerp(new THREE.Vector3(hoverScale, hoverScale, 1.0), 0.2);
+        this._scratchHoverScale.set(hoverScale, hoverScale, 1.0);
+        this.tvReticle.scale.lerp(this._scratchHoverScale, 0.2);
       }
     }
   }
@@ -751,6 +814,8 @@ export class GatewayAct {
    */
   dispose() {
     this.isDisposed = true;
+    this._tvAnimationFrames = [];
+    this._dimmableScreenMaterials = [];
     if (this.shadowFloor) {
       this.scene?.remove(this.shadowFloor);
       disposeThreeObject(this.shadowFloor);

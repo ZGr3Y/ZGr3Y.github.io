@@ -42,6 +42,10 @@ export class PillChoiceAct {
     this._flightHome = null;
     this._flightStart = new THREE.Vector3();
     this._flightTarget = new THREE.Vector3();
+    this._glitchDummy = new THREE.Object3D();
+    this._glitchScratchColor = new THREE.Color();
+    this._redGlitchInstanced = null;
+    this._redGlitchShards = [];
 
     this.raycaster = new THREE.Raycaster();
     this.raycastTargets = [];
@@ -101,6 +105,7 @@ export class PillChoiceAct {
     this._effectObjects = [];
     for (const group of [this.blueWispsGroup, this.redGlitchGroup]) {
       group.children.forEach((object, index) => {
+        if (object.isInstancedMesh) return;
         const red = group === this.redGlitchGroup;
         const darkCutout = red && object.material.color?.r < .02 && object.material.color?.g < .02;
         object.material.opacity *= darkCutout ? 0 : red ? .28 : .65;
@@ -550,9 +555,10 @@ export class PillChoiceAct {
     coreMesh.position.set(0.01, 0.01, -0.03);
     glitchGroup.add(coreMesh);
 
-    // Cybernetic horizontal glitch scanline bars & dark cutout artifacts clustered around the palm hollow
+    // Cybernetic horizontal glitch scanline bars batched into a single InstancedMesh draw call
     const glitchPalette = [0xff3b30, 0xef4444, 0xf97316, 0xfb923c, 0xdc2626];
     const shardCount = 58;
+    const shardConfigs = [];
 
     for (let i = 0; i < shardCount; i++) {
       const s1 = Math.sin(i * 19.13) * 10000;
@@ -564,31 +570,47 @@ export class PillChoiceAct {
 
       const angle = r1 * Math.PI * 2;
       const isDarkGlitch = i % 4 === 0;
-      // Enforce clearance outside the Red Pill capsule silhouette so the pill is 100% unoccluded
-      const minRadius = isDarkGlitch ? 0.056 : 0.045;
-      const dist = minRadius + Math.pow(r2, 1.15) * 0.145;
-      const w = isDarkGlitch ? (0.018 + r3 * 0.034) : (0.010 + r3 * 0.028);
-      const h = isDarkGlitch ? (0.004 + r1 * 0.006) : (0.0025 + r1 * 0.0045);
+      // Dark cutout shards settle to opacity=0 in constructor; omit them so no invisible quads draw.
+      if (isDarkGlitch) continue;
 
-      const shardGeo = new THREE.PlaneGeometry(w, h);
+      // Enforce clearance outside the Red Pill capsule silhouette so the pill is 100% unoccluded
+      const dist = 0.045 + Math.pow(r2, 1.15) * 0.145;
+      const w = 0.010 + r3 * 0.028;
+      const h = 0.0025 + r1 * 0.0045;
+
+      shardConfigs.push({
+        x: Math.cos(angle) * dist * 1.12,
+        y: Math.sin(angle) * dist * 0.92 + 0.015,
+        z: 0.004 + (r3 - 0.4) * 0.03,
+        w,
+        h,
+        rotZ: i % 5 !== 0 ? 0 : (0.45 + r2 * 0.35),
+        color: new THREE.Color(glitchPalette[i % glitchPalette.length]),
+        baseOpacity: (0.62 + r3 * 0.32) * 0.28,
+        phase: (i + 1) * 0.73
+      });
+    }
+
+    if (shardConfigs.length > 0) {
+      const shardGeo = new THREE.PlaneGeometry(1, 1);
       const shardMat = new THREE.MeshBasicMaterial({
-        color: isDarkGlitch ? 0x07080c : glitchPalette[i % glitchPalette.length],
+        color: 0xffffff,
         transparent: true,
-        opacity: isDarkGlitch ? 0.88 : (0.62 + r3 * 0.32),
-        blending: isDarkGlitch ? THREE.NormalBlending : THREE.AdditiveBlending,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
         depthWrite: false
       });
+      const shardInstanced = new THREE.InstancedMesh(shardGeo, shardMat, shardConfigs.length);
+      shardInstanced.name = 'RedPillGlitchShardsInstanced';
+      shardInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-      const shard = new THREE.Mesh(shardGeo, shardMat);
-      shard.position.set(
-        Math.cos(angle) * dist * 1.12,
-        Math.sin(angle) * dist * 0.92 + 0.015,
-        isDarkGlitch ? -0.015 : (0.004 + (r3 - 0.4) * 0.03)
-      );
-      // Horizontal scanline glitch bars with occasional angled ember streaks
-      shard.rotation.z = (i % 5 !== 0 || isDarkGlitch) ? 0 : (0.45 + r2 * 0.35);
-      glitchGroup.add(shard);
+      this._syncGlitchShardInstances(shardInstanced, shardConfigs);
+      shardInstanced.computeBoundingSphere();
+
+      this._redGlitchInstanced = shardInstanced;
+      this._redGlitchShards = shardConfigs;
+      glitchGroup.add(shardInstanced);
     }
 
     // Softly feathered fiery orange-gold flame/ember bursts across the splayed fingers and right edge
@@ -1090,6 +1112,39 @@ export class PillChoiceAct {
         object.rotation.z = rotation + wave * (blue ? 0.035 : 0.025);
       }
     }
+
+    this._syncGlitchShardInstances(this._redGlitchInstanced, this._redGlitchShards, time);
+  }
+
+  /**
+   * Syncs transforms and per-instance colors on the instanced red glitch shard mesh.
+   * When `time` is provided, applies idle wave shimmer and opacity modulation.
+   */
+  _syncGlitchShardInstances(instancedMesh, shards, time = null) {
+    if (!instancedMesh || shards.length === 0) return;
+    const dummy = this._glitchDummy;
+    const scratchColor = this._glitchScratchColor;
+    const animated = time !== null;
+
+    for (let i = 0; i < shards.length; i++) {
+      const s = shards[i];
+      const wave = animated ? Math.sin(time * 2.2 + s.phase) : 0;
+      const opacity = animated ? s.baseOpacity * (0.65 + wave * 0.35) : s.baseOpacity;
+      dummy.position.set(
+        animated ? s.x + wave * 0.004 : s.x,
+        animated ? s.y + Math.cos(time * 0.7 + s.phase) * 0.002 : s.y,
+        s.z
+      );
+      dummy.rotation.set(0, 0, animated ? s.rotZ + wave * 0.025 : s.rotZ);
+      dummy.scale.set(s.w, s.h, 1);
+      dummy.updateMatrix();
+      instancedMesh.setMatrixAt(i, dummy.matrix);
+      instancedMesh.setColorAt(i, scratchColor.copy(s.color).multiplyScalar(opacity));
+    }
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    if (instancedMesh.instanceColor) {
+      instancedMesh.instanceColor.needsUpdate = true;
+    }
   }
 
   /**
@@ -1286,6 +1341,12 @@ export class PillChoiceAct {
       });
       this.lights = [];
     }
+
+    if (this._redGlitchInstanced) {
+      this._redGlitchInstanced.dispose?.();
+      this._redGlitchInstanced = null;
+    }
+    this._redGlitchShards = [];
 
     if (this.rootGroup) {
       disposeThreeObject(this.rootGroup);
